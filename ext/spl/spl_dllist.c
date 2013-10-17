@@ -611,7 +611,7 @@ SPL_METHOD(SplDoublyLinkedList, pop)
 	value = (zval *)spl_ptr_llist_pop(intern->llist TSRMLS_CC);
 
 	if (value == NULL) {
-		zend_throw_exception(spl_ce_RuntimeException, "Can't pop from an empty datastructure", 0 TSRMLS_CC);
+		zend_throw_exception(spl_ce_EmptyException, "Can't pop from an empty datastructure", 0 TSRMLS_CC);
 		return;
 	}
 
@@ -634,7 +634,7 @@ SPL_METHOD(SplDoublyLinkedList, shift)
 	value  = (zval *)spl_ptr_llist_shift(intern->llist TSRMLS_CC);
 
 	if (value == NULL) {
-		zend_throw_exception(spl_ce_RuntimeException, "Can't shift from an empty datastructure", 0 TSRMLS_CC);
+		zend_throw_exception(spl_ce_EmptyException, "Can't shift from an empty datastructure", 0 TSRMLS_CC);
 		return;
 	}
 
@@ -657,7 +657,7 @@ SPL_METHOD(SplDoublyLinkedList, top)
 	value  = (zval *)spl_ptr_llist_last(intern->llist);
 
 	if (value == NULL) {
-		zend_throw_exception(spl_ce_RuntimeException, "Can't peek at an empty datastructure", 0 TSRMLS_CC);
+		zend_throw_exception(spl_ce_EmptyException, "Can't peek at an empty datastructure", 0 TSRMLS_CC);
 		return;
 	}
 
@@ -680,7 +680,7 @@ SPL_METHOD(SplDoublyLinkedList, bottom)
 	value  = (zval *)spl_ptr_llist_first(intern->llist);
 
 	if (value == NULL) {
-		zend_throw_exception(spl_ce_RuntimeException, "Can't peek at an empty datastructure", 0 TSRMLS_CC);
+		zend_throw_exception(spl_ce_EmptyException, "Can't peek at an empty datastructure", 0 TSRMLS_CC);
 		return;
 	}
 
@@ -734,7 +734,7 @@ SPL_METHOD(SplDoublyLinkedList, setIteratorMode)
 
 	if (intern->flags & SPL_DLLIST_IT_FIX
 		&& (intern->flags & SPL_DLLIST_IT_LIFO) != (value & SPL_DLLIST_IT_LIFO)) {
-		zend_throw_exception(spl_ce_RuntimeException, "Iterators' LIFO/FIFO modes for SplStack/SplQueue objects are frozen", 0 TSRMLS_CC);
+		zend_throw_exception(spl_ce_StateException, "Iterators' LIFO/FIFO modes for SplStack/SplQueue objects are frozen", 0 TSRMLS_CC);
 		return;
 	}
 

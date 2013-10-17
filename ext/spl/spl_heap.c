@@ -624,7 +624,7 @@ SPL_METHOD(SplHeap, insert)
 	intern = (spl_heap_object*)zend_object_store_get_object(getThis() TSRMLS_CC);
 
 	if (intern->heap->flags & SPL_HEAP_CORRUPTED) {
-		zend_throw_exception(spl_ce_RuntimeException, "Heap is corrupted, heap properties are no longer ensured.", 0 TSRMLS_CC);
+		zend_throw_exception(spl_ce_StateException, "Heap is corrupted, heap properties are no longer ensured.", 0 TSRMLS_CC);
 		return;
 	}
 
@@ -650,14 +650,14 @@ SPL_METHOD(SplHeap, extract)
 	intern = (spl_heap_object*)zend_object_store_get_object(getThis() TSRMLS_CC);
 
 	if (intern->heap->flags & SPL_HEAP_CORRUPTED) {
-		zend_throw_exception(spl_ce_RuntimeException, "Heap is corrupted, heap properties are no longer ensured.", 0 TSRMLS_CC);
+		zend_throw_exception(spl_ce_StateException, "Heap is corrupted, heap properties are no longer ensured.", 0 TSRMLS_CC);
 		return;
 	}
 
 	value  = (zval *)spl_ptr_heap_delete_top(intern->heap, getThis() TSRMLS_CC);
 
 	if (!value) {
-		zend_throw_exception(spl_ce_RuntimeException, "Can't extract from an empty heap", 0 TSRMLS_CC);
+		zend_throw_exception(spl_ce_EmptyException, "Can't extract from an empty heap", 0 TSRMLS_CC);
 		return;
 	}
 
@@ -679,7 +679,7 @@ SPL_METHOD(SplPriorityQueue, insert)
 	intern = (spl_heap_object*)zend_object_store_get_object(getThis() TSRMLS_CC);
 
 	if (intern->heap->flags & SPL_HEAP_CORRUPTED) {
-		zend_throw_exception(spl_ce_RuntimeException, "Heap is corrupted, heap properties are no longer ensured.", 0 TSRMLS_CC);
+		zend_throw_exception(spl_ce_StateException, "Heap is corrupted, heap properties are no longer ensured.", 0 TSRMLS_CC);
 		return;
 	}
 
@@ -712,14 +712,14 @@ SPL_METHOD(SplPriorityQueue, extract)
 	intern = (spl_heap_object*)zend_object_store_get_object(getThis() TSRMLS_CC);
 
 	if (intern->heap->flags & SPL_HEAP_CORRUPTED) {
-		zend_throw_exception(spl_ce_RuntimeException, "Heap is corrupted, heap properties are no longer ensured.", 0 TSRMLS_CC);
+		zend_throw_exception(spl_ce_StateException, "Heap is corrupted, heap properties are no longer ensured.", 0 TSRMLS_CC);
 		return;
 	}
 
 	value  = (zval *)spl_ptr_heap_delete_top(intern->heap, getThis() TSRMLS_CC);
 
 	if (!value) {
-		zend_throw_exception(spl_ce_RuntimeException, "Can't extract from an empty heap", 0 TSRMLS_CC);
+		zend_throw_exception(spl_ce_EmptyException, "Can't extract from an empty heap", 0 TSRMLS_CC);
 		return;
 	}
 
@@ -755,14 +755,14 @@ SPL_METHOD(SplPriorityQueue, top)
 	intern = (spl_heap_object*)zend_object_store_get_object(getThis() TSRMLS_CC);
 
 	if (intern->heap->flags & SPL_HEAP_CORRUPTED) {
-		zend_throw_exception(spl_ce_RuntimeException, "Heap is corrupted, heap properties are no longer ensured.", 0 TSRMLS_CC);
+		zend_throw_exception(spl_ce_StateException, "Heap is corrupted, heap properties are no longer ensured.", 0 TSRMLS_CC);
 		return;
 	}
 
 	value  = (zval *)spl_ptr_heap_top(intern->heap);
 
 	if (!value) {
-		zend_throw_exception(spl_ce_RuntimeException, "Can't peek at an empty heap", 0 TSRMLS_CC);
+		zend_throw_exception(spl_ce_EmptyException, "Can't peek at an empty heap", 0 TSRMLS_CC);
 		return;
 	}
 
@@ -842,14 +842,14 @@ SPL_METHOD(SplHeap, top)
 	intern = (spl_heap_object*)zend_object_store_get_object(getThis() TSRMLS_CC);
 
 	if (intern->heap->flags & SPL_HEAP_CORRUPTED) {
-		zend_throw_exception(spl_ce_RuntimeException, "Heap is corrupted, heap properties are no longer ensured.", 0 TSRMLS_CC);
+		zend_throw_exception(spl_ce_StateException, "Heap is corrupted, heap properties are no longer ensured.", 0 TSRMLS_CC);
 		return;
 	}
 
 	value  = (zval *)spl_ptr_heap_top(intern->heap);
 
 	if (!value) {
-		zend_throw_exception(spl_ce_RuntimeException, "Can't peek at an empty heap", 0 TSRMLS_CC);
+		zend_throw_exception(spl_ce_EmptyException, "Can't peek at an empty heap", 0 TSRMLS_CC);
 		return;
 	}
 
@@ -916,7 +916,7 @@ static void spl_heap_it_get_current_data(zend_object_iterator *iter, zval ***dat
 	zval        **element  = (zval **)&iterator->object->heap->elements[0];
 
 	if (iterator->object->heap->flags & SPL_HEAP_CORRUPTED) {
-		zend_throw_exception(spl_ce_RuntimeException, "Heap is corrupted, heap properties are no longer ensured.", 0 TSRMLS_CC);
+		zend_throw_exception(spl_ce_StateException, "Heap is corrupted, heap properties are no longer ensured.", 0 TSRMLS_CC);
 		return;
 	}
 
@@ -934,7 +934,7 @@ static void spl_pqueue_it_get_current_data(zend_object_iterator *iter, zval ***d
 	zval        **element  = (zval **)&iterator->object->heap->elements[0];
 
 	if (iterator->object->heap->flags & SPL_HEAP_CORRUPTED) {
-		zend_throw_exception(spl_ce_RuntimeException, "Heap is corrupted, heap properties are no longer ensured.", 0 TSRMLS_CC);
+		zend_throw_exception(spl_ce_StateException, "Heap is corrupted, heap properties are no longer ensured.", 0 TSRMLS_CC);
 		return;
 	}
 
@@ -964,7 +964,7 @@ static void spl_heap_it_move_forward(zend_object_iterator *iter TSRMLS_DC) /* {{
 	spl_ptr_heap_element elem;
 
 	if (iterator->object->heap->flags & SPL_HEAP_CORRUPTED) {
-		zend_throw_exception(spl_ce_RuntimeException, "Heap is corrupted, heap properties are no longer ensured.", 0 TSRMLS_CC);
+		zend_throw_exception(spl_ce_StateException, "Heap is corrupted, heap properties are no longer ensured.", 0 TSRMLS_CC);
 		return;
 	}
 

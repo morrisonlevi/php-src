@@ -1205,9 +1205,9 @@ static void spl_multiple_iterator_get_all(spl_SplObjectStorage *intern, int get_
 			}
 		} else if (intern->flags & MIT_NEED_ALL) {
 			if (SPL_MULTIPLE_ITERATOR_GET_ALL_CURRENT == get_type) {
-				zend_throw_exception(spl_ce_RuntimeException, "Called current() with non valid sub iterator", 0 TSRMLS_CC);
+				zend_throw_exception(spl_ce_StateException, "Called current() with non valid sub iterator", 0 TSRMLS_CC);
 			} else {
-				zend_throw_exception(spl_ce_RuntimeException, "Called key() with non valid sub iterator", 0 TSRMLS_CC);
+				zend_throw_exception(spl_ce_StateException, "Called key() with non valid sub iterator", 0 TSRMLS_CC);
 			}
 			return;
 		} else {

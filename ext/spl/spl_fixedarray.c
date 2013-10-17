@@ -242,7 +242,7 @@ static zend_object_value spl_fixedarray_object_new_ex(zend_class_entry *class_ty
 		intern->ce_get_iterator = other->ce_get_iterator;
 		if (!other->array) {
 			/* leave a empty object, will be dtor later by CLONE handler */
-			zend_throw_exception(spl_ce_RuntimeException, "The instance wasn't initialized properly", 0 TSRMLS_CC);
+			zend_throw_exception(spl_ce_StateException, "The instance wasn't initialized properly", 0 TSRMLS_CC);
 		} else {
 			intern->array = emalloc(sizeof(spl_fixedarray));
 			spl_fixedarray_init(intern->array, other->array->size TSRMLS_CC);

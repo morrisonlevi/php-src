@@ -193,9 +193,11 @@ PHP_FUNCTION(class_uses)
 	SPL_ADD_CLASS(Countable, z_list, sub, allow, ce_flags); \
 	SPL_ADD_CLASS(DirectoryIterator, z_list, sub, allow, ce_flags); \
 	SPL_ADD_CLASS(DomainException, z_list, sub, allow, ce_flags); \
+	SPL_ADD_CLASS(EmptyException, z_list, sub, allow, ce_flags); \
 	SPL_ADD_CLASS(EmptyIterator, z_list, sub, allow, ce_flags); \
 	SPL_ADD_CLASS(FilesystemIterator, z_list, sub, allow, ce_flags); \
 	SPL_ADD_CLASS(FilterIterator, z_list, sub, allow, ce_flags); \
+	SPL_ADD_CLASS(FullException, z_list, sub, allow, ce_flags); \
 	SPL_ADD_CLASS(GlobIterator, z_list, sub, allow, ce_flags); \
 	SPL_ADD_CLASS(InfiniteIterator, z_list, sub, allow, ce_flags); \
 	SPL_ADD_CLASS(InvalidArgumentException, z_list, sub, allow, ce_flags); \
@@ -208,7 +210,6 @@ PHP_FUNCTION(class_uses)
 	SPL_ADD_CLASS(OuterIterator, z_list, sub, allow, ce_flags); \
 	SPL_ADD_CLASS(OutOfBoundsException, z_list, sub, allow, ce_flags); \
 	SPL_ADD_CLASS(OutOfRangeException, z_list, sub, allow, ce_flags); \
-	SPL_ADD_CLASS(OverflowException, z_list, sub, allow, ce_flags); \
 	SPL_ADD_CLASS(ParentIterator, z_list, sub, allow, ce_flags); \
 	SPL_ADD_CLASS(RangeException, z_list, sub, allow, ce_flags); \
 	SPL_ADD_CLASS(RecursiveArrayIterator, z_list, sub, allow, ce_flags); \
@@ -237,7 +238,7 @@ PHP_FUNCTION(class_uses)
 	SPL_ADD_CLASS(SplStack, z_list, sub, allow, ce_flags); \
 	SPL_ADD_CLASS(SplSubject, z_list, sub, allow, ce_flags); \
 	SPL_ADD_CLASS(SplTempFileObject, z_list, sub, allow, ce_flags); \
-	SPL_ADD_CLASS(UnderflowException, z_list, sub, allow, ce_flags); \
+	SPL_ADD_CLASS(StateException, z_list, sub, allow, ce_flags); \
 	SPL_ADD_CLASS(UnexpectedValueException, z_list, sub, allow, ce_flags); \
 
 /* {{{ proto array spl_classes()

@@ -42,10 +42,12 @@ PHPAPI zend_class_entry *spl_ce_LengthException;
 PHPAPI zend_class_entry *spl_ce_OutOfRangeException;
 PHPAPI zend_class_entry *spl_ce_RuntimeException;
 PHPAPI zend_class_entry *spl_ce_OutOfBoundsException;
-PHPAPI zend_class_entry *spl_ce_OverflowException;
 PHPAPI zend_class_entry *spl_ce_RangeException;
-PHPAPI zend_class_entry *spl_ce_UnderflowException;
 PHPAPI zend_class_entry *spl_ce_UnexpectedValueException;
+
+PHPAPI zend_class_entry *spl_ce_StateException;
+PHPAPI zend_class_entry *spl_ce_EmptyException;
+PHPAPI zend_class_entry *spl_ce_FullException;
 
 #define spl_ce_Exception zend_exception_get_default(TSRMLS_C)
 
@@ -62,10 +64,15 @@ PHP_MINIT_FUNCTION(spl_exceptions)
 
     REGISTER_SPL_SUB_CLASS_EX(RuntimeException,         Exception,        NULL, NULL);
     REGISTER_SPL_SUB_CLASS_EX(OutOfBoundsException,     RuntimeException, NULL, NULL);
-    REGISTER_SPL_SUB_CLASS_EX(OverflowException,        RuntimeException, NULL, NULL);
     REGISTER_SPL_SUB_CLASS_EX(RangeException,           RuntimeException, NULL, NULL);
-    REGISTER_SPL_SUB_CLASS_EX(UnderflowException,       RuntimeException, NULL, NULL);
     REGISTER_SPL_SUB_CLASS_EX(UnexpectedValueException, RuntimeException, NULL, NULL);
+
+    REGISTER_SPL_SUB_CLASS_EX(StateException,           RuntimeException, NULL, NULL);
+    REGISTER_SPL_SUB_CLASS_EX(EmptyException,           StateException,   NULL, NULL);
+    REGISTER_SPL_SUB_CLASS_EX(FullException,            StateException,   NULL, NULL);
+
+    zend_register_class_alias("OverflowException", spl_ce_FullException);
+    zend_register_class_alias("UnderflowException", spl_ce_EmptyException);
 
 	return SUCCESS;
 }
