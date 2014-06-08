@@ -31,6 +31,26 @@ ZEND_DECLARE_MODULE_GLOBALS(filter)
 
 #include "filter_private.h"
 
+#define FILTER_RETURN_ZVAL_FAILURE(zval, flags)	\
+	if (flags & FILTER_NULL_ON_FAILURE) {	\
+		ZVAL_NULL(zval);	\
+	} else {	\
+		ZVAL_FALSE(zval);	\
+	}	\
+	return;
+
+
+/* The FILTER_NULL_ON_FAILURE flag inverts the usual return values of the
+ * function: normally when validation fails false is returned, and when the
+ * input value doesn't exist NULL is returned. With the flag set, NULL and
+ * false should be returned, respectively. Ergo, although the code below looks
+ * incorrect, it's actually right. */
+#define FILTER_RETURN_INVERTED_FAILURE(flags)	\
+	if (flags & FILTER_NULL_ON_FAILURE) {	\
+		RETURN_FALSE;	\
+	}	\
+	RETURN_NULL();
+
 typedef struct filter_list_entry {
 	const char *name;
 	int    id;
@@ -380,8 +400,7 @@ static void php_zval_filter(zval **value, long filter, long flags, zval *options
 
 		ce = Z_OBJCE_PP(value);
 		if (!ce->__tostring) {
-			ZVAL_FALSE(*value);
-			return;
+			FILTER_RETURN_ZVAL_FAILURE(*value, flags);
 		}
 	}
 
@@ -640,12 +659,7 @@ static void php_filter_call(zval **filtered, long filter, zval **filter_args, co
 				SEPARATE_ZVAL(filtered);
 			}
 			zval_dtor(*filtered);
-			if (filter_flags & FILTER_NULL_ON_FAILURE) {
-				ZVAL_NULL(*filtered);
-			} else {
-				ZVAL_FALSE(*filtered);
-			}
-			return;
+			FILTER_RETURN_ZVAL_FAILURE(*filtered, filter_flags);
 		}
 		php_zval_filter_recursive(filtered, filter, filter_flags, options, charset, copy TSRMLS_CC);
 		return;
@@ -655,12 +669,7 @@ static void php_filter_call(zval **filtered, long filter, zval **filter_args, co
 			SEPARATE_ZVAL(filtered);
 		}
 		zval_dtor(*filtered);
-		if (filter_flags & FILTER_NULL_ON_FAILURE) {
-			ZVAL_NULL(*filtered);
-		} else {
-			ZVAL_FALSE(*filtered);
-		}
-		return;
+		FILTER_RETURN_ZVAL_FAILURE(*filtered, filter_flags);
 	}
 
 	php_zval_filter(filtered, filter, filter_flags, options, charset, copy TSRMLS_CC);
@@ -772,16 +781,7 @@ PHP_FUNCTION(filter_input)
 			}
 		}
 
-		/* The FILTER_NULL_ON_FAILURE flag inverts the usual return values of
-		 * the function: normally when validation fails false is returned, and
-		 * when the input value doesn't exist NULL is returned. With the flag
-		 * set, NULL and false should be returned, respectively. Ergo, although
-		 * the code below looks incorrect, it's actually right. */
-		if (filter_flags & FILTER_NULL_ON_FAILURE) {
-			RETURN_FALSE;
-		} else {
-			RETURN_NULL();
-		}
+		FILTER_RETURN_INVERTED_FAILURE(filter_flags);
 	}
 
 	MAKE_COPY_ZVAL(tmp, return_value);
@@ -845,16 +845,7 @@ PHP_FUNCTION(filter_input_array)
 			}
 		}
 
-		/* The FILTER_NULL_ON_FAILURE flag inverts the usual return values of
-		 * the function: normally when validation fails false is returned, and
-		 * when the input value doesn't exist NULL is returned. With the flag
-		 * set, NULL and false should be returned, respectively. Ergo, although
-		 * the code below looks incorrect, it's actually right. */
-		if (filter_flags & FILTER_NULL_ON_FAILURE) {
-			RETURN_FALSE;
-		} else {
-			RETURN_NULL();
-		}
+		FILTER_RETURN_INVERTED_FAILURE(filter_flags);
 	}
 
 	php_filter_array_handler(array_input, op, return_value, add_empty TSRMLS_CC);
