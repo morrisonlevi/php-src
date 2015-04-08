@@ -460,6 +460,7 @@ static void zend_ast_destroy_ex(zend_ast *ast, zend_bool free) {
 		case ZEND_AST_CLOSURE:
 		case ZEND_AST_METHOD:
 		case ZEND_AST_CLASS:
+		case ZEND_AST_ENUM:
 		{
 			zend_ast_decl *decl = (zend_ast_decl *) ast;
 			if (decl->name) {
@@ -811,6 +812,7 @@ static void zend_ast_export_stmt(smart_str *str, zend_ast *ast, int indent)
 			case ZEND_AST_FUNC_DECL:
 			case ZEND_AST_METHOD:
 			case ZEND_AST_CLASS:
+			case ZEND_AST_ENUM:
 			case ZEND_AST_USE_TRAIT:
 			case ZEND_AST_NAMESPACE:
 			case ZEND_AST_DECLARE:
@@ -1059,6 +1061,15 @@ tail_call:
 			smart_str_appends(str, " {\n");
 			zend_ast_export_stmt(str, decl->child[2], indent + 1);
 			zend_ast_export_indent(str, indent);
+			smart_str_appends(str, "}\n");
+			break;
+
+		case ZEND_AST_ENUM:
+			decl = (zend_ast_decl *) ast;
+			smart_str_appends(str, "enum ");
+			smart_str_appendl(str, decl->name->val, decl->name->len);
+			smart_str_appends(str, " {\n");
+			zend_ast_export_name_list(str, (zend_ast_list*) decl->child[0], indent);
 			smart_str_appends(str, "}\n");
 			break;
 
