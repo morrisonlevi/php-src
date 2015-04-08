@@ -197,6 +197,7 @@ static YYSIZE_T zend_yytnamerr(char*, const char*);
 %token T_INTERFACE  "interface (T_INTERFACE)"
 %token T_EXTENDS    "extends (T_EXTENDS)"
 %token T_IMPLEMENTS "implements (T_IMPLEMENTS)"
+%token T_ENUM       "enum (T_ENUM)"
 %token T_OBJECT_OPERATOR "-> (T_OBJECT_OPERATOR)"
 %token T_DOUBLE_ARROW    "=> (T_DOUBLE_ARROW)"
 %token T_LIST            "list (T_LIST)"
@@ -255,6 +256,7 @@ static YYSIZE_T zend_yytnamerr(char*, const char*);
 %type <ast> ctor_arguments alt_if_stmt_without_else trait_adaptation_list lexical_vars
 %type <ast> lexical_var_list encaps_list array_pair_list non_empty_array_pair_list
 %type <ast> assignment_list isset_variable type return_type
+%type <ast> enum_declaration_statement enum_statement_list enum_list
 
 %type <num> returns_ref function is_reference is_variadic variable_modifiers
 %type <num> method_modifiers trait_modifiers non_empty_member_modifiers member_modifier
@@ -290,6 +292,7 @@ top_statement:
 	|	class_declaration_statement			{ $$ = $1; }
 	|	trait_declaration_statement			{ $$ = $1; }
 	|	interface_declaration_statement		{ $$ = $1; }
+	|	enum_declaration_statement		{ $$ = $1; }
 	|	T_HALT_COMPILER '(' ')' ';'
 			{ $$ = zend_ast_create(ZEND_AST_HALT_COMPILER,
 			      zend_ast_create_zval_from_long(zend_get_scanned_file_offset()));
@@ -373,6 +376,7 @@ inner_statement:
 	|	function_declaration_statement 		{ $$ = $1; }
 	|	class_declaration_statement 		{ $$ = $1; }
 	|	trait_declaration_statement			{ $$ = $1; }
+	|	enum_declaration_statement		{ $$ = $1; }
 	|	interface_declaration_statement		{ $$ = $1; }
 	|	T_HALT_COMPILER '(' ')' ';'
 			{ $$ = NULL; zend_error_noreturn(E_COMPILE_ERROR,
@@ -500,6 +504,22 @@ interface_extends_list:
 implements_list:
 		/* empty */				{ $$ = NULL; }
 	|	T_IMPLEMENTS name_list	{ $$ = $2; }
+;
+
+enum_declaration_statement:
+		T_ENUM { $<num>$ = CG(zend_lineno); }
+		T_STRING backup_doc_comment '{' enum_statement_list '}'
+			{ $$ = zend_ast_create_decl(ZEND_AST_ENUM, 0, $<num>2, $4, zend_ast_get_str($3), $6, NULL, NULL, NULL); }
+;
+
+enum_statement_list:
+		/* empty */			{ $$ = NULL; }
+	|	enum_list			{ $$ = $1; }
+;
+
+enum_list:
+		T_STRING			{ $$ = zend_ast_create_list(1, ZEND_AST_NAME_LIST, $1); }
+	|	enum_list ',' T_STRING		{ $$ = zend_ast_list_add($1, $3); }
 ;
 
 foreach_variable:

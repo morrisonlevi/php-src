@@ -31,6 +31,7 @@
 #include "zend_multibyte.h"
 #include "zend_language_scanner.h"
 #include "zend_inheritance.h"
+#include "zend_enum.h"
 
 #define SET_NODE(target, src) do { \
 		target ## _type = (src)->op_type; \
@@ -5044,6 +5045,108 @@ void zend_compile_class_decl(zend_ast *ast) /* {{{ */
 }
 /* }}} */
 
+static void zend_compile_enum_value(zend_class_entry *ce, zend_long ordinal, zend_string *name)
+{
+	zval object_zv;
+	zend_object *std = zend_enum_new(ce);
+	zend_enum *object = zend_enum_fetch_object(std);
+
+	zend_enum_init(object, ordinal, name);
+	ZVAL_OBJ(&object_zv, std);
+	if (zend_hash_add(&ce->constants_table, name, &object_zv) == NULL) {
+		zend_error_noreturn(E_COMPILE_ERROR, "Cannot redefine enum value %s::%s", ce->name->val, name->val);
+	}
+}
+
+static void zend_compile_enum_values(zend_ast_list *ast, zend_class_entry *ce) /* {{{ */
+{
+	int i;
+	for (i = 0; i < ast->children; ++i) {
+		zend_compile_enum_value(ce, i, zend_ast_get_str(ast->child[i]));
+	}
+}
+/* }}} */
+
+static void zend_compile_enum_decl(zend_ast *ast) /* {{{ */
+{
+	zend_ast_decl *decl = (zend_ast_decl*) ast;
+	zend_string *name = decl->name;
+	zend_string *lcname;
+	zend_string *import_name = NULL;
+	zend_class_entry *ce = zend_arena_alloc(&CG(arena), sizeof(zend_class_entry));
+	zend_op *opline;
+	znode declare_node;
+
+	if (CG(active_class_entry)) {
+		zend_error_noreturn(E_COMPILE_ERROR, "Enum declarations may not be nested");
+		return;
+	}
+
+	zend_assert_valid_class_name(name);
+
+	lcname = zend_string_tolower(name);
+
+	if (CG(file_context).imports) {
+		import_name = zend_hash_find_ptr(CG(file_context).imports, lcname);
+	}
+
+	if (CG(current_namespace)) {
+		name = zend_prefix_with_ns(name);
+
+		zend_string_release(lcname);
+		lcname = zend_string_tolower(name);
+	} else {
+		zend_string_addref(name);
+	}
+
+	if (import_name && !zend_string_equals_ci(lcname, import_name)) {
+		zend_error_noreturn(E_COMPILE_ERROR, "Cannot declare enum %s because the name is already in use", name->val);
+	}
+
+	name = zend_new_interned_string(name);
+	lcname = zend_new_interned_string(lcname);
+
+	ce->type = ZEND_USER_CLASS;
+	ce->name = name;
+	zend_initialize_class_data(ce, 1);
+	ce->constants_table.pDestructor = &zval_ptr_dtor_nogc_wrapper;
+	ce->ce_flags |= ZEND_ACC_FINAL;
+	ce->create_object = &zend_enum_new;
+
+	ce->info.user.filename = zend_get_compiled_filename();
+	ce->info.user.line_start = decl->start_lineno;
+	ce->info.user.line_end = decl->end_lineno;
+	if (decl->doc_comment) {
+		ce->info.user.doc_comment = zend_string_copy(decl->doc_comment);
+	}
+
+	opline = get_next_op(CG(active_op_array));
+	zend_make_var_result(&declare_node, opline);
+
+	// TODO.AST drop this
+	GET_NODE(&CG(implementing_class), opline->result);
+
+	opline->op2_type = IS_CONST;
+	LITERAL_STR(opline->op2, lcname);
+	opline->opcode = ZEND_DECLARE_CLASS;
+
+	{
+		zend_string *key = zend_build_runtime_definition_key(lcname, decl->lex_pos);
+
+		opline->op1_type = IS_CONST;
+		LITERAL_STR(opline->op1, key);
+
+		zend_hash_update_ptr(CG(class_table), key, ce);
+	}
+
+	zend_enum_inherit_methods(ce);
+
+	if (decl->child[0]) {
+		zend_compile_enum_values(zend_ast_get_list(decl->child[0]), ce);
+	}
+}
+/* }}} */
+
 static HashTable *zend_get_import_ht(uint32_t type) /* {{{ */
 {
 	zend_file_context *ctx = &CG(file_context);
@@ -6747,6 +6850,9 @@ void zend_compile_stmt(zend_ast *ast) /* {{{ */
 			break;
 		case ZEND_AST_CLASS:
 			zend_compile_class_decl(ast);
+			break;
+		case ZEND_AST_ENUM:
+			zend_compile_enum_decl(ast);
 			break;
 		case ZEND_AST_GROUP_USE:
 			zend_compile_group_use(ast);
