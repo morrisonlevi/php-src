@@ -7809,7 +7809,10 @@ static ZEND_OPCODE_HANDLER_RET ZEND_FASTCALL ZEND_VERIFY_RETURN_TYPE_SPEC_CONST_
 
 	SAVE_OPLINE();
 	if (IS_CONST == IS_UNUSED) {
-		zend_verify_missing_return_type(EX(func));
+		zend_arg_info *ret_info = EX(func)->common.arg_info - 1;
+		if (ret_info->type_hint != IS_NULL) {
+			zend_verify_missing_return_type(EX(func));
+		}
 	} else {
 /* prevents "undefined variable opline" errors */
 #if 0 || (IS_CONST != IS_UNUSED)
@@ -13430,7 +13433,10 @@ static ZEND_OPCODE_HANDLER_RET ZEND_FASTCALL ZEND_VERIFY_RETURN_TYPE_SPEC_TMP_UN
 
 	SAVE_OPLINE();
 	if (IS_TMP_VAR == IS_UNUSED) {
-		zend_verify_missing_return_type(EX(func));
+		zend_arg_info *ret_info = EX(func)->common.arg_info - 1;
+		if (ret_info->type_hint != IS_NULL) {
+			zend_verify_missing_return_type(EX(func));
+		}
 	} else {
 /* prevents "undefined variable opline" errors */
 #if 0 || (IS_TMP_VAR != IS_UNUSED)
@@ -19189,7 +19195,10 @@ static ZEND_OPCODE_HANDLER_RET ZEND_FASTCALL ZEND_VERIFY_RETURN_TYPE_SPEC_VAR_UN
 
 	SAVE_OPLINE();
 	if (IS_VAR == IS_UNUSED) {
-		zend_verify_missing_return_type(EX(func));
+		zend_arg_info *ret_info = EX(func)->common.arg_info - 1;
+		if (ret_info->type_hint != IS_NULL) {
+			zend_verify_missing_return_type(EX(func));
+		}
 	} else {
 /* prevents "undefined variable opline" errors */
 #if 0 || (IS_VAR != IS_UNUSED)
@@ -25133,7 +25142,10 @@ static ZEND_OPCODE_HANDLER_RET ZEND_FASTCALL ZEND_VERIFY_RETURN_TYPE_SPEC_UNUSED
 
 	SAVE_OPLINE();
 	if (IS_UNUSED == IS_UNUSED) {
-		zend_verify_missing_return_type(EX(func));
+		zend_arg_info *ret_info = EX(func)->common.arg_info - 1;
+		if (ret_info->type_hint != IS_NULL) {
+			zend_verify_missing_return_type(EX(func));
+		}
 	} else {
 /* prevents "undefined variable opline" errors */
 #if 0 || (IS_UNUSED != IS_UNUSED)
@@ -34777,7 +34789,10 @@ static ZEND_OPCODE_HANDLER_RET ZEND_FASTCALL ZEND_VERIFY_RETURN_TYPE_SPEC_CV_UNU
 
 	SAVE_OPLINE();
 	if (IS_CV == IS_UNUSED) {
-		zend_verify_missing_return_type(EX(func));
+		zend_arg_info *ret_info = EX(func)->common.arg_info - 1;
+		if (ret_info->type_hint != IS_NULL) {
+			zend_verify_missing_return_type(EX(func));
+		}
 	} else {
 /* prevents "undefined variable opline" errors */
 #if 0 || (IS_CV != IS_UNUSED)

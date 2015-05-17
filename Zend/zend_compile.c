@@ -186,10 +186,16 @@ typedef struct _scalar_typehint_info {
 } scalar_typehint_info;
 
 static const scalar_typehint_info scalar_typehints[] = {
+	/* Scalars */
 	{"int", sizeof("int") - 1, IS_LONG},
 	{"float", sizeof("float") - 1, IS_DOUBLE},
 	{"string", sizeof("string") - 1, IS_STRING},
 	{"bool", sizeof("bool") - 1, _IS_BOOL},
+
+	/* Null */
+	{"null", sizeof("null") - 1, IS_NULL},
+
+	/* TODO: find out why this is here */
 	{NULL, 0, IS_UNDEF}
 };
 

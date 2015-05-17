@@ -3873,7 +3873,10 @@ ZEND_VM_HANDLER(124, ZEND_VERIFY_RETURN_TYPE, CONST|TMP|VAR|UNUSED|CV, UNUSED)
 
 	SAVE_OPLINE();
 	if (OP1_TYPE == IS_UNUSED) {
-		zend_verify_missing_return_type(EX(func));
+		zend_arg_info *ret_info = EX(func)->common.arg_info - 1;
+		if (ret_info->type_hint != IS_NULL) {
+			zend_verify_missing_return_type(EX(func));
+		}
 	} else {
 /* prevents "undefined variable opline" errors */
 #if !defined(ZEND_VM_SPEC) || (OP1_TYPE != IS_UNUSED)
