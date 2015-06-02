@@ -39,6 +39,11 @@ static __inline __int64_t php_date_llabs( __int64_t i ) { return i >= 0 ? i : -i
 static inline long long php_date_llabs( long long i ) { return i >= 0 ? i : -i; }
 #endif
 
+static timelib_sll timelib_sll_abs(timelib_sll value)
+{
+	return value >= 0 ? value : -value;
+}
+
 #ifdef PHP_WIN32
 #define DATE_I64_BUF_LEN 65
 # define DATE_I64A(i, s, len) _i64toa_s(i, s, len, 10)
@@ -2189,8 +2194,8 @@ static HashTable *date_object_get_properties(zval *object) /* {{{ */
 
 				tmpstr->len = snprintf(tmpstr->val, sizeof("+05:00"), "%c%02d:%02d",
 					utc_offset > 0 ? '-' : '+',
-					abs(utc_offset / 60),
-					abs((utc_offset % 60)));
+					timelib_sll_abs(utc_offset / 60),
+					timelib_sll_abs((utc_offset % 60)));
 
 				ZVAL_NEW_STR(&zv, tmpstr);
 				}
@@ -2281,8 +2286,8 @@ static HashTable *date_object_get_properties_timezone(zval *object) /* {{{ */
 
 			tmpstr->len = snprintf(tmpstr->val, sizeof("+05:00"), "%c%02d:%02d",
 			tzobj->tzi.utc_offset > 0 ? '-' : '+',
-			abs(tzobj->tzi.utc_offset / 60),
-			abs((tzobj->tzi.utc_offset % 60)));
+			timelib_sll_abs(tzobj->tzi.utc_offset / 60),
+			timelib_sll_abs((tzobj->tzi.utc_offset % 60)));
 
 			ZVAL_NEW_STR(&zv, tmpstr);
 			}
@@ -3742,8 +3747,8 @@ PHP_FUNCTION(timezone_name_get)
 
 			tmpstr->len = snprintf(tmpstr->val, sizeof("+05:00"), "%c%02d:%02d",
 				utc_offset > 0 ? '-' : '+',
-				abs(utc_offset / 60),
-				abs((utc_offset % 60)));
+				timelib_sll_abs(utc_offset / 60),
+				timelib_sll_abs((utc_offset % 60)));
 
 			RETURN_NEW_STR(tmpstr);
 			}
