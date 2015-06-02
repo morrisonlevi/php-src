@@ -105,7 +105,7 @@ void timelib_time_offset_dtor(timelib_time_offset* t)
 	TIMELIB_TIME_FREE(t);
 }
 
-timelib_tzinfo* timelib_tzinfo_ctor(char *name)
+timelib_tzinfo* timelib_tzinfo_ctor(const char *name)
 {
 	timelib_tzinfo *t;
 	t = calloc(1, sizeof(timelib_tzinfo));

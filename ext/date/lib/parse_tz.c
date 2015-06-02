@@ -296,7 +296,7 @@ void timelib_dump_tzinfo(timelib_tzinfo *tz)
 	}
 }
 
-static int seek_to_tz_position(const unsigned char **tzf, char *timezone, const timelib_tzdb *tzdb)
+static int seek_to_tz_position(const unsigned char **tzf, const char *timezone, const timelib_tzdb *tzdb)
 {
 	int left = 0, right = tzdb->index_size - 1;
 #ifdef HAVE_SETLOCALE
@@ -371,7 +371,7 @@ static void read_64bit_header(const unsigned char **tzf, timelib_tzinfo *tz)
 	*tzf += sizeof(buffer);
 }
 
-timelib_tzinfo *timelib_parse_tzfile(char *timezone, const timelib_tzdb *tzdb)
+timelib_tzinfo *timelib_parse_tzfile(const char *timezone, const timelib_tzdb *tzdb)
 {
 	const unsigned char *tzf;
 	timelib_tzinfo *tmp;

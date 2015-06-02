@@ -101,7 +101,7 @@ void timelib_set_timezone(timelib_time *t, timelib_tzinfo *tz);
 
 /* From parse_tz.c */
 int timelib_timezone_id_is_valid(char *timezone, const timelib_tzdb *tzdb);
-timelib_tzinfo *timelib_parse_tzfile(char *timezone, const timelib_tzdb *tzdb);
+timelib_tzinfo *timelib_parse_tzfile(const char *timezone, const timelib_tzdb *tzdb);
 int timelib_timestamp_is_in_dst(timelib_sll ts, timelib_tzinfo *tz);
 timelib_time_offset *timelib_get_time_zone_info(timelib_sll ts, timelib_tzinfo *tz);
 timelib_sll timelib_get_current_offset(timelib_time *t);
@@ -111,7 +111,7 @@ const timelib_tzdb_index_entry *timelib_timezone_builtin_identifiers_list(int *c
 timelib_long timelib_parse_zone(char **ptr, int *dst, timelib_time *t, int *tz_not_found, const timelib_tzdb *tzdb, timelib_tz_get_wrapper tz_wrapper);
 
 /* From timelib.c */
-timelib_tzinfo* timelib_tzinfo_ctor(char *name);
+timelib_tzinfo* timelib_tzinfo_ctor(const char *name);
 void timelib_time_tz_abbr_update(timelib_time* tm, char* tz_abbr);
 void timelib_time_tz_name_update(timelib_time* tm, char* tz_name);
 void timelib_tzinfo_dtor(timelib_tzinfo *tz);

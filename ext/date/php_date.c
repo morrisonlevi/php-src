@@ -539,7 +539,7 @@ const zend_function_entry date_funcs_period[] = {
 	PHP_FE_END
 };
 
-static char* guess_timezone(const timelib_tzdb *tzdb);
+static const char* guess_timezone(const timelib_tzdb *tzdb);
 static void date_register_classes(void);
 /* }}} */
 
@@ -910,7 +910,7 @@ PHP_MINFO_FUNCTION(date)
 /* }}} */
 
 /* {{{ Timezone Cache functions */
-static timelib_tzinfo *php_date_parse_tzfile(char *formal_tzname, const timelib_tzdb *tzdb)
+static timelib_tzinfo *php_date_parse_tzfile(const char *formal_tzname, const timelib_tzdb *tzdb)
 {
 	timelib_tzinfo *tzi;
 
@@ -960,7 +960,7 @@ static PHP_INI_MH(OnUpdate_date_timezone)
 /* }}} */
 
 /* {{{ Helper functions */
-static char* guess_timezone(const timelib_tzdb *tzdb)
+static const char* guess_timezone(const timelib_tzdb *tzdb)
 {
 	/* Checking configure timezone */
 	if (DATEG(timezone) && (strlen(DATEG(timezone))) > 0) {
@@ -994,7 +994,7 @@ static char* guess_timezone(const timelib_tzdb *tzdb)
 
 PHPAPI timelib_tzinfo *get_timezone_info(void)
 {
-	char *tz;
+	const char *tz;
 	timelib_tzinfo *tzi;
 
 	tz = guess_timezone(DATE_TIMEZONEDB);
@@ -1010,25 +1010,17 @@ PHPAPI timelib_tzinfo *get_timezone_info(void)
 /* {{{ date() and gmdate() data */
 #include "zend_smart_str.h"
 
-static char *mon_full_names[] = {
+static const char *mon_full_names[] = {
 	"January", "February", "March", "April",
 	"May", "June", "July", "August",
 	"September", "October", "November", "December"
 };
 
-static char *mon_short_names[] = {
+static const char *mon_short_names[] = {
 	"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
 };
 
-static char *day_full_names[] = {
-	"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"
-};
-
-static char *day_short_names[] = {
-	"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"
-};
-
-static char *english_suffix(timelib_sll number)
+static const char *english_suffix(timelib_sll number)
 {
 	if (number >= 10 && number <= 19) {
 		return "th";
@@ -1044,7 +1036,15 @@ static char *english_suffix(timelib_sll number)
 /* }}} */
 
 /* {{{ day of week helpers */
-char *php_date_full_day_name(timelib_sll y, timelib_sll m, timelib_sll d)
+static const char *day_full_names[] = {
+	"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"
+};
+
+static const char *day_short_names[] = {
+	"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"
+};
+
+static const char *php_date_full_day_name(timelib_sll y, timelib_sll m, timelib_sll d)
 {
 	timelib_sll day_of_week = timelib_day_of_week(y, m, d);
 	if (day_of_week < 0) {
@@ -1053,7 +1053,7 @@ char *php_date_full_day_name(timelib_sll y, timelib_sll m, timelib_sll d)
 	return day_full_names[day_of_week];
 }
 
-char *php_date_short_day_name(timelib_sll y, timelib_sll m, timelib_sll d)
+static const char *php_date_short_day_name(timelib_sll y, timelib_sll m, timelib_sll d)
 {
 	timelib_sll day_of_week = timelib_day_of_week(y, m, d);
 	if (day_of_week < 0) {
