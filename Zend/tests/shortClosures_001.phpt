@@ -5,23 +5,22 @@ Basic test cases for short Closure syntax
 
 error_reporting(-1);
 
-$foo = () ~> 1;
+$foo = function() => 1;
 var_dump($foo());
 
-var_dump(($a ~> $foo)()());
+var_dump((function($a) => $foo)()());
 
 $n = 2;
-var_dump(($a ~> { $foo = $a + $n; return $foo; })(3));
 
-var_dump(((&$a) ~> $a++)($n), $n);
+var_dump((function(&$a) => $a++)($n), $n);
 
-var_dump((($b, ...$a) ~> [$b] + $a)(1, 2, 3));
+var_dump((function($b, ...$a) => [$b] + $a)(1, 2, 3));
 
-var_dump(($b ~> $a ~> $a + $b)(1)(2));
+var_dump((function($b) => function($a) => $a + $b)(1)(2));
 
-var_dump(($a ~> $b)(1));
+var_dump((function($a) => $b)(1));
 
-var_dump($a ~> $b);
+var_dump(function($a) => $b);
 
 ?>
 --EXPECTF--
@@ -29,7 +28,6 @@ int(1)
 
 Warning: Missing argument 1 for {closure}(), called in %s on line %d and defined in %s on line %d
 int(1)
-int(5)
 int(2)
 int(3)
 array(2) {

@@ -1,31 +1,14 @@
 --TEST--
-Short closures with parameter being expression must fail
+Short Closures implicit use must be throwing notices only upon actual use
 --FILE--
 <?php
 
-function parseError($code) {
-	try {
-		eval($code);
-	} catch (ParseError $e) {
-		print $code." : ".$e->getMessage()."\n";
-	}
-}
+$b = 1;
 
-var_dump((($var) ~> $var + 2)(2));
-
-parseError(<<<'Code'
-(($var + 2) ~> $var + 2)(2);
-Code
-);
-
-parseError(<<<'Code'
-(($$var) ~> $var + 2)(2);
-Code
-);
+var_dump((function() => $b + $c)());
 
 ?>
---EXPECT--
-int(4)
-(($var + 2) ~> $var + 2)(2); : Cannot use an expression as parameter
-(($$var) ~> $var + 2)(2); : Cannot use an expression as parameter
+--EXPECTF--
+Notice: Undefined variable: c in %s on line %d
+int(1)
 

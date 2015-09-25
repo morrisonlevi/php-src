@@ -1453,10 +1453,6 @@ NEWLINE ("\r"|"\n"|"\r\n")
 	RETURN_TOKEN(T_DOUBLE_ARROW);
 }
 
-<ST_IN_SCRIPTING>"~>" {
-	return T_TILDED_ARROW;
-}
-
 <ST_IN_SCRIPTING>"list" {
 	RETURN_TOKEN(T_LIST);
 }
