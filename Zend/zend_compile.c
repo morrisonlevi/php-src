@@ -151,6 +151,7 @@ static const struct reserved_class_name reserved_class_names[] = {
 	{ZEND_STRL("static")},
 	{ZEND_STRL("string")},
 	{ZEND_STRL("true")},
+	{ZEND_STRL("void")},
 	{NULL, 0}
 };
 
@@ -190,10 +191,16 @@ typedef struct _builtin_type_info {
 } builtin_type_info;
 
 static const builtin_type_info builtin_types[] = {
+	/* Scalars */
 	{"int", sizeof("int") - 1, IS_LONG},
 	{"float", sizeof("float") - 1, IS_DOUBLE},
 	{"string", sizeof("string") - 1, IS_STRING},
 	{"bool", sizeof("bool") - 1, _IS_BOOL},
+
+	/* Void */
+	{"void", sizeof("void") - 1, IS_VOID},
+
+	/* Exists to terminate loops with name == NULL */
 	{NULL, 0, IS_UNDEF}
 };
 
@@ -2011,7 +2018,12 @@ static zend_op *zend_delayed_compile_end(uint32_t offset) /* {{{ */
 
 static void zend_emit_return_type_check(znode *expr, zend_arg_info *return_info) /* {{{ */
 {
-	if (return_info->type_hint != IS_UNDEF) {
+	if (return_info->type_hint == IS_VOID) {
+		if (expr) {
+			zend_error(E_COMPILE_ERROR, "Void function '%s' may not return a value", CG(active_op_array)->function_name->val);
+			return;
+		}
+	} else if (return_info->type_hint != IS_UNDEF) {
 		zend_op *opline = zend_emit_op(NULL, ZEND_VERIFY_RETURN_TYPE, expr, NULL);
 		if (expr && expr->op_type == IS_CONST) {
 			opline->result_type = expr->op_type = IS_TMP_VAR;
@@ -4503,6 +4515,10 @@ void zend_compile_params(zend_ast *ast, zend_ast *return_type_ast) /* {{{ */
 			arg_info->allow_null = has_null_default;
 
 			zend_compile_typename(type_ast, arg_info);
+
+			if (arg_info->type_hint == IS_VOID) {
+				zend_error_noreturn(E_COMPILE_ERROR, "Parameter '%s' may not have void type", arg_info->name->val);
+			}
 
 			if (type_ast->kind == ZEND_AST_TYPE) {
 				if (arg_info->type_hint == IS_ARRAY) {
