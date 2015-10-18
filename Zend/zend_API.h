@@ -99,24 +99,24 @@ typedef struct _zend_fcall_info_cache {
 
 #define ZEND_FE_END            { NULL, NULL, NULL, 0, 0 }
 
-#define ZEND_ARG_INFO(pass_by_ref, name)                             { #name, NULL, 0, pass_by_ref, 0, 0 },
-#define ZEND_ARG_PASS_INFO(pass_by_ref)                              { NULL,  NULL, 0, pass_by_ref, 0, 0 },
-#define ZEND_ARG_OBJ_INFO(pass_by_ref, name, classname, allow_null)  { #name, #classname, IS_OBJECT, pass_by_ref, allow_null, 0 },
-#define ZEND_ARG_ARRAY_INFO(pass_by_ref, name, allow_null)           { #name, NULL, IS_ARRAY, pass_by_ref, allow_null, 0 },
-#define ZEND_ARG_CALLABLE_INFO(pass_by_ref, name, allow_null)        { #name, NULL, IS_CALLABLE, pass_by_ref, allow_null, 0 },
-#define ZEND_ARG_TYPE_INFO(pass_by_ref, name, type_hint, allow_null) { #name, NULL, type_hint, pass_by_ref, allow_null, 0 },
-#define ZEND_ARG_VARIADIC_INFO(pass_by_ref, name)                    { #name, NULL, 0, pass_by_ref, 0, 1 },
+#define ZEND_ARG_INFO(pass_by_ref, name)                             { #name, {0, 0, NULL}, pass_by_ref, 0 },
+#define ZEND_ARG_PASS_INFO(pass_by_ref)                              { NULL,  {0, 0, NULL}, pass_by_ref, 0 },
+#define ZEND_ARG_OBJ_INFO(pass_by_ref, name, classname, allow_null)  { #name, {IS_OBJECT, allow_null, #classname}, pass_by_ref, 0 },
+#define ZEND_ARG_ARRAY_INFO(pass_by_ref, name, allow_null)           { #name, {IS_ARRAY, allow_null, NULL}, pass_by_ref, 0 },
+#define ZEND_ARG_CALLABLE_INFO(pass_by_ref, name, allow_null)        { #name, {IS_CALLABLE, NULL}, pass_by_ref, 0 },
+#define ZEND_ARG_TYPE_INFO(pass_by_ref, name, type, allow_null)      { #name, {type, NULL}, pass_by_ref, 0 },
+#define ZEND_ARG_VARIADIC_INFO(pass_by_ref, name)                    { #name, {0, 0, NULL}, pass_by_ref, 1 },
 
 
 #define ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(name, return_reference, required_num_args, type, class_name, allow_null) \
 	static const zend_internal_arg_info name[] = { \
-	   	{ (const char*)(zend_uintptr_t)(required_num_args), class_name, type, return_reference, allow_null, 0 },
+		{ (const char*)(zend_uintptr_t)(required_num_args), {type, allow_null, class_name}, return_reference, 0 },
 #define ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO(name, type, class_name, allow_null) \
 	ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(name, 0, -1, type, class_name, allow_null)
 
 #define ZEND_BEGIN_ARG_INFO_EX(name, _unused, return_reference, required_num_args)	\
 	static const zend_internal_arg_info name[] = { \
-		{ (const char*)(zend_uintptr_t)(required_num_args), NULL, 0, return_reference, 0, 0 },
+		{ (const char*)(zend_uintptr_t)(required_num_args), {0, 0, NULL}, return_reference, 0 },
 #define ZEND_BEGIN_ARG_INFO(name, _unused)	\
 	ZEND_BEGIN_ARG_INFO_EX(name, 0, ZEND_RETURN_VALUE, -1)
 #define ZEND_END_ARG_INFO()		};

@@ -624,7 +624,7 @@ static char * zend_verify_internal_arg_class_kind(const zend_internal_arg_info *
 
 static zend_always_inline zend_class_entry* zend_verify_arg_class_kind(const zend_arg_info *cur_arg_info)
 {
-	return zend_fetch_class(cur_arg_info->class_name, (ZEND_FETCH_CLASS_AUTO | ZEND_FETCH_CLASS_NO_AUTOLOAD));
+	return zend_fetch_class(cur_arg_info->type.name, (ZEND_FETCH_CLASS_AUTO | ZEND_FETCH_CLASS_NO_AUTOLOAD));
 }
 
 static ZEND_COLD void zend_verify_arg_error(const zend_function *zf, uint32_t arg_num, const char *need_msg, const char *need_kind, const char *given_msg, const char *given_kind, zval *arg)
@@ -757,7 +757,7 @@ static int zend_verify_internal_arg_type(zend_function *zf, uint32_t arg_num, zv
 					return 0;
 				}
 			}
-		} else if (Z_TYPE_P(arg) != IS_NULL || !cur_arg_info->allow_null) {
+		} else if (Z_TYPE_P(arg) != IS_NULL || !cur_arg_info->allows_null) {
 			if (cur_arg_info->class_name) {
 				need_msg = zend_verify_internal_arg_class_kind((zend_internal_arg_info*)cur_arg_info, &class_name, &ce);
 				zend_verify_arg_error(zf, arg_num, need_msg, class_name, zend_zval_type_name(arg), "", arg);
@@ -793,16 +793,16 @@ static zend_always_inline int zend_verify_arg_type(zend_function *zf, uint32_t a
 		return 1;
 	}
 
-	if (cur_arg_info->type_hint) {
+	if (cur_arg_info->type.tag) {
 		ZVAL_DEREF(arg);
-		if (EXPECTED(cur_arg_info->type_hint == Z_TYPE_P(arg))) {
-			if (cur_arg_info->class_name) {
+		if (EXPECTED(cur_arg_info->type.tag == Z_TYPE_P(arg))) {
+			if (cur_arg_info->type.name) {
 				if (EXPECTED(*cache_slot)) {
 					ce = (zend_class_entry*)*cache_slot;
 				} else {
 					ce = zend_verify_arg_class_kind(cur_arg_info);
 					if (UNEXPECTED(!ce)) {
-						zend_verify_arg_error(zf, arg_num, "be an instance of ", ZSTR_VAL(cur_arg_info->class_name), "instance of ", ZSTR_VAL(Z_OBJCE_P(arg)->name), arg);
+						zend_verify_arg_error(zf, arg_num, "be an instance of ", ZSTR_VAL(cur_arg_info->type.name), "instance of ", ZSTR_VAL(Z_OBJCE_P(arg)->name), arg);
 						return 0;
 					}
 					*cache_slot = (void*)ce;
@@ -815,17 +815,17 @@ static zend_always_inline int zend_verify_arg_type(zend_function *zf, uint32_t a
 					return 0;
 				}
 			}
-		} else if (Z_TYPE_P(arg) != IS_NULL || !(cur_arg_info->allow_null || (default_value && is_null_constant(default_value)))) {
-			if (cur_arg_info->class_name) {
+		} else if (Z_TYPE_P(arg) != IS_NULL || !(cur_arg_info->type.allows_null || (default_value && is_null_constant(default_value)))) {
+			if (cur_arg_info->type.name) {
 				if (EXPECTED(*cache_slot)) {
 					ce = (zend_class_entry*)*cache_slot;
 				} else {
 					ce = zend_verify_arg_class_kind(cur_arg_info);
 					if (UNEXPECTED(!ce)) {
 						if (Z_TYPE_P(arg) == IS_OBJECT) {
-							zend_verify_arg_error(zf, arg_num, "be an instance of ", ZSTR_VAL(cur_arg_info->class_name), "instance of ", ZSTR_VAL(Z_OBJCE_P(arg)->name), arg);
+							zend_verify_arg_error(zf, arg_num, "be an instance of ", ZSTR_VAL(cur_arg_info->type.name), "instance of ", ZSTR_VAL(Z_OBJCE_P(arg)->name), arg);
 						} else {
-							zend_verify_arg_error(zf, arg_num, "be an instance of ", ZSTR_VAL(cur_arg_info->class_name), "", zend_zval_type_name(arg), arg);
+							zend_verify_arg_error(zf, arg_num, "be an instance of ", ZSTR_VAL(cur_arg_info->type.name), "", zend_zval_type_name(arg), arg);
 						}
 						return 0;
 					}
@@ -836,16 +836,16 @@ static zend_always_inline int zend_verify_arg_type(zend_function *zf, uint32_t a
 					"implement interface " : "be an instance of ";
 				zend_verify_arg_error(zf, arg_num, need_msg, ZSTR_VAL(ce->name), zend_zval_type_name(arg), "", arg);
 				return 0;
-			} else if (cur_arg_info->type_hint == IS_CALLABLE) {
+			} else if (cur_arg_info->type.tag == IS_CALLABLE) {
 				if (!zend_is_callable(arg, IS_CALLABLE_CHECK_SILENT, NULL)) {
 					zend_verify_arg_error(zf, arg_num, "be callable", "", zend_zval_type_name(arg), "", arg);
 					return 0;
 				}
-			} else if (cur_arg_info->type_hint == _IS_BOOL &&
+			} else if (cur_arg_info->type.tag == _IS_BOOL &&
 			           EXPECTED(Z_TYPE_P(arg) == IS_FALSE || Z_TYPE_P(arg) == IS_TRUE)) {
 				/* pass */
-			} else if (UNEXPECTED(!zend_verify_scalar_type_hint(cur_arg_info->type_hint, arg, ZEND_ARG_USES_STRICT_TYPES()))) {
-				zend_verify_arg_error(zf, arg_num, "be of the type ", zend_get_type_by_const(cur_arg_info->type_hint), zend_zval_type_name(arg), "", arg);
+			} else if (UNEXPECTED(!zend_verify_scalar_type_hint(cur_arg_info->type.tag, arg, ZEND_ARG_USES_STRICT_TYPES()))) {
+				zend_verify_arg_error(zf, arg_num, "be of the type ", zend_get_type_by_const(cur_arg_info->type.tag), zend_zval_type_name(arg), "", arg);
 				return 0;
 			}
 		}
@@ -867,14 +867,14 @@ static zend_always_inline int zend_verify_missing_arg_type(zend_function *zf, ui
 		return 1;
 	}
 
-	if (cur_arg_info->type_hint) {
-		if (cur_arg_info->class_name) {
+	if (cur_arg_info->type.tag) {
+		if (cur_arg_info->type.name) {
 			if (EXPECTED(*cache_slot)) {
 				ce = (zend_class_entry*)*cache_slot;
 			} else {
 				ce = zend_verify_arg_class_kind(cur_arg_info);
 				if (UNEXPECTED(!ce)) {
-					zend_verify_arg_error(zf, arg_num, "be an instance of ", ZSTR_VAL(cur_arg_info->class_name), "none", "", NULL);
+					zend_verify_arg_error(zf, arg_num, "be an instance of ", ZSTR_VAL(cur_arg_info->type.name), "none", "", NULL);
 					return 0;
 				}
 				*cache_slot = (void*)ce;
@@ -883,10 +883,10 @@ static zend_always_inline int zend_verify_missing_arg_type(zend_function *zf, ui
 				(ce->ce_flags & ZEND_ACC_INTERFACE) ?
 				"implement interface " : "be an instance of ";
 			zend_verify_arg_error(zf, arg_num, need_msg, ZSTR_VAL(ce->name), "none", "", NULL);
-		} else if (cur_arg_info->type_hint == IS_CALLABLE) {
+		} else if (cur_arg_info->type.tag == IS_CALLABLE) {
 			zend_verify_arg_error(zf, arg_num, "be callable", "", "none", "", NULL);
 		} else {
-			zend_verify_arg_error(zf, arg_num, "be of the type ", zend_get_type_by_const(cur_arg_info->type_hint), "none", "", NULL);
+			zend_verify_arg_error(zf, arg_num, "be of the type ", zend_get_type_by_const(cur_arg_info->type.tag), "none", "", NULL);
 		}
 		return 0;
 	}
@@ -954,30 +954,30 @@ static int zend_verify_internal_return_type(zend_function *zf, zval *ret)
 	zend_class_entry *ce;
 
 
-	if (ret_info->type_hint) {
-		if (EXPECTED(ret_info->type_hint == Z_TYPE_P(ret))) {
-			if (ret_info->class_name) {
+	if (ret_info->type.tag) {
+		if (EXPECTED(ret_info->type.tag == Z_TYPE_P(ret))) {
+			if (ret_info->type.name) {
 				need_msg = zend_verify_internal_arg_class_kind((zend_internal_arg_info *)ret_info, &class_name, &ce);
 				if (!ce || !instanceof_function(Z_OBJCE_P(ret), ce)) {
 					zend_verify_internal_return_error(zf, need_msg, class_name, "instance of ", ZSTR_VAL(Z_OBJCE_P(ret)->name));
 					return 0;
 				}
 			}
-		} else if (Z_TYPE_P(ret) != IS_NULL || !ret_info->allow_null) {
-			if (ret_info->class_name) {
+		} else if (Z_TYPE_P(ret) != IS_NULL || !ret_info->type.allows_null) {
+			if (ret_info->type.name) {
 				need_msg = zend_verify_internal_arg_class_kind((zend_internal_arg_info *)ret_info, &class_name, &ce);
 				zend_verify_internal_return_error(zf, need_msg, class_name, zend_zval_type_name(ret), "");
-			} else if (ret_info->type_hint == IS_CALLABLE) {
-				if (!zend_is_callable(ret, IS_CALLABLE_CHECK_SILENT, NULL) && (Z_TYPE_P(ret) != IS_NULL || !ret_info->allow_null)) {
+			} else if (ret_info->type.tag == IS_CALLABLE) {
+				if (!zend_is_callable(ret, IS_CALLABLE_CHECK_SILENT, NULL) && (Z_TYPE_P(ret) != IS_NULL || !ret_info->type.allows_null)) {
 					zend_verify_internal_return_error(zf, "be callable", "", zend_zval_type_name(ret), "");
 					return 0;
 				}
-			} else if (ret_info->type_hint == _IS_BOOL &&
+			} else if (ret_info->type.tag == _IS_BOOL &&
 			           EXPECTED(Z_TYPE_P(ret) == IS_FALSE || Z_TYPE_P(ret) == IS_TRUE)) {
 				/* pass */
 			} else {
 				/* Use strict check to verify return value of internal function */
-				zend_verify_internal_return_error(zf, "be of the type ", zend_get_type_by_const(ret_info->type_hint), zend_zval_type_name(ret), "");
+				zend_verify_internal_return_error(zf, "be of the type ", zend_get_type_by_const(ret_info->type.tag), zend_zval_type_name(ret), "");
 				return 0;
 			}
 		}
@@ -992,15 +992,15 @@ static zend_always_inline void zend_verify_return_type(zend_function *zf, zval *
 	char *need_msg;
 	zend_class_entry *ce;
 
-	if (ret_info->type_hint) {
-		if (EXPECTED(ret_info->type_hint == Z_TYPE_P(ret))) {
-			if (ret_info->class_name) {
+	if (ret_info->type.tag) {
+		if (EXPECTED(ret_info->type.tag == Z_TYPE_P(ret))) {
+			if (ret_info->type.name) {
 				if (EXPECTED(*cache_slot)) {
 					ce = (zend_class_entry*)*cache_slot;
 				} else {
 					ce = zend_verify_arg_class_kind(ret_info);
 					if (UNEXPECTED(!ce)) {
-						zend_verify_return_error(zf, "be an instance of ", ZSTR_VAL(ret_info->class_name), "instance of ", ZSTR_VAL(Z_OBJCE_P(ret)->name));
+						zend_verify_return_error(zf, "be an instance of ", ZSTR_VAL(ret_info->type.name), "instance of ", ZSTR_VAL(Z_OBJCE_P(ret)->name));
 						return;
 					}
 					*cache_slot = (void*)ce;
@@ -1012,14 +1012,14 @@ static zend_always_inline void zend_verify_return_type(zend_function *zf, zval *
 					zend_verify_return_error(zf, need_msg, ZSTR_VAL(ce->name), "instance of ", ZSTR_VAL(Z_OBJCE_P(ret)->name));
 				}
 			}
-		} else if (Z_TYPE_P(ret) != IS_NULL || !ret_info->allow_null) {
-			if (ret_info->class_name) {
+		} else if (Z_TYPE_P(ret) != IS_NULL || !ret_info->type.allows_null) {
+			if (ret_info->type.name) {
 				if (EXPECTED(*cache_slot)) {
 					ce = (zend_class_entry*)*cache_slot;
 				} else {
 					ce = zend_verify_arg_class_kind(ret_info);
 					if (UNEXPECTED(!ce)) {
-						zend_verify_return_error(zf, "be an instance of ", ZSTR_VAL(ret_info->class_name), zend_zval_type_name(ret), "");
+						zend_verify_return_error(zf, "be an instance of ", ZSTR_VAL(ret_info->type.name), zend_zval_type_name(ret), "");
 						return;
 					}
 					*cache_slot = (void*)ce;
@@ -1028,15 +1028,15 @@ static zend_always_inline void zend_verify_return_type(zend_function *zf, zval *
 					(ce->ce_flags & ZEND_ACC_INTERFACE) ?
 					"implement interface " : "be an instance of ";
 				zend_verify_return_error(zf, need_msg, ZSTR_VAL(ce->name), zend_zval_type_name(ret), "");
-			} else if (ret_info->type_hint == IS_CALLABLE) {
+			} else if (ret_info->type.tag == IS_CALLABLE) {
 				if (!zend_is_callable(ret, IS_CALLABLE_CHECK_SILENT, NULL)) {
 					zend_verify_return_error(zf, "be callable", "", zend_zval_type_name(ret), "");
 				}
-			} else if (ret_info->type_hint == _IS_BOOL &&
+			} else if (ret_info->type.tag == _IS_BOOL &&
 			           EXPECTED(Z_TYPE_P(ret) == IS_FALSE || Z_TYPE_P(ret) == IS_TRUE)) {
 				/* pass */
-			} else if (UNEXPECTED(!zend_verify_scalar_type_hint(ret_info->type_hint, ret, ZEND_RET_USES_STRICT_TYPES()))) {
-				zend_verify_return_error(zf, "be of the type ", zend_get_type_by_const(ret_info->type_hint), zend_zval_type_name(ret), "");
+			} else if (UNEXPECTED(!zend_verify_scalar_type_hint(ret_info->type.tag, ret, ZEND_RET_USES_STRICT_TYPES()))) {
+				zend_verify_return_error(zf, "be of the type ", zend_get_type_by_const(ret_info->type.tag), zend_zval_type_name(ret), "");
 			}
 		}
 	}
@@ -1048,14 +1048,14 @@ static ZEND_COLD int zend_verify_missing_return_type(zend_function *zf, void **c
 	char *need_msg;
 	zend_class_entry *ce;
 
-	if (ret_info->type_hint) {
-		if (ret_info->class_name) {
+	if (ret_info->type.tag) {
+		if (ret_info->type.name) {
 			if (EXPECTED(*cache_slot)) {
 				ce = (zend_class_entry*)*cache_slot;
 			} else {
 				ce = zend_verify_arg_class_kind(ret_info);
 				if (UNEXPECTED(!ce)) {
-					zend_verify_return_error(zf, "be an instance of ", ZSTR_VAL(ret_info->class_name), "none", "");
+					zend_verify_return_error(zf, "be an instance of ", ZSTR_VAL(ret_info->type.name), "none", "");
 					return 0;
 				}
 				*cache_slot = (void*)ce;
@@ -1065,10 +1065,10 @@ static ZEND_COLD int zend_verify_missing_return_type(zend_function *zf, void **c
 				"implement interface " : "be an instance of ";
 			zend_verify_return_error(zf, need_msg, ZSTR_VAL(ce->name), "none", "");
 			return 0;
-		} else if (ret_info->type_hint == IS_CALLABLE) {
+		} else if (ret_info->type.tag == IS_CALLABLE) {
 			zend_verify_return_error(zf, "be callable", "", "none", "");
 		} else {
-			zend_verify_return_error(zf, "be of the type ", zend_get_type_by_const(ret_info->type_hint), "none", "");
+			zend_verify_return_error(zf, "be of the type ", zend_get_type_by_const(ret_info->type.tag), "none", "");
 		}
 		return 0;
 	}

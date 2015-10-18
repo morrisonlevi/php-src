@@ -3979,9 +3979,9 @@ ZEND_VM_HANDLER(124, ZEND_VERIFY_RETURN_TYPE, CONST|TMP|VAR|UNUSED|CV, UNUSED)
 			ZVAL_DEREF(retval_ptr);
 		}
 
-		if (UNEXPECTED(!ret_info->class_name
-			&& ret_info->type_hint != IS_CALLABLE
-			&& !ZEND_SAME_FAKE_TYPE(ret_info->type_hint, Z_TYPE_P(retval_ptr))
+		if (UNEXPECTED(!ret_info->type.name
+			&& ret_info->type.tag != IS_CALLABLE
+			&& !ZEND_SAME_FAKE_TYPE(ret_info->type.tag, Z_TYPE_P(retval_ptr))
 			&& !(EX(func)->op_array.fn_flags & ZEND_ACC_RETURN_REFERENCE)
 			&& retval_ref != retval_ptr)
 		) {

@@ -2234,8 +2234,8 @@ ZEND_API int zend_register_functions(zend_class_entry *scope, const zend_functio
 		if (reg_function->common.arg_info && reg_function->common.num_args) {
 			uint32_t i;
 			for (i = 0; i < reg_function->common.num_args; i++) {
-				if (reg_function->common.arg_info[i].class_name ||
-				    reg_function->common.arg_info[i].type_hint) {
+				if (reg_function->common.arg_info[i].type.name ||
+				    reg_function->common.arg_info[i].type.tag) {
 				    reg_function->common.fn_flags |= ZEND_ACC_HAS_TYPE_HINTS;
 					break;
 				}

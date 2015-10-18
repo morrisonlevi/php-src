@@ -1140,16 +1140,18 @@ static void zend_mark_function_as_generator() /* {{{ */
 
 	if (CG(active_op_array)->fn_flags & ZEND_ACC_HAS_RETURN_TYPE) {
 		const char *msg = "Generators may only declare a return type of Generator, Iterator or Traversable, %s is not permitted";
-		zend_arg_info return_info = CG(active_op_array)->arg_info[-1];
+		zend_type return_type = CG(active_op_array)->arg_info[-1].type;
 
-		if (!return_info.class_name) {
-			zend_error_noreturn(E_COMPILE_ERROR, msg, zend_get_type_by_const(return_info.type_hint));
+		if (return_type.tag != IS_OBJECT) {
+			zend_error_noreturn(E_COMPILE_ERROR, msg, zend_get_type_by_const(return_type.tag));
 		}
 
-		if (!zend_string_equals_literal_ci(return_info.class_name, "Traversable")
-			&& !zend_string_equals_literal_ci(return_info.class_name, "Iterator")
-			&& !zend_string_equals_literal_ci(return_info.class_name, "Generator")) {
-			zend_error_noreturn(E_COMPILE_ERROR, msg, ZSTR_VAL(return_info.class_name));
+		ZEND_ASSERT(return_type.name != NULL);
+
+		if (!zend_string_equals_literal_ci(return_type.name, "Traversable")
+			&& !zend_string_equals_literal_ci(return_type.name, "Iterator")
+			&& !zend_string_equals_literal_ci(return_type.name, "Generator")) {
+			zend_error_noreturn(E_COMPILE_ERROR, msg, ZSTR_VAL(return_type.name));
 		}
 	}
 
@@ -2014,13 +2016,13 @@ static zend_op *zend_delayed_compile_end(uint32_t offset) /* {{{ */
 
 static void zend_emit_return_type_check(znode *expr, zend_arg_info *return_info) /* {{{ */
 {
-	if (return_info->type_hint != IS_UNDEF) {
+	if (return_info->type.tag != IS_UNDEF) {
 		zend_op *opline = zend_emit_op(NULL, ZEND_VERIFY_RETURN_TYPE, expr, NULL);
 		if (expr && expr->op_type == IS_CONST) {
 			opline->result_type = expr->op_type = IS_TMP_VAR;
 			opline->result.var = expr->u.op.var = get_temporary_variable(CG(active_op_array));
 		}
-		if (return_info->class_name) {
+		if (return_info->type.name) {
 			opline->op2.num = CG(active_op_array)->cache_size;
 			CG(active_op_array)->cache_size += sizeof(void*);
 		} else {
@@ -4419,13 +4421,13 @@ ZEND_API void zend_set_function_arg_flags(zend_function *func) /* {{{ */
 static void zend_compile_typename(zend_ast *ast, zend_arg_info *arg_info) /* {{{ */
 {
 	if (ast->kind == ZEND_AST_TYPE) {
-		arg_info->type_hint = ast->attr;
+		arg_info->type.tag = ast->attr;
 	} else {
 		zend_string *class_name = zend_ast_get_str(ast);
 		zend_uchar type = zend_lookup_builtin_type_by_name(class_name);
 
 		if (type != 0) {
-			arg_info->type_hint = type;
+			arg_info->type.tag = type;
 		} else {
 			uint32_t fetch_type = zend_get_class_fetch_type_ast(ast);
 			if (fetch_type == ZEND_FETCH_CLASS_DEFAULT) {
@@ -4436,8 +4438,8 @@ static void zend_compile_typename(zend_ast *ast, zend_arg_info *arg_info) /* {{{
 				zend_string_addref(class_name);
 			}
 
-			arg_info->type_hint = IS_OBJECT;
-			arg_info->class_name = class_name;
+			arg_info->type.tag = IS_OBJECT;
+			arg_info->type.name = class_name;
 		}
 	}
 }
@@ -4456,9 +4458,9 @@ void zend_compile_params(zend_ast *ast, zend_ast *return_type_ast) /* {{{ */
 		arg_infos->name = NULL;
 		arg_infos->pass_by_reference = (op_array->fn_flags & ZEND_ACC_RETURN_REFERENCE) != 0;
 		arg_infos->is_variadic = 0;
-		arg_infos->type_hint = 0;
-		arg_infos->allow_null = 0;
-		arg_infos->class_name = NULL;
+		arg_infos->type.tag = 0;
+		arg_infos->type.allows_null = 0;
+		arg_infos->type.name = NULL;
 
 		zend_compile_typename(return_type_ast, arg_infos);
 
@@ -4538,9 +4540,9 @@ void zend_compile_params(zend_ast *ast, zend_ast *return_type_ast) /* {{{ */
 		arg_info->name = zend_string_copy(name);
 		arg_info->pass_by_reference = is_ref;
 		arg_info->is_variadic = is_variadic;
-		arg_info->type_hint = 0;
-		arg_info->allow_null = 1;
-		arg_info->class_name = NULL;
+		arg_info->type.tag = 0;
+		arg_info->type.allows_null = 1;
+		arg_info->type.name = NULL;
 
 		if (type_ast) {
 			zend_bool has_null_default = default_ast
@@ -4549,12 +4551,12 @@ void zend_compile_params(zend_ast *ast, zend_ast *return_type_ast) /* {{{ */
 						&& strcasecmp(Z_STRVAL(default_node.u.constant), "NULL") == 0));
 
 			op_array->fn_flags |= ZEND_ACC_HAS_TYPE_HINTS;
-			arg_info->allow_null = has_null_default;
+			arg_info->type.allows_null = has_null_default;
 
 			zend_compile_typename(type_ast, arg_info);
 
 			if (type_ast->kind == ZEND_AST_TYPE) {
-				if (arg_info->type_hint == IS_ARRAY) {
+				if (arg_info->type.tag == IS_ARRAY) {
 					if (default_ast && !has_null_default
 						&& Z_TYPE(default_node.u.constant) != IS_ARRAY
 						&& !Z_CONSTANT(default_node.u.constant)
@@ -4562,7 +4564,7 @@ void zend_compile_params(zend_ast *ast, zend_ast *return_type_ast) /* {{{ */
 						zend_error_noreturn(E_COMPILE_ERROR, "Default value for parameters "
 							"with array type hint can only be an array or NULL");
 					}
-				} else if (arg_info->type_hint == IS_CALLABLE && default_ast) {
+				} else if (arg_info->type.tag == IS_CALLABLE && default_ast) {
 					if (!has_null_default && !Z_CONSTANT(default_node.u.constant)) {
 						zend_error_noreturn(E_COMPILE_ERROR, "Default value for parameters "
 							"with callable type hint can only be NULL");
@@ -4570,10 +4572,10 @@ void zend_compile_params(zend_ast *ast, zend_ast *return_type_ast) /* {{{ */
 				}
 			} else {
 				if (default_ast && !has_null_default && !Z_CONSTANT(default_node.u.constant)) {
-					if (arg_info->class_name) {
+					if (arg_info->type.name) {
 						zend_error_noreturn(E_COMPILE_ERROR, "Default value for parameters "
 							"with a class type hint can only be NULL");
-					} else switch (arg_info->type_hint) {
+					} else switch (arg_info->type.tag) {
 						case IS_DOUBLE:
 							if (Z_TYPE(default_node.u.constant) != IS_DOUBLE && Z_TYPE(default_node.u.constant) != IS_LONG) {
 								zend_error_noreturn(E_COMPILE_ERROR, "Default value for parameters "
@@ -4582,10 +4584,10 @@ void zend_compile_params(zend_ast *ast, zend_ast *return_type_ast) /* {{{ */
 							break;
 							
 						default:
-							if (!ZEND_SAME_FAKE_TYPE(arg_info->type_hint, Z_TYPE(default_node.u.constant))) {
+							if (!ZEND_SAME_FAKE_TYPE(arg_info->type.tag, Z_TYPE(default_node.u.constant))) {
 								zend_error_noreturn(E_COMPILE_ERROR, "Default value for parameters "
 									"with a %s type hint can only be %s or NULL",
-									zend_get_type_by_const(arg_info->type_hint), zend_get_type_by_const(arg_info->type_hint));
+									zend_get_type_by_const(arg_info->type.tag), zend_get_type_by_const(arg_info->type.tag));
 							}
 							break;
 					}
@@ -4594,13 +4596,13 @@ void zend_compile_params(zend_ast *ast, zend_ast *return_type_ast) /* {{{ */
 
 			/* Allocate cache slot to speed-up run-time class resolution */
 			if (opline->opcode == ZEND_RECV_INIT) {
-				if (arg_info->class_name) {
+				if (arg_info->type.name) {
 					zend_alloc_cache_slot(opline->op2.constant);
 				} else {
 					Z_CACHE_SLOT(op_array->literals[opline->op2.constant]) = -1;
 				}
 			} else {
-				if (arg_info->class_name) {
+				if (arg_info->type.name) {
 					opline->op2.num = op_array->cache_size;
 					op_array->cache_size += sizeof(void*);
 				} else {
