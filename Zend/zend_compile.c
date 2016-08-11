@@ -117,7 +117,7 @@ static zend_string *zend_new_interned_string_safe(zend_string *str) /* {{{ */ {
 }
 /* }}} */
 
-static zend_string *zend_build_runtime_definition_key(zend_string *name, unsigned char *lex_pos) /* {{{ */
+static zend_string *zend_build_runtime_definition_key(HashTable *table, zend_string *name, unsigned char *lex_pos) /* {{{ */
 {
 	zend_string *result;
 	char char_pos_buf[32];
@@ -125,8 +125,14 @@ static zend_string *zend_build_runtime_definition_key(zend_string *name, unsigne
 	zend_string *filename = CG(active_op_array)->filename;
 
 	/* NULL, name length, filename length, last accepting char position length */
-	result = zend_string_alloc(1 + ZSTR_LEN(name) + ZSTR_LEN(filename) + char_pos_len, 0);
- 	sprintf(ZSTR_VAL(result), "%c%s%s%s", '\0', ZSTR_VAL(name), ZSTR_VAL(filename), char_pos_buf);
+	result = zend_string_alloc(2 + ZSTR_LEN(name) + ZSTR_LEN(filename) + char_pos_len, 0);
+	sprintf(ZSTR_VAL(result), "%c%s%s%s%c", '\0', ZSTR_VAL(name), ZSTR_VAL(filename), char_pos_buf, '\0');
+
+	while (zend_hash_find(table, result)) {
+		result->h++;
+		result->val[result->len - 1]++;
+	}
+
 	return zend_new_interned_string(result);
 }
 /* }}} */
@@ -2402,6 +2408,12 @@ void zend_emit_final_return(int return_one) /* {{{ */
 }
 /* }}} */
 
+zend_bool zend_is_simple_variable(zend_ast *ast) /* {{{ */
+{
+	return ast->kind == ZEND_AST_VAR && ast->child[0]->kind == ZEND_AST_ZVAL && Z_TYPE_P(zend_ast_get_zval(ast->child[0])) == IS_STRING;
+}
+/* }}} */
+
 static inline zend_bool zend_is_variable(zend_ast *ast) /* {{{ */
 {
 	return ast->kind == ZEND_AST_VAR || ast->kind == ZEND_AST_DIM
@@ -3984,7 +3996,7 @@ void zend_compile_global_var(zend_ast *ast) /* {{{ */
 }
 /* }}} */
 
-static void zend_compile_static_var_common(zend_ast *var_ast, zval *value, zend_bool by_ref) /* {{{ */
+static void zend_compile_static_var_common(zend_ast *var_ast, zval *value, uint32_t mode) /* {{{ */
 {
 	znode var_node;
 	zend_op *opline;
@@ -4014,7 +4026,7 @@ static void zend_compile_static_var_common(zend_ast *var_ast, zval *value, zend_
 	opline = zend_emit_op(NULL, ZEND_BIND_STATIC, NULL, &var_node);
 	opline->op1_type = IS_CV;
 	opline->op1.var = lookup_cv(CG(active_op_array), zend_string_copy(Z_STR(var_node.u.constant)));
-	opline->extended_value = by_ref;
+	opline->extended_value = mode;
 }
 /* }}} */
 
@@ -4030,7 +4042,7 @@ void zend_compile_static_var(zend_ast *ast) /* {{{ */
 		ZVAL_NULL(&value_zv);
 	}
 
-	zend_compile_static_var_common(var_ast, &value_zv, 1);
+	zend_compile_static_var_common(var_ast, &value_zv, ZEND_CLOSURE_FETCH_REF);
 }
 /* }}} */
 
@@ -5273,15 +5285,14 @@ void zend_compile_params(zend_ast *ast, zend_ast *return_type_ast) /* {{{ */
 }
 /* }}} */
 
-static void zend_compile_closure_binding(znode *closure, zend_ast *uses_ast) /* {{{ */
+static void zend_compile_closure_binding(znode *closure, zend_ast_list *uses_list) /* {{{ */
 {
-	zend_ast_list *list = zend_ast_get_list(uses_ast);
 	uint32_t i;
 
-	for (i = 0; i < list->children; ++i) {
-		zend_ast *var_name_ast = list->child[i];
+	for (i = 0; i < uses_list->children; ++i) {
+		zend_ast *var_name_ast = uses_list->child[i];
 		zend_string *var_name = zend_ast_get_str(var_name_ast);
-		zend_bool by_ref = var_name_ast->attr;
+		uint32_t mode = var_name_ast->attr;
 		zend_op *opline;
 
 		if (zend_string_equals_literal(var_name, "this")) {
@@ -5295,42 +5306,132 @@ static void zend_compile_closure_binding(znode *closure, zend_ast *uses_ast) /* 
 		opline = zend_emit_op(NULL, ZEND_BIND_LEXICAL, closure, NULL);
 		opline->op2_type = IS_CV;
 		opline->op2.var = lookup_cv(CG(active_op_array), zend_string_copy(var_name));
-		opline->extended_value = by_ref;
+		opline->extended_value = mode;
 	}
 }
 /* }}} */
 
-void zend_compile_closure_uses(zend_ast *ast) /* {{{ */
-{
-	zend_op_array *op_array = CG(active_op_array);
-	zend_ast_list *list = zend_ast_get_list(ast);
-	uint32_t i;
-
-	for (i = 0; i < list->children; ++i) {
-		zend_ast *var_ast = list->child[i];
-		zend_string *var_name = zend_ast_get_str(var_ast);
-		zend_bool by_ref = var_ast->attr;
-		zval zv;
-		ZVAL_NULL(&zv);
-
-		if (op_array->static_variables
-				&& zend_hash_exists(op_array->static_variables, var_name)) {
-			zend_error_noreturn(E_COMPILE_ERROR,
-				"Cannot use variable $%s twice", ZSTR_VAL(var_name));
+static void zend_compile_closure_search_use_variables(zend_ast* ast, HashTable *used) {
+	if (!ast) {
+		return;
+	}
+	if (ast->kind == ZEND_AST_VAR) {
+		zend_ast *var_ast = ast->child[0];
+		zend_string *name = Z_STR_P(zend_ast_get_zval(var_ast));
+		zend_hash_add_ptr(used, name, var_ast);
+	} else if (zend_ast_is_list(ast)) {
+		zend_ast_list *list = zend_ast_get_list(ast);
+		uint32_t i;
+		for (i = 0; i < list->children; i++) {
+			zend_compile_closure_search_use_variables(list->child[i], used);
 		}
+	} else if (ast->kind == ZEND_AST_CLOSURE && ((zend_ast_decl *) ast)->child[1]) {
+		zend_ast_decl *closure_ast = (zend_ast_decl *) ast;
+		zend_ast *uses_ast = closure_ast->child[1], *stmt_ast = closure_ast->child[2];
+		zend_ast_list *uses_list = zend_ast_get_list(uses_ast);
+		if (uses_list->children) {
+			uint32_t i, children = uses_list->children;
+			for (i = 0; i < children; i++) {
+				zend_hash_add_ptr(used, Z_STR_P(zend_ast_get_zval(uses_list->child[i])), uses_list->child[i]);
+			}
+		} else {
+			zend_compile_closure_search_use_variables(stmt_ast, used);
+		}
+	} else if (!zend_ast_is_special(ast)) {
+		uint32_t i, children = ast->kind >> ZEND_AST_NUM_CHILDREN_SHIFT;
+		for (i = 0; i < children; i++) {
+			zend_compile_closure_search_use_variables(ast->child[i], used);
+		}
+	}
+}
 
-		{
-			int i;
-			for (i = 0; i < op_array->last_var; i++) {
-				if (zend_string_equals(op_array->vars[i], var_name)) {
-					zend_error_noreturn(E_COMPILE_ERROR,
-						"Cannot use lexical variable $%s as a parameter name", ZSTR_VAL(var_name));
+static void _find_implicit_binds(HashTable *used, zend_ast *params_ast, zend_ast *stmt_ast)
+{
+	zend_ast_list *param_list;
+	int i;
+
+	param_list = zend_ast_get_list(params_ast);
+
+	zend_hash_init(used, param_list->children, NULL, NULL, 0); 
+
+	zend_compile_closure_search_use_variables(stmt_ast, used);
+
+	/* Remove variables that are parameters, $this and auto-globals */
+	for (i = 0; i < param_list->children; i++) {
+		zend_ast *param_ast = param_list->child[i];
+		zend_hash_del(used, Z_STR_P(zend_ast_get_zval(param_ast->child[1])));
+	}
+
+	zend_hash_str_del(used, "this", sizeof("this") - 1);
+
+	/* todo: loop over auto-globals and remove them */
+	
+}
+
+static void _compile_implicit_lexical_binds(znode *closure, HashTable *used)
+{
+	zend_string *var_name;
+	zend_op *opline;
+
+	ZEND_HASH_FOREACH_STR_KEY(used, var_name)
+		if (!zend_is_auto_global(var_name)) {
+			opline = zend_emit_op(NULL, ZEND_BIND_LEXICAL, closure, NULL);
+			opline->op2_type = IS_CV;
+			opline->op2.var = lookup_cv(CG(active_op_array), zend_string_copy(var_name));
+			opline->extended_value = ZEND_CLOSURE_FETCH_IMPLICIT;
+		}
+	ZEND_HASH_FOREACH_END();
+}
+
+static inline void zend_compile_closure_use(zend_ast *var_ast) {
+	uint32_t fetch_type = var_ast->attr;
+	zval zv;
+
+	ZVAL_NULL(&zv);
+	Z_CONST_FLAGS(zv) = fetch_type;
+
+	zend_compile_static_var_common(var_ast, &zv, fetch_type);
+}
+
+static void zend_compile_closure_uses(zend_ast *params_ast, zend_ast *uses_ast, zend_ast *stmt_ast, HashTable *used) /* {{{ */
+{
+	uint32_t i;
+	zend_ast_list *list = zend_ast_get_list(uses_ast);
+	zend_op_array *op_array = CG(active_op_array);
+
+	if (list->children) {
+		for (i = 0; i < list->children; ++i) {
+			zend_ast *var_ast = list->child[i];
+			zend_string *var_name = zend_ast_get_str(var_ast);
+
+			if (op_array->static_variables
+					&& zend_hash_exists(op_array->static_variables, var_name)) {
+				zend_error_noreturn(E_COMPILE_ERROR,
+					"Cannot use variable $%s twice", ZSTR_VAL(var_name));
+			}
+
+			{
+				int i;
+				for (i = 0; i < op_array->last_var; i++) {
+					if (zend_string_equals(op_array->vars[i], var_name)) {
+						zend_error_noreturn(E_COMPILE_ERROR,
+							"Cannot use lexical variable $%s as a parameter name", ZSTR_VAL(var_name));
+					}
 				}
 			}
-		}
 
-		zend_compile_static_var_common(var_ast, &zv, by_ref);
+			zend_compile_closure_use(var_ast);
+		}
+	} else {
+		zend_ast *var_ast;
+		ZEND_HASH_FOREACH_PTR(used, var_ast)
+			uint32_t fetch_type = var_ast->attr;
+			var_ast->attr = ZEND_CLOSURE_FETCH_IMPLICIT;
+			zend_compile_closure_use(var_ast);
+			var_ast->attr = fetch_type;
+		ZEND_HASH_FOREACH_END();
 	}
+
 }
 /* }}} */
 
@@ -5530,7 +5631,7 @@ static void zend_begin_func_decl(znode *result, zend_op_array *op_array, zend_as
 			ZEND_AUTOLOAD_FUNC_NAME);
 	}
 
-	key = zend_build_runtime_definition_key(lcname, decl->lex_pos);
+	key = zend_build_runtime_definition_key(CG(function_table), lcname, decl->lex_pos);
 	zend_hash_update_ptr(CG(function_table), key, op_array);
 	zend_register_seen_symbol(lcname, ZEND_SYMBOL_FUNCTION);
 
@@ -5564,6 +5665,7 @@ void zend_compile_func_decl(znode *result, zend_ast *ast) /* {{{ */
 	zend_op_array *orig_op_array = CG(active_op_array);
 	zend_op_array *op_array = zend_arena_alloc(&CG(arena), sizeof(zend_op_array));
 	zend_oparray_context orig_oparray_context;
+	HashTable used;
 
 	init_op_array(op_array, ZEND_USER_FUNCTION, INITIAL_OP_ARRAY_SIZE);
 
@@ -5583,8 +5685,15 @@ void zend_compile_func_decl(znode *result, zend_ast *ast) /* {{{ */
 		zend_begin_method_decl(op_array, decl->name, has_body);
 	} else {
 		zend_begin_func_decl(result, op_array, decl);
+
 		if (uses_ast) {
-			zend_compile_closure_binding(result, uses_ast);
+			zend_ast_list *uses_list = zend_ast_get_list(uses_ast);
+			if (uses_list->children) {
+				zend_compile_closure_binding(result, uses_list);
+			} else {
+				_find_implicit_binds(&used, params_ast, stmt_ast);
+				_compile_implicit_lexical_binds(result, &used);
+			}
 		}
 	}
 
@@ -5611,7 +5720,11 @@ void zend_compile_func_decl(znode *result, zend_ast *ast) /* {{{ */
 		zend_emit_op(NULL, ZEND_GENERATOR_CREATE, NULL, NULL);
 	}
 	if (uses_ast) {
-		zend_compile_closure_uses(uses_ast);
+		zend_compile_closure_uses(params_ast, uses_ast, stmt_ast, &used);
+
+		if (zend_ast_get_list(uses_ast)->children == 0) {
+			zend_hash_destroy(&used);
+		}
 	}
 	zend_compile_stmt(stmt_ast);
 
@@ -6008,7 +6121,7 @@ void zend_compile_class_decl(zend_ast *ast) /* {{{ */
 			SET_UNUSED(opline->op2);
 		}
 
-		key = zend_build_runtime_definition_key(lcname, decl->lex_pos);
+		key = zend_build_runtime_definition_key(CG(class_table), lcname, decl->lex_pos);
 		/* RTD key is placed after lcname literal in op1 */
 		zend_add_literal_string(CG(active_op_array), &key);
 

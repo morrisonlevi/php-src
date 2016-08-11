@@ -293,6 +293,11 @@ typedef struct _zend_oparray_context {
 /* op_array uses strict mode types */
 #define ZEND_ACC_STRICT_TYPES			0x80000000
 
+/* The binding modes for closure use */
+#define ZEND_CLOSURE_FETCH_VAL      0
+#define ZEND_CLOSURE_FETCH_REF      1
+#define ZEND_CLOSURE_FETCH_IMPLICIT 2
+
 char *zend_visibility_string(uint32_t fn_flags);
 
 typedef struct _zend_property_info {
@@ -809,6 +814,7 @@ ZEND_API zend_bool zend_is_auto_global(zend_string *name);
 ZEND_API zend_bool zend_is_auto_global_str(char *name, size_t len);
 ZEND_API size_t zend_dirname(char *path, size_t len);
 ZEND_API void zend_set_function_arg_flags(zend_function *func);
+zend_bool zend_is_simple_variable(zend_ast *ast);
 
 int zendlex(zend_parser_stack_elem *elem);
 

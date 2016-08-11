@@ -14999,14 +14999,12 @@ static ZEND_OPCODE_HANDLER_RET ZEND_FASTCALL ZEND_BIND_LEXICAL_SPEC_TMP_CV_HANDL
 	zend_free_op free_op1;
 	zval *closure, *var;
 	zend_string *var_name;
+	uint32_t extended_value;
 
 	closure = _get_zval_ptr_tmp(opline->op1.var, execute_data, &free_op1);
-	if (opline->extended_value) {
-		/* By-ref binding */
-		var = _get_zval_ptr_cv_BP_VAR_W(execute_data, opline->op2.var);
-		ZVAL_MAKE_REF(var);
-		Z_ADDREF_P(var);
-	} else {
+	extended_value = opline->extended_value;
+
+	if (extended_value == ZEND_CLOSURE_FETCH_VAL) {
 		var = _get_zval_ptr_cv_undef(execute_data, opline->op2.var);
 		if (UNEXPECTED(Z_ISUNDEF_P(var))) {
 			SAVE_OPLINE();
@@ -15015,6 +15013,16 @@ static ZEND_OPCODE_HANDLER_RET ZEND_FASTCALL ZEND_BIND_LEXICAL_SPEC_TMP_CV_HANDL
 				HANDLE_EXCEPTION();
 			}
 		}
+		ZVAL_DEREF(var);
+		Z_TRY_ADDREF_P(var);
+	} else if (extended_value == ZEND_CLOSURE_FETCH_REF) {
+		/* By-ref binding */
+		var = _get_zval_ptr_cv_BP_VAR_W(execute_data, opline->op2.var);
+		ZVAL_MAKE_REF(var);
+		Z_ADDREF_P(var);
+	} else {
+		ZEND_ASSERT(extended_value == ZEND_CLOSURE_FETCH_IMPLICIT);
+		var = _get_zval_ptr_cv_undef(execute_data, opline->op2.var);
 		ZVAL_DEREF(var);
 		Z_TRY_ADDREF_P(var);
 	}
@@ -38262,7 +38270,7 @@ static ZEND_OPCODE_HANDLER_RET ZEND_FASTCALL ZEND_BIND_STATIC_SPEC_CV_CONST_HAND
 	varname = EX_CONSTANT(opline->op2);
 	value = zend_hash_find(ht, Z_STR_P(varname));
 
-	if (opline->extended_value) {
+	if (opline->extended_value == ZEND_CLOSURE_FETCH_REF) {
 		if (Z_CONSTANT_P(value)) {
 			SAVE_OPLINE();
 			if (UNEXPECTED(zval_update_constant_ex(value, EX(func)->op_array.scope) != SUCCESS)) {
