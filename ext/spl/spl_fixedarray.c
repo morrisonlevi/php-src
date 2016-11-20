@@ -1016,6 +1016,50 @@ zend_object_iterator *spl_fixedarray_get_iterator(zend_class_entry *ce, zval *ob
 }
 /* }}} */
 
+/* {{{ proto SplFixedArray SplFixedArray::map(callable) */
+SPL_METHOD(SplFixedArray, map)
+{
+	zend_long i, maxlen;
+	spl_fixedarray_object *intern, *out;
+	zend_object * out_object;
+	zend_fcall_info fci = empty_fcall_info;
+	zend_fcall_info_cache fci_cache = empty_fcall_info_cache;
+
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_FUNC_EX(fci, fci_cache, 1, 0)
+	ZEND_PARSE_PARAMETERS_END();
+
+	RETVAL_NULL();
+
+	if (fci_cache.function_handler && fci_cache.function_handler->common.arg_info && fci_cache.function_handler->common.arg_info->pass_by_reference) {
+		zend_throw_exception_ex(spl_ce_InvalidArgumentException, 0, "callback to SplFixedArray::map must not accept its parameter by reference");
+		return;
+	}
+
+	intern = Z_SPLFIXEDARRAY_P(getThis());
+
+	maxlen = intern->array.size;
+
+	out_object = spl_fixedarray_object_new_ex(spl_ce_SplFixedArray, NULL, 0);
+	out = spl_fixed_array_from_obj(out_object);
+	spl_fixedarray_init(&out->array, maxlen);
+
+	fci.param_count = 1;
+	fci.no_separation = 0;
+	for (i = 0; i < maxlen; ++i) {
+		fci.retval = &out->array.elements[i];
+		fci.params = &intern->array.elements[i];
+
+		if (zend_call_function(&fci, &fci_cache) != SUCCESS || Z_TYPE_P(fci.retval) == IS_UNDEF) {
+			spl_fixedarray_object_free_storage(out_object);
+			return;
+		}
+	}
+
+	RETURN_OBJ(out_object);
+}
+/* }}} */
+
 ZEND_BEGIN_ARG_INFO_EX(arginfo_splfixedarray_construct, 0, 0, 0)
 	ZEND_ARG_INFO(0, size)
 ZEND_END_ARG_INFO()
@@ -1041,6 +1085,10 @@ ZEND_END_ARG_INFO()
 ZEND_BEGIN_ARG_INFO(arginfo_splfixedarray_void, 0)
 ZEND_END_ARG_INFO()
 
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO(arginfo_splfixedarray_map, IS_OBJECT, "SplFixedArray", 0)
+	ZEND_ARG_CALLABLE_INFO(0, callback, 0)
+ZEND_END_ARG_INFO()
+
 static zend_function_entry spl_funcs_SplFixedArray[] = { /* {{{ */
 	SPL_ME(SplFixedArray, __construct,     arginfo_splfixedarray_construct,ZEND_ACC_PUBLIC)
 	SPL_ME(SplFixedArray, __wakeup,        arginfo_splfixedarray_void,     ZEND_ACC_PUBLIC)
@@ -1058,6 +1106,7 @@ static zend_function_entry spl_funcs_SplFixedArray[] = { /* {{{ */
 	SPL_ME(SplFixedArray, key,             arginfo_splfixedarray_void,     ZEND_ACC_PUBLIC)
 	SPL_ME(SplFixedArray, next,            arginfo_splfixedarray_void,     ZEND_ACC_PUBLIC)
 	SPL_ME(SplFixedArray, valid,           arginfo_splfixedarray_void,     ZEND_ACC_PUBLIC)
+	SPL_ME(SplFixedArray, map,             arginfo_splfixedarray_map,      ZEND_ACC_PUBLIC)
 	PHP_FE_END
 };
 /* }}} */
