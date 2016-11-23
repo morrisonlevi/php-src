@@ -1060,6 +1060,51 @@ SPL_METHOD(SplFixedArray, map)
 }
 /* }}} */
 
+/* {{{ proto SplFixedArray SplFixedArray::slice(int $offset, ?int $length = null) */
+SPL_METHOD(SplFixedArray, slice)
+{
+	zend_bool is_length_null;
+	zend_long i, j, offset, length, max_index;
+	spl_fixedarray_object *intern, *out;
+	zend_object * out_object;
+
+	ZEND_PARSE_PARAMETERS_START(1, 2)
+		Z_PARAM_LONG(offset)
+		Z_PARAM_OPTIONAL
+		Z_PARAM_LONG_EX(length, is_length_null, 1, 0)
+	ZEND_PARSE_PARAMETERS_END();
+
+	RETVAL_NULL();
+
+	intern = Z_SPLFIXEDARRAY_P(getThis());
+
+	out_object = spl_fixedarray_object_new_ex(spl_ce_SplFixedArray, NULL, 0);
+	out = spl_fixed_array_from_obj(out_object);
+
+	if (offset < 0) {
+		offset = MAX(0, intern->array.size + offset);
+	}
+
+	if (is_length_null) {
+		max_index = intern->array.size;
+	} else {
+		if (length >= 0) {
+			max_index = MIN(offset + length, intern->array.size);
+		} else {
+			max_index = intern->array.size + length;
+		}
+	}
+
+	spl_fixedarray_init(&out->array, max_index - offset);
+
+	for (i = 0, j = offset; j < max_index; ++i, ++j) {
+		ZVAL_COPY(&out->array.elements[i], &intern->array.elements[j]);
+	}
+
+	RETURN_OBJ(out_object);
+}
+/* }}} */
+
 ZEND_BEGIN_ARG_INFO_EX(arginfo_splfixedarray_construct, 0, 0, 0)
 	ZEND_ARG_INFO(0, size)
 ZEND_END_ARG_INFO()
@@ -1089,6 +1134,11 @@ ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO(arginfo_splfixedarray_map, IS_OBJECT, "SplF
 	ZEND_ARG_CALLABLE_INFO(0, callback, 0)
 ZEND_END_ARG_INFO()
 
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO(arginfo_splfixedarray_slice, IS_OBJECT, "SplFixedArray", 0)
+	ZEND_ARG_TYPE_INFO(0, offset, IS_LONG, 0)
+	ZEND_ARG_TYPE_INFO(0, length, IS_LONG, 1)
+ZEND_END_ARG_INFO()
+
 static zend_function_entry spl_funcs_SplFixedArray[] = { /* {{{ */
 	SPL_ME(SplFixedArray, __construct,     arginfo_splfixedarray_construct,ZEND_ACC_PUBLIC)
 	SPL_ME(SplFixedArray, __wakeup,        arginfo_splfixedarray_void,     ZEND_ACC_PUBLIC)
@@ -1107,6 +1157,7 @@ static zend_function_entry spl_funcs_SplFixedArray[] = { /* {{{ */
 	SPL_ME(SplFixedArray, next,            arginfo_splfixedarray_void,     ZEND_ACC_PUBLIC)
 	SPL_ME(SplFixedArray, valid,           arginfo_splfixedarray_void,     ZEND_ACC_PUBLIC)
 	SPL_ME(SplFixedArray, map,             arginfo_splfixedarray_map,      ZEND_ACC_PUBLIC)
+	SPL_ME(SplFixedArray, slice,           arginfo_splfixedarray_slice,    ZEND_ACC_PUBLIC)
 	PHP_FE_END
 };
 /* }}} */
