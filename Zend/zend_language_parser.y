@@ -253,6 +253,7 @@ static YYSIZE_T zend_yytnamerr(char*, const char*);
 %type <ast> array_pair non_empty_array_pair_list array_pair_list possible_array_pair
 %type <ast> isset_variable type return_type type_expr
 %type <ast> identifier
+%type <ast> array_expr array_dim callable_array
 
 %type <num> returns_ref function is_reference is_variadic variable_modifiers
 %type <num> method_modifiers non_empty_member_modifiers member_modifier
@@ -864,11 +865,41 @@ new_expr:
 			{ $$ = $2; }
 ;
 
+array_dim:
+		'[' array_pair_list ']'
+			{ $$ = $2; $$->attr = ZEND_ARRAY_SYNTAX_SHORT; }
+	|	array_expr '[' optional_expr ']'
+			{ $$ = zend_ast_create(ZEND_AST_DIM, $1, $3); }
+	|	array_expr '{' expr '}'
+			{ $$ = zend_ast_create(ZEND_AST_DIM, $1, $3); }
+	|	array_expr T_OBJECT_OPERATOR property_name argument_list
+			{ $$ = zend_ast_create(ZEND_AST_METHOD_CALL, $1, $3, $4); }
+	|	array_expr T_PAAMAYIM_NEKUDOTAYIM member_name argument_list
+			{ $$ = zend_ast_create(ZEND_AST_STATIC_CALL, $1, $3, $4); }
+;
+
+callable_array:
+		array_dim argument_list
+			{ $$ = zend_ast_create(ZEND_AST_CALL, $1, $2); }
+	|	callable_array argument_list
+			{ $$ = zend_ast_create(ZEND_AST_CALL, $1, $2); }
+;
+
+array_expr:
+		array_dim
+			{ $$ = $1; }
+	|	callable_array	{ $$ = $1; }
+	|	array_expr T_OBJECT_OPERATOR property_name
+			{ $$ = zend_ast_create(ZEND_AST_PROP, $1, $3); }
+	|	array_expr T_PAAMAYIM_NEKUDOTAYIM simple_variable
+			{ $$ = zend_ast_create(ZEND_AST_STATIC_PROP, $1, $3); }
+	|	array_expr T_PAAMAYIM_NEKUDOTAYIM identifier
+			{ $$ = zend_ast_create(ZEND_AST_CLASS_CONST, $1, $3); }
+;
+
 expr_without_variable:
 		T_LIST '(' array_pair_list ')' '=' expr
 			{ $3->attr = ZEND_ARRAY_SYNTAX_LIST; $$ = zend_ast_create(ZEND_AST_ASSIGN, $3, $6); }
-	|	'[' array_pair_list ']' '=' expr
-			{ $2->attr = ZEND_ARRAY_SYNTAX_SHORT; $$ = zend_ast_create(ZEND_AST_ASSIGN, $2, $5); }
 	|	variable '=' expr
 			{ $$ = zend_ast_create(ZEND_AST_ASSIGN, $1, $3); }
 	|	variable '=' '&' variable
@@ -1061,7 +1092,6 @@ ctor_arguments:
 
 dereferencable_scalar:
 		T_ARRAY '(' array_pair_list ')'	{ $$ = $3; $$->attr = ZEND_ARRAY_SYNTAX_LONG; }
-	|	'[' array_pair_list ']'			{ $$ = $2; $$->attr = ZEND_ARRAY_SYNTAX_SHORT; }
 	|	T_CONSTANT_ENCAPSED_STRING		{ $$ = $1; }
 ;
 
@@ -1096,6 +1126,9 @@ constant:
 expr:
 		variable					{ $$ = $1; }
 	|	expr_without_variable		{ $$ = $1; }
+	|	array_expr	{ $$ = $1; }
+	|	array_expr '=' expr
+			{ $$ = zend_ast_create(ZEND_AST_ASSIGN, $1, $3); }
 ;
 
 optional_expr:
