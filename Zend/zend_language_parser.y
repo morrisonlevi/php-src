@@ -253,6 +253,7 @@ static YYSIZE_T zend_yytnamerr(char*, const char*);
 %type <ast> array_pair non_empty_array_pair_list array_pair_list possible_array_pair
 %type <ast> isset_variable type return_type type_expr
 %type <ast> identifier
+%type <ast> expr_without_stmt left_recursive_expr left_recursive_expr_without_stmt
 
 %type <num> returns_ref function is_reference is_variadic variable_modifiers
 %type <num> method_modifiers non_empty_member_modifiers member_modifier
@@ -438,7 +439,7 @@ statement:
 	|	T_STATIC static_var_list ';'	{ $$ = $2; }
 	|	T_ECHO echo_expr_list ';'		{ $$ = $2; }
 	|	T_INLINE_HTML { $$ = zend_ast_create(ZEND_AST_ECHO, $1); }
-	|	expr ';' { $$ = $1; }
+	|	expr_without_stmt ';' { $$ = $1; }
 	|	T_UNSET '(' unset_variables possible_comma ')' ';' { $$ = $3; }
 	|	T_FOREACH '(' expr T_AS foreach_variable ')' foreach_statement
 			{ $$ = zend_ast_create(ZEND_AST_FOREACH, $3, $5, NULL, $7); }
@@ -907,60 +908,12 @@ expr_without_variable:
 	|	T_INC variable { $$ = zend_ast_create(ZEND_AST_PRE_INC, $2); }
 	|	variable T_DEC { $$ = zend_ast_create(ZEND_AST_POST_DEC, $1); }
 	|	T_DEC variable { $$ = zend_ast_create(ZEND_AST_PRE_DEC, $2); }
-	|	expr T_BOOLEAN_OR expr
-			{ $$ = zend_ast_create(ZEND_AST_OR, $1, $3); }
-	|	expr T_BOOLEAN_AND expr
-			{ $$ = zend_ast_create(ZEND_AST_AND, $1, $3); }
-	|	expr T_LOGICAL_OR expr
-			{ $$ = zend_ast_create(ZEND_AST_OR, $1, $3); }
-	|	expr T_LOGICAL_AND expr
-			{ $$ = zend_ast_create(ZEND_AST_AND, $1, $3); }
-	|	expr T_LOGICAL_XOR expr
-			{ $$ = zend_ast_create_binary_op(ZEND_BOOL_XOR, $1, $3); }
-	|	expr '|' expr	{ $$ = zend_ast_create_binary_op(ZEND_BW_OR, $1, $3); }
-	|	expr '&' expr	{ $$ = zend_ast_create_binary_op(ZEND_BW_AND, $1, $3); }
-	|	expr '^' expr	{ $$ = zend_ast_create_binary_op(ZEND_BW_XOR, $1, $3); }
-	|	expr '.' expr 	{ $$ = zend_ast_create_binary_op(ZEND_CONCAT, $1, $3); }
-	|	expr '+' expr 	{ $$ = zend_ast_create_binary_op(ZEND_ADD, $1, $3); }
-	|	expr '-' expr 	{ $$ = zend_ast_create_binary_op(ZEND_SUB, $1, $3); }
-	|	expr '*' expr	{ $$ = zend_ast_create_binary_op(ZEND_MUL, $1, $3); }
-	|	expr T_POW expr	{ $$ = zend_ast_create_binary_op(ZEND_POW, $1, $3); }
-	|	expr '/' expr	{ $$ = zend_ast_create_binary_op(ZEND_DIV, $1, $3); }
-	|	expr '%' expr 	{ $$ = zend_ast_create_binary_op(ZEND_MOD, $1, $3); }
-	| 	expr T_SL expr	{ $$ = zend_ast_create_binary_op(ZEND_SL, $1, $3); }
-	|	expr T_SR expr	{ $$ = zend_ast_create_binary_op(ZEND_SR, $1, $3); }
 	|	'+' expr %prec T_INC { $$ = zend_ast_create(ZEND_AST_UNARY_PLUS, $2); }
 	|	'-' expr %prec T_INC { $$ = zend_ast_create(ZEND_AST_UNARY_MINUS, $2); }
 	|	'!' expr { $$ = zend_ast_create_ex(ZEND_AST_UNARY_OP, ZEND_BOOL_NOT, $2); }
 	|	'~' expr { $$ = zend_ast_create_ex(ZEND_AST_UNARY_OP, ZEND_BW_NOT, $2); }
-	|	expr T_IS_IDENTICAL expr
-			{ $$ = zend_ast_create_binary_op(ZEND_IS_IDENTICAL, $1, $3); }
-	|	expr T_IS_NOT_IDENTICAL expr
-			{ $$ = zend_ast_create_binary_op(ZEND_IS_NOT_IDENTICAL, $1, $3); }
-	|	expr T_IS_EQUAL expr
-			{ $$ = zend_ast_create_binary_op(ZEND_IS_EQUAL, $1, $3); }
-	|	expr T_IS_NOT_EQUAL expr
-			{ $$ = zend_ast_create_binary_op(ZEND_IS_NOT_EQUAL, $1, $3); }
-	|	expr '<' expr
-			{ $$ = zend_ast_create_binary_op(ZEND_IS_SMALLER, $1, $3); }
-	|	expr T_IS_SMALLER_OR_EQUAL expr
-			{ $$ = zend_ast_create_binary_op(ZEND_IS_SMALLER_OR_EQUAL, $1, $3); }
-	|	expr '>' expr
-			{ $$ = zend_ast_create(ZEND_AST_GREATER, $1, $3); }
-	|	expr T_IS_GREATER_OR_EQUAL expr
-			{ $$ = zend_ast_create(ZEND_AST_GREATER_EQUAL, $1, $3); }
-	|	expr T_SPACESHIP expr
-			{ $$ = zend_ast_create_binary_op(ZEND_SPACESHIP, $1, $3); }
-	|	expr T_INSTANCEOF class_name_reference
-			{ $$ = zend_ast_create(ZEND_AST_INSTANCEOF, $1, $3); }
 	|	'(' expr ')' { $$ = $2; }
 	|	new_expr { $$ = $1; }
-	|	expr '?' expr ':' expr
-			{ $$ = zend_ast_create(ZEND_AST_CONDITIONAL, $1, $3, $5); }
-	|	expr '?' ':' expr
-			{ $$ = zend_ast_create(ZEND_AST_CONDITIONAL, $1, NULL, $4); }
-	|	expr T_COALESCE expr
-			{ $$ = zend_ast_create(ZEND_AST_COALESCE, $1, $3); }
 	|	internal_functions_in_yacc { $$ = $1; }
 	|	T_INT_CAST expr		{ $$ = zend_ast_create_cast(IS_LONG, $2); }
 	|	T_DOUBLE_CAST expr	{ $$ = zend_ast_create_cast(IS_DOUBLE, $2); }
@@ -988,6 +941,108 @@ expr_without_variable:
 			{ $$ = zend_ast_create_decl(ZEND_AST_CLOSURE, $3 | $14 | ZEND_ACC_STATIC, $2, $4,
 			      zend_string_init("{closure}", sizeof("{closure}") - 1, 0),
 			      $6, $8, $12, $9); CG(extra_fn_flags) = $10; }
+;
+
+left_recursive_expr:
+		expr T_BOOLEAN_OR expr
+			{ $$ = zend_ast_create(ZEND_AST_OR, $1, $3); }
+	|	expr T_BOOLEAN_AND expr
+			{ $$ = zend_ast_create(ZEND_AST_AND, $1, $3); }
+	|	expr T_LOGICAL_OR expr
+			{ $$ = zend_ast_create(ZEND_AST_OR, $1, $3); }
+	|	expr T_LOGICAL_AND expr
+			{ $$ = zend_ast_create(ZEND_AST_AND, $1, $3); }
+	|	expr T_LOGICAL_XOR expr
+			{ $$ = zend_ast_create_binary_op(ZEND_BOOL_XOR, $1, $3); }
+	|	expr '|' expr	{ $$ = zend_ast_create_binary_op(ZEND_BW_OR, $1, $3); }
+	|	expr '&' expr	{ $$ = zend_ast_create_binary_op(ZEND_BW_AND, $1, $3); }
+	|	expr '^' expr	{ $$ = zend_ast_create_binary_op(ZEND_BW_XOR, $1, $3); }
+	|	expr '.' expr 	{ $$ = zend_ast_create_binary_op(ZEND_CONCAT, $1, $3); }
+	|	expr '+' expr 	{ $$ = zend_ast_create_binary_op(ZEND_ADD, $1, $3); }
+	|	expr '-' expr 	{ $$ = zend_ast_create_binary_op(ZEND_SUB, $1, $3); }
+	|	expr '*' expr	{ $$ = zend_ast_create_binary_op(ZEND_MUL, $1, $3); }
+	|	expr T_POW expr	{ $$ = zend_ast_create_binary_op(ZEND_POW, $1, $3); }
+	|	expr '/' expr	{ $$ = zend_ast_create_binary_op(ZEND_DIV, $1, $3); }
+	|	expr '%' expr 	{ $$ = zend_ast_create_binary_op(ZEND_MOD, $1, $3); }
+	| 	expr T_SL expr	{ $$ = zend_ast_create_binary_op(ZEND_SL, $1, $3); }
+	|	expr T_SR expr	{ $$ = zend_ast_create_binary_op(ZEND_SR, $1, $3); }
+	|	expr T_IS_IDENTICAL expr
+			{ $$ = zend_ast_create_binary_op(ZEND_IS_IDENTICAL, $1, $3); }
+	|	expr T_IS_NOT_IDENTICAL expr
+			{ $$ = zend_ast_create_binary_op(ZEND_IS_NOT_IDENTICAL, $1, $3); }
+	|	expr T_IS_EQUAL expr
+			{ $$ = zend_ast_create_binary_op(ZEND_IS_EQUAL, $1, $3); }
+	|	expr T_IS_NOT_EQUAL expr
+			{ $$ = zend_ast_create_binary_op(ZEND_IS_NOT_EQUAL, $1, $3); }
+	|	expr '<' expr
+			{ $$ = zend_ast_create_binary_op(ZEND_IS_SMALLER, $1, $3); }
+	|	expr T_IS_SMALLER_OR_EQUAL expr
+			{ $$ = zend_ast_create_binary_op(ZEND_IS_SMALLER_OR_EQUAL, $1, $3); }
+	|	expr '>' expr
+			{ $$ = zend_ast_create(ZEND_AST_GREATER, $1, $3); }
+	|	expr T_IS_GREATER_OR_EQUAL expr
+			{ $$ = zend_ast_create(ZEND_AST_GREATER_EQUAL, $1, $3); }
+	|	expr T_SPACESHIP expr
+			{ $$ = zend_ast_create_binary_op(ZEND_SPACESHIP, $1, $3); }
+	|	expr T_INSTANCEOF class_name_reference
+			{ $$ = zend_ast_create(ZEND_AST_INSTANCEOF, $1, $3); }
+	|	expr '?' expr ':' expr
+			{ $$ = zend_ast_create(ZEND_AST_CONDITIONAL, $1, $3, $5); }
+	|	expr '?' ':' expr
+			{ $$ = zend_ast_create(ZEND_AST_CONDITIONAL, $1, NULL, $4); }
+	|	expr T_COALESCE expr
+			{ $$ = zend_ast_create(ZEND_AST_COALESCE, $1, $3); }
+;
+
+left_recursive_expr_without_stmt:
+		expr_without_stmt T_BOOLEAN_OR expr
+			{ $$ = zend_ast_create(ZEND_AST_OR, $1, $3); }
+	|	expr_without_stmt T_BOOLEAN_AND expr
+			{ $$ = zend_ast_create(ZEND_AST_AND, $1, $3); }
+	|	expr_without_stmt T_LOGICAL_OR expr
+			{ $$ = zend_ast_create(ZEND_AST_OR, $1, $3); }
+	|	expr_without_stmt T_LOGICAL_AND expr
+			{ $$ = zend_ast_create(ZEND_AST_AND, $1, $3); }
+	|	expr_without_stmt T_LOGICAL_XOR expr
+			{ $$ = zend_ast_create_binary_op(ZEND_BOOL_XOR, $1, $3); }
+	|	expr_without_stmt '|' expr	{ $$ = zend_ast_create_binary_op(ZEND_BW_OR, $1, $3); }
+	|	expr_without_stmt '&' expr	{ $$ = zend_ast_create_binary_op(ZEND_BW_AND, $1, $3); }
+	|	expr_without_stmt '^' expr	{ $$ = zend_ast_create_binary_op(ZEND_BW_XOR, $1, $3); }
+	|	expr_without_stmt '.' expr 	{ $$ = zend_ast_create_binary_op(ZEND_CONCAT, $1, $3); }
+	|	expr_without_stmt '+' expr 	{ $$ = zend_ast_create_binary_op(ZEND_ADD, $1, $3); }
+	|	expr_without_stmt '-' expr 	{ $$ = zend_ast_create_binary_op(ZEND_SUB, $1, $3); }
+	|	expr_without_stmt '*' expr	{ $$ = zend_ast_create_binary_op(ZEND_MUL, $1, $3); }
+	|	expr_without_stmt T_POW expr	{ $$ = zend_ast_create_binary_op(ZEND_POW, $1, $3); }
+	|	expr_without_stmt '/' expr	{ $$ = zend_ast_create_binary_op(ZEND_DIV, $1, $3); }
+	|	expr_without_stmt '%' expr 	{ $$ = zend_ast_create_binary_op(ZEND_MOD, $1, $3); }
+	| 	expr_without_stmt T_SL expr	{ $$ = zend_ast_create_binary_op(ZEND_SL, $1, $3); }
+	|	expr_without_stmt T_SR expr	{ $$ = zend_ast_create_binary_op(ZEND_SR, $1, $3); }
+	|	expr_without_stmt T_IS_IDENTICAL expr
+			{ $$ = zend_ast_create_binary_op(ZEND_IS_IDENTICAL, $1, $3); }
+	|	expr_without_stmt T_IS_NOT_IDENTICAL expr
+			{ $$ = zend_ast_create_binary_op(ZEND_IS_NOT_IDENTICAL, $1, $3); }
+	|	expr_without_stmt T_IS_EQUAL expr
+			{ $$ = zend_ast_create_binary_op(ZEND_IS_EQUAL, $1, $3); }
+	|	expr_without_stmt T_IS_NOT_EQUAL expr
+			{ $$ = zend_ast_create_binary_op(ZEND_IS_NOT_EQUAL, $1, $3); }
+	|	expr_without_stmt '<' expr
+			{ $$ = zend_ast_create_binary_op(ZEND_IS_SMALLER, $1, $3); }
+	|	expr_without_stmt T_IS_SMALLER_OR_EQUAL expr
+			{ $$ = zend_ast_create_binary_op(ZEND_IS_SMALLER_OR_EQUAL, $1, $3); }
+	|	expr_without_stmt '>' expr
+			{ $$ = zend_ast_create(ZEND_AST_GREATER, $1, $3); }
+	|	expr_without_stmt T_IS_GREATER_OR_EQUAL expr
+			{ $$ = zend_ast_create(ZEND_AST_GREATER_EQUAL, $1, $3); }
+	|	expr_without_stmt T_SPACESHIP expr
+			{ $$ = zend_ast_create_binary_op(ZEND_SPACESHIP, $1, $3); }
+	|	expr_without_stmt T_INSTANCEOF class_name_reference
+			{ $$ = zend_ast_create(ZEND_AST_INSTANCEOF, $1, $3); }
+	|	expr_without_stmt '?' expr ':' expr
+			{ $$ = zend_ast_create(ZEND_AST_CONDITIONAL, $1, $3, $5); }
+	|	expr_without_stmt '?' ':' expr
+			{ $$ = zend_ast_create(ZEND_AST_CONDITIONAL, $1, NULL, $4); }
+	|	expr_without_stmt T_COALESCE expr
+			{ $$ = zend_ast_create(ZEND_AST_COALESCE, $1, $3); }
 ;
 
 function:
@@ -1098,9 +1153,20 @@ constant:
 			{ $$ = zend_ast_create(ZEND_AST_CLASS_CONST, $1, $3); }
 ;
 
+expr_without_stmt:
+		variable
+			{ $$ = $1; }
+	|	expr_without_variable
+			{ $$ = $1; }
+	|	left_recursive_expr_without_stmt
+			{ $$ = $1; }
+;
+
 expr:
 		variable					{ $$ = $1; }
 	|	expr_without_variable		{ $$ = $1; }
+	|	left_recursive_expr
+			{ $$ = $1; }
 ;
 
 optional_expr:
