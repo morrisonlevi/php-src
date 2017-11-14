@@ -1236,6 +1236,7 @@ void zend_do_early_binding(void) /* {{{ */
 		case ZEND_VERIFY_ABSTRACT_CLASS:
 		case ZEND_ADD_INTERFACE:
 		case ZEND_ADD_TRAIT:
+		case ZEND_SPECIALIZE_TRAIT:
 		case ZEND_BIND_TRAITS:
 			/* We currently don't early-bind classes that implement interfaces */
 			/* Classes with traits are handled exactly the same, no early-bind here */
@@ -4127,8 +4128,10 @@ void zend_compile_new(znode *result, zend_ast *ast) /* {{{ */
 	zend_ast *class_ast = ast->child[0];
 	zend_ast *args_ast = ast->child[1];
 
-	znode class_node, ctor_result;
+	znode class_node, ctor_result, type_parameter_node;
 	zend_op *opline;
+	zend_class_entry * ce =  CG(active_class_entry);
+	zend_bool is_type_parameter = 0;
 	uint32_t opnum;
 
 	if (class_ast->kind == ZEND_AST_CLASS) {
@@ -4146,15 +4149,35 @@ void zend_compile_new(znode *result, zend_ast *ast) /* {{{ */
 		zend_compile_class_ref_ex(&class_node, class_ast, ZEND_FETCH_CLASS_EXCEPTION);
 	}
 
-	opnum = get_next_op_number(CG(active_op_array));
-	opline = zend_emit_op(result, ZEND_NEW, NULL, NULL);
+	if (class_node.op_type == IS_CONST && ce && (ce->ce_flags & ZEND_ACC_TRAIT) == ZEND_ACC_TRAIT && ce->num_interfaces > 0) {
+		zval * type_parameter;
+		ZEND_HASH_FOREACH_VAL(ce->type_parameters, type_parameter) {
+			zend_string * new_type = Z_STR(class_node.u.constant);
+			if (zend_string_equals_ci(new_type, Z_STR_P(type_parameter))) {
+				is_type_parameter = 1;
+				opline = zend_emit_op(&type_parameter_node, ZEND_FETCH_TYPE_PARAMETER, &FC(implementing_class), NULL);
+/*
+				opline->op2_type = IS_CONST;
+				opline->op2.constant = zend_add_class_name_literal(
+					CG(active_op_array), Z_STR(class_node.u.constant));
+*/
+			}
+		} ZEND_HASH_FOREACH_END();
+	}
 
-	if (class_node.op_type == IS_CONST) {
-		opline->op1_type = IS_CONST;
-		opline->op1.constant = zend_add_class_name_literal(
-			CG(active_op_array), Z_STR(class_node.u.constant));
+	opnum = get_next_op_number(CG(active_op_array));
+	if (0 && is_type_parameter) {
+		opline = zend_emit_op(result, ZEND_NEW, &type_parameter_node, NULL);
 	} else {
-		SET_NODE(opline->op1, &class_node);
+		opline = zend_emit_op(result, ZEND_NEW, NULL, NULL);
+
+		if (class_node.op_type == IS_CONST) {
+			opline->op1_type = IS_CONST;
+			opline->op1.constant = zend_add_class_name_literal(
+				CG(active_op_array), Z_STR(class_node.u.constant));
+		} else {
+			SET_NODE(opline->op1, &class_node);
+		}
 	}
 
 	zend_compile_call_common(&ctor_result, args_ast, NULL);
@@ -6203,6 +6226,92 @@ void zend_compile_use_trait(zend_ast *ast) /* {{{ */
 }
 /* }}} */
 
+HashTable * zend_compile_type_parameters(zend_ast *ast) /* {{{ */
+{
+	HashTable *result;
+	zend_ast_list *list = zend_ast_get_list(ast);
+	zend_ulong i;
+
+	ZEND_ASSERT(ast->kind == ZEND_AST_NAME_LIST);
+
+	result = zend_new_array(list->children);
+	for (i = 0; i < list->children; ++i) {
+		zend_ast *elem_ast = list->child[i];
+		zend_string * key = zend_ast_get_str(elem_ast);
+		zval tmp;
+		ZVAL_STR_COPY(&tmp, key);
+		zend_hash_index_update(result, i, &tmp);
+	}
+	return result;
+}
+/* }}} */
+
+void zend_compile_parameterized_trait(znode *result, zend_ast *ast) /* {{{ */
+{
+	zend_ast *trait_ast = ast->child[0];
+	zend_ast * parameters_ast = ast->child[1];
+	zend_ast_list *adaptations = ast->child[2] ? zend_ast_get_list(ast->child[2]) : NULL;
+
+	zend_class_entry *ce = CG(active_class_entry);
+	zend_op *opline;
+	znode specialized_node, parameters_node;
+	HashTable * parameters_table;
+	uint32_t i;
+
+	zend_string *name = zend_ast_get_str(trait_ast);
+
+	if (ce->ce_flags & ZEND_ACC_INTERFACE) {
+		zend_error_noreturn(E_COMPILE_ERROR, "Cannot use traits inside of interfaces. "
+			"%s is used in %s", ZSTR_VAL(name), ZSTR_VAL(ce->name));
+	}
+
+	switch (zend_get_class_fetch_type(name)) {
+		case ZEND_FETCH_CLASS_SELF:
+		case ZEND_FETCH_CLASS_PARENT:
+		case ZEND_FETCH_CLASS_STATIC:
+			zend_error_noreturn(E_COMPILE_ERROR, "Cannot use '%s' as trait name "
+				"as it is reserved", ZSTR_VAL(name));
+			break;
+	}
+
+	parameters_table = zend_compile_type_parameters(parameters_ast);
+	parameters_node.op_type = IS_CONST;
+	ZVAL_ARR(&parameters_node.u.constant, parameters_table);
+
+	/* todo: specialize method signatures and bodies
+	 * Maybe:
+	 *     SPECIALIZE_TRAIT    "TraitName"    ["string", "int"]    @1
+	 *     ADD_TRAIT           @0             @1
+	 */
+	opline = zend_emit_op(&specialized_node, ZEND_SPECIALIZE_TRAIT, NULL, &parameters_node);
+	opline->op1_type = IS_CONST;
+	opline->op1.constant = zend_add_class_name_literal(CG(active_op_array),
+		zend_resolve_class_name_ast(trait_ast));
+
+
+	zend_emit_op(NULL, ZEND_ADD_TRAIT, &FC(implementing_class), &specialized_node);
+
+	ce->num_traits++;
+
+	if (!adaptations) {
+		return;
+	}
+
+	for (i = 0; i < adaptations->children; ++i) {
+		zend_ast *adaptation_ast = adaptations->child[i];
+		switch (adaptation_ast->kind) {
+			case ZEND_AST_TRAIT_PRECEDENCE:
+				zend_compile_trait_precedence(adaptation_ast);
+				break;
+			case ZEND_AST_TRAIT_ALIAS:
+				zend_compile_trait_alias(adaptation_ast);
+				break;
+			EMPTY_SWITCH_DEFAULT_CASE()
+		}
+	}
+}
+/* }}} */
+
 void zend_compile_implements(znode *class_node, zend_ast *ast) /* {{{ */
 {
 	zend_ast_list *list = zend_ast_get_list(ast);
@@ -6224,6 +6333,32 @@ void zend_compile_implements(znode *class_node, zend_ast *ast) /* {{{ */
 			zend_resolve_class_name_ast(class_ast));
 
 		CG(active_class_entry)->num_interfaces++;
+	}
+}
+/* }}} */
+
+void zend_compile_type_arguments(zend_class_entry * ce, zend_ast *ast) /* {{{ */
+{
+	zend_ast_list *list = zend_ast_get_list(ast);
+	zend_ulong i;
+
+	if (list->children > 0) {
+		ce->type_parameters = zend_new_array(list->children);
+	}
+	for (i = 0; i < list->children; ++i) {
+		zend_ast *class_ast = list->child[i];
+		zend_string *name = zend_ast_get_str(class_ast);
+		zval tmp;
+
+		if (!zend_is_const_default_class_ref(class_ast)) {
+			zend_error_noreturn(E_COMPILE_ERROR,
+				"Cannot use '%s' as type parameter name as it is reserved", ZSTR_VAL(name));
+		}
+
+		ZVAL_STR_COPY(&tmp, name);
+		zend_hash_index_update(ce->type_parameters, i, &tmp);
+
+		ce->num_interfaces++;
 	}
 }
 /* }}} */
@@ -6252,6 +6387,7 @@ void zend_compile_class_decl(zend_ast *ast) /* {{{ */
 	zend_class_entry *ce = zend_arena_alloc(&CG(arena), sizeof(zend_class_entry));
 	zend_op *opline;
 	znode declare_node, extends_node;
+	zend_bool is_trait = (decl->flags & ZEND_ACC_TRAIT) == ZEND_ACC_TRAIT;
 
 	zend_class_entry *original_ce = CG(active_class_entry);
 	znode original_implementing_class = FC(implementing_class);
@@ -6359,6 +6495,10 @@ void zend_compile_class_decl(zend_ast *ast) /* {{{ */
 
 	CG(active_class_entry) = ce;
 
+	if (is_trait) {
+		zend_compile_type_arguments(ce, implements_ast);
+	}
+
 	zend_compile_stmt(stmt_ast);
 
 	/* Reset lineno for final opcodes and errors */
@@ -6414,15 +6554,15 @@ void zend_compile_class_decl(zend_ast *ast) /* {{{ */
 		zend_emit_op(NULL, ZEND_BIND_TRAITS, &declare_node, NULL);
 	}
 
-	if (implements_ast) {
+	if (implements_ast && !is_trait) {
 		zend_compile_implements(&declare_node, implements_ast);
 	}
 
 	if (!(ce->ce_flags & (ZEND_ACC_INTERFACE|ZEND_ACC_EXPLICIT_ABSTRACT_CLASS))
-		&& (extends_ast || implements_ast)
+		&& (extends_ast || (implements_ast && !is_trait))
 	) {
 		zend_verify_abstract_class(ce);
-		if (implements_ast) {
+		if (implements_ast && !is_trait) {
 			zend_emit_op(NULL, ZEND_VERIFY_ABSTRACT_CLASS, &declare_node, NULL);
 		}
 	}
@@ -6431,7 +6571,7 @@ void zend_compile_class_decl(zend_ast *ast) /* {{{ */
 	 * will restore it during actual implementation.
 	 * The ZEND_ACC_IMPLEMENT_INTERFACES flag disables double call to
 	 * zend_verify_abstract_class() */
-	if (ce->num_interfaces > 0) {
+	if (!is_trait && ce->num_interfaces > 0) {
 		ce->interfaces = NULL;
 		ce->num_interfaces = 0;
 		ce->ce_flags |= ZEND_ACC_IMPLEMENT_INTERFACES;
@@ -8248,6 +8388,9 @@ void zend_compile_expr(znode *result, zend_ast *ast) /* {{{ */
 			return;
 		case ZEND_AST_CONDITIONAL:
 			zend_compile_conditional(result, ast);
+			return;
+		case ZEND_AST_USE_PARAMETERIZED_TRAIT:
+			zend_compile_parameterized_trait(result, ast);
 			return;
 		case ZEND_AST_COALESCE:
 			zend_compile_coalesce(result, ast);

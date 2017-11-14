@@ -269,7 +269,9 @@ END_EXTERN_C()
 #define ZEND_FUNC_GET_ARGS                   195
 #define ZEND_UNSET_CV                        196
 #define ZEND_ISSET_ISEMPTY_CV                197
+#define ZEND_SPECIALIZE_TRAIT                198
+#define ZEND_FETCH_TYPE_PARAMETER            199
 
-#define ZEND_VM_LAST_OPCODE                  197
+#define ZEND_VM_LAST_OPCODE                  199
 
 #endif

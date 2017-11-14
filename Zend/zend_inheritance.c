@@ -1233,6 +1233,10 @@ static void zend_add_trait_method(zend_class_entry *ce, const char *name, zend_s
 	new_fn = zend_arena_alloc(&CG(arena), sizeof(zend_op_array));
 	memcpy(new_fn, fn, sizeof(zend_op_array));
 	new_fn->common.fn_flags |= ZEND_ACC_ARENA_ALLOCATED;
+
+	if (fn->common.scope->num_interfaces > 0) {
+		new_fn->common.prototype = fn;
+	}
 	fn = zend_hash_update_ptr(&ce->function_table, key, new_fn);
 	zend_add_magic_methods(ce, key, fn);
 }
@@ -1747,6 +1751,178 @@ void zend_check_deprecated_constructor(const zend_class_entry *ce) /* {{{ */
 	if (zend_has_deprecated_constructor(ce)) {
 		zend_error(E_DEPRECATED, "Methods with the same name as their class will not be constructors in a future version of PHP; %s has a deprecated constructor", ZSTR_VAL(ce->name));
 	}
+}
+/* }}} */
+
+static inline zend_type zend_specialized_trait_info_type(zend_string *type, zend_bool nullable) {
+	zend_type modified;
+
+	if (zend_string_equals_literal_ci(type, "string")) {
+		modified = ZEND_TYPE_ENCODE(IS_STRING, nullable);
+	} else if (zend_string_equals_literal_ci(type, "int")) {
+		modified = ZEND_TYPE_ENCODE(IS_LONG, nullable);
+	} else if (zend_string_equals_literal_ci(type, "float")) {
+		modified = ZEND_TYPE_ENCODE(IS_DOUBLE, nullable);
+	} else if (zend_string_equals_literal_ci(type, "array")) {
+		modified = ZEND_TYPE_ENCODE(IS_ARRAY, nullable);
+	} else if (zend_string_equals_literal_ci(type, "object")) {
+		modified = ZEND_TYPE_ENCODE(IS_OBJECT, nullable);
+	} else if (zend_string_equals_literal_ci(type, "bool")) {
+		modified = ZEND_TYPE_ENCODE(_IS_BOOL, nullable);
+	} else if (zend_string_equals_literal_ci(type, "void")) {
+		modified = ZEND_TYPE_ENCODE(IS_VOID, nullable);
+	} else {
+		modified = ZEND_TYPE_ENCODE_CLASS(type, nullable);
+		goto result;
+	}
+
+	zend_string_release(type);
+
+result:
+	return modified;
+}
+
+/* {{{ */
+static inline void zend_specialized_trait_info(zend_class_entry *trait, zend_arg_info *info) {
+	zval *type;
+
+	if (!ZEND_TYPE_IS_CLASS(info->type)) {
+		return;
+	}
+
+	type = zend_hash_find(trait->type_parameters, ZEND_TYPE_NAME(info->type));
+
+	if (!type || Z_TYPE_P(type) != IS_STRING) {
+		return;
+	}
+
+	info->type = zend_specialized_trait_info_type(Z_STR_P(type), ZEND_TYPE_ALLOW_NULL(info->type));
+} /* }}} */
+
+static inline int zend_specialized_trait_copy_function(zval *pDest, void *arg) {
+	zend_class_entry *specialized_ce = (zend_class_entry *) arg;
+	zend_function *function = Z_PTR_P(pDest);
+	zend_function *copy;
+	int var;
+
+	if (function->type != ZEND_USER_FUNCTION || !function->op_array.last_literal) {
+		return ZEND_HASH_APPLY_KEEP;
+	}
+
+	copy = zend_arena_alloc(&CG(arena), sizeof(zend_op_array));
+
+	memcpy(copy, function, sizeof(zend_op_array));
+
+	Z_PTR_P(pDest) = function = copy;
+
+	
+
+	for (var = 0; var < function->op_array.last_var; var++) {
+		zval *type = zend_hash_find(specialized_ce->type_parameters, function->op_array.vars[var]);
+
+		if (!type || Z_TYPE_P(type) != IS_STRING) {
+			continue;
+		}			
+
+		php_printf("%s =", ZSTR_VAL(function->op_array.vars[var]));
+		zend_string_release(function->op_array.vars[var]);
+
+		function->op_array.vars[var] = zend_string_copy(Z_STR_P(type));
+		php_printf("%s\n", ZSTR_VAL(function->op_array.vars[var]));
+	}
+
+	if (!function->common.num_args && !(function->common.fn_flags & ZEND_ACC_HAS_RETURN_TYPE)) {
+		return ZEND_HASH_APPLY_KEEP;
+	}
+
+	{
+		zend_arg_info *info = function->common.arg_info;
+		uint32_t length = (function->common.fn_flags & ZEND_ACC_HAS_RETURN_TYPE) ? 
+			function->common.num_args + 1 : function->common.num_args;
+
+		if (function->common.fn_flags & ZEND_ACC_HAS_RETURN_TYPE) {
+			info--;
+		}
+
+		function->common.arg_info = (zend_arg_info*) ecalloc(length, sizeof(zend_arg_info));
+
+		memcpy(function->common.arg_info, info, length);
+
+		if (function->common.fn_flags & ZEND_ACC_HAS_RETURN_TYPE) {
+			function->common.arg_info++;
+		}
+	}
+
+	if (function->common.fn_flags & ZEND_ACC_HAS_RETURN_TYPE) {
+		zend_specialized_trait_info(specialized_ce, &function->common.arg_info[-1]);
+	}
+
+	if (function->common.num_args && function->common.arg_info) {
+		int arg;
+
+		for (arg = 0; arg < function->common.num_args; arg++) {
+			zend_specialized_trait_info(specialized_ce, &function->common.arg_info[arg]);
+		}
+	}
+	
+	return ZEND_HASH_APPLY_KEEP;
+}
+
+ZEND_API zend_class_entry * zend_specialize_trait(zend_class_entry *trait, HashTable * type_parameters) /* {{{ */
+{
+	// todo: find proper arena?
+	zend_class_entry * specialized_ce;
+
+	if (zend_hash_num_elements(type_parameters) != trait->num_interfaces) {
+			zend_error_noreturn(E_ERROR,
+				"Number of type arguments %d does not match expected %d",
+				zend_hash_num_elements(type_parameters),
+				trait->num_interfaces
+			);
+	}
+
+	specialized_ce = (zend_class_entry *) zend_arena_alloc(&CG(arena), sizeof(zend_class_entry));
+
+	// todo: figure out the proper way to duplicate the members
+	memcpy(specialized_ce, trait, sizeof(zend_class_entry));
+
+	specialized_ce->type_parameters = zend_new_array(zend_hash_num_elements(type_parameters));
+
+	{
+		zend_ulong hash;
+		zval * key;
+		ZEND_HASH_FOREACH_NUM_KEY_VAL(trait->type_parameters, hash, key) {
+			zval * value = zend_hash_index_find(type_parameters, hash);
+			
+			if (!zend_hash_update(specialized_ce->type_parameters, Z_STR_P(key), value)) {
+				continue;
+			}
+
+			Z_ADDREF_P(value);
+
+			ZVAL_STR(value, zend_string_tolower(Z_STR_P(value)));
+
+			if (!zend_hash_update(specialized_ce->type_parameters, zend_string_tolower(Z_STR_P(key)), value)) {
+				continue;
+			}
+		} ZEND_HASH_FOREACH_END();
+	}
+	
+	{
+		HashTable copied;
+
+		zend_hash_init(&copied, 
+			zend_hash_num_elements(&specialized_ce->function_table),
+			NULL, ZEND_FUNCTION_DTOR, 0);
+		zend_hash_copy(&copied, 
+			&specialized_ce->function_table, 
+			NULL);
+		zend_hash_apply_with_argument(&copied, zend_specialized_trait_copy_function, specialized_ce);
+
+		specialized_ce->function_table = copied;
+	}
+
+	return specialized_ce;
 }
 /* }}} */
 

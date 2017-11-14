@@ -253,6 +253,7 @@ static YYSIZE_T zend_yytnamerr(char*, const char*);
 %type <ast> array_pair non_empty_array_pair_list array_pair_list possible_array_pair
 %type <ast> isset_variable type return_type type_expr
 %type <ast> identifier
+%type <ast> generic_type_parameters generic_type_parameter_list
 
 %type <num> returns_ref function is_reference is_variadic variable_modifiers
 %type <num> method_modifiers non_empty_member_modifiers member_modifier
@@ -519,10 +520,22 @@ class_modifier:
 	|	T_FINAL 		{ $$ = ZEND_ACC_FINAL; }
 ;
 
+generic_type_parameter_list:
+		T_STRING
+			{ $$ = zend_ast_create_list(1, ZEND_AST_NAME_LIST, $1); }
+	|	generic_type_parameter_list ',' T_STRING
+			{ $$ = zend_ast_list_add($1, $3); }
+;
+
+generic_type_parameters:
+		/* empty */ { $$ = zend_ast_create_list(0, ZEND_AST_NAME_LIST); }
+	|	'<' generic_type_parameter_list '>'	{ $$ = $2; }
+	|	'<' generic_type_parameter_list ',' '>'	{ $$ = $2; }
+;
+
 trait_declaration_statement:
-		T_TRAIT { $<num>$ = CG(zend_lineno); }
-		T_STRING backup_doc_comment '{' class_statement_list '}'
-			{ $$ = zend_ast_create_decl(ZEND_AST_CLASS, ZEND_ACC_TRAIT, $<num>2, $4, zend_ast_get_str($3), NULL, NULL, $6, NULL); }
+	T_TRAIT { $<num>$ = CG(zend_lineno); } T_STRING generic_type_parameters backup_doc_comment '{' class_statement_list '}'
+		{ $$ = zend_ast_create_decl(ZEND_AST_CLASS, ZEND_ACC_TRAIT, $<num>2, $5, zend_ast_get_str($3), NULL, $4, $7, NULL); }
 ;
 
 interface_declaration_statement:
@@ -714,7 +727,6 @@ class_statement_list:
 			{ $$ = zend_ast_create_list(0, ZEND_AST_STMT_LIST); }
 ;
 
-
 class_statement:
 		variable_modifiers property_list ';'
 			{ $$ = $2; $$->attr = $1; }
@@ -722,6 +734,8 @@ class_statement:
 			{ $$ = $3; $$->attr = $1; }
 	|	T_USE name_list trait_adaptations
 			{ $$ = zend_ast_create(ZEND_AST_USE_TRAIT, $2, $3); }
+	|	T_USE T_STRING '<' name_list '>' trait_adaptations
+			{ $$ = zend_ast_create(ZEND_AST_USE_PARAMETERIZED_TRAIT, $2, $4, $6); }
 	|	method_modifiers function returns_ref identifier backup_doc_comment '(' parameter_list ')'
 		return_type backup_fn_flags method_body backup_fn_flags
 			{ $$ = zend_ast_create_decl(ZEND_AST_METHOD, $3 | $1 | $12, $2, $5,
