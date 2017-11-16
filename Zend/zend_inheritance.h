@@ -29,6 +29,7 @@ ZEND_API void zend_do_implement_interface(zend_class_entry *ce, zend_class_entry
 
 ZEND_API void zend_do_implement_trait(zend_class_entry *ce, zend_class_entry *trait);
 ZEND_API void zend_do_bind_traits(zend_class_entry *ce);
+ZEND_API zend_class_entry * zend_specialize_trait(zend_class_entry *ce, HashTable * type_parameters);
 
 ZEND_API void zend_do_inheritance(zend_class_entry *ce, zend_class_entry *parent_ce);
 void zend_do_early_binding(void);

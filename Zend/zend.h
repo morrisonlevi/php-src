@@ -159,9 +159,7 @@ struct _zend_class_entry {
 
 	union {
 		zend_class_entry **interfaces;
-
-		/* trait definitons hold the names here */
-		zend_string **type_parameters;
+		HashTable * type_parameters;
 	};
 
 	zend_class_entry **traits;

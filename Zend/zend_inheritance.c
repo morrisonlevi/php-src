@@ -1749,6 +1749,39 @@ void zend_check_deprecated_constructor(const zend_class_entry *ce) /* {{{ */
 }
 /* }}} */
 
+ZEND_API zend_class_entry * zend_specialize_trait(zend_class_entry *trait, HashTable * type_parameters) /* {{{ */
+{
+	// todo: find proper arena?
+	zend_class_entry * specialized_ce;
+
+	if (zend_hash_num_elements(type_parameters) != trait->num_interfaces) {
+			zend_error_noreturn(E_ERROR,
+				"Number of type arguments %d does not match expected %d",
+				zend_hash_num_elements(type_parameters),
+				trait->num_interfaces
+			);
+	}
+
+	specialized_ce = (zend_class_entry *) emalloc(sizeof(zend_class_entry));
+
+	// todo: figure out the proper way to duplicate the members
+	memcpy(specialized_ce, trait, sizeof(zend_class_entry));
+
+	specialized_ce->type_parameters = zend_new_array(zend_hash_num_elements(type_parameters));
+
+	{
+		zend_ulong hash;
+		zval * key;
+		ZEND_HASH_FOREACH_NUM_KEY_VAL(trait->type_parameters, hash, key) {
+			zval * value = zend_hash_index_find(type_parameters, hash);
+			zend_hash_update(specialized_ce->type_parameters, Z_STR_P(key), value);
+		} ZEND_HASH_FOREACH_END();
+	}
+
+	return specialized_ce;
+}
+/* }}} */
+
 /*
  * Local variables:
  * tab-width: 4

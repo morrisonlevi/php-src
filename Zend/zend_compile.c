@@ -4151,8 +4151,10 @@ void zend_compile_new(znode *result, zend_ast *ast) /* {{{ */
 	zend_ast *class_ast = ast->child[0];
 	zend_ast *args_ast = ast->child[1];
 
-	znode class_node, ctor_result;
+	znode class_node, ctor_result, type_parameter_node;
 	zend_op *opline;
+	zend_class_entry * ce =  CG(active_class_entry);
+	zend_bool is_type_parameter = 0;
 	uint32_t opnum;
 
 	if (class_ast->kind == ZEND_AST_CLASS) {
@@ -4170,15 +4172,35 @@ void zend_compile_new(znode *result, zend_ast *ast) /* {{{ */
 		zend_compile_class_ref_ex(&class_node, class_ast, ZEND_FETCH_CLASS_EXCEPTION);
 	}
 
-	opnum = get_next_op_number(CG(active_op_array));
-	opline = zend_emit_op(result, ZEND_NEW, NULL, NULL);
+	if (class_node.op_type == IS_CONST && ce && (ce->ce_flags & ZEND_ACC_TRAIT) == ZEND_ACC_TRAIT && ce->num_interfaces > 0) {
+		zval * type_parameter;
+		ZEND_HASH_FOREACH_VAL(ce->type_parameters, type_parameter) {
+			zend_string * new_type = Z_STR(class_node.u.constant);
+			if (zend_string_equals_ci(new_type, Z_STR_P(type_parameter))) {
+				is_type_parameter = 1;
+				opline = zend_emit_op(&type_parameter_node, ZEND_FETCH_TYPE_PARAMETER, &FC(implementing_class), NULL);
+/*
+				opline->op2_type = IS_CONST;
+				opline->op2.constant = zend_add_class_name_literal(
+					CG(active_op_array), Z_STR(class_node.u.constant));
+*/
+			}
+		} ZEND_HASH_FOREACH_END();
+	}
 
-	if (class_node.op_type == IS_CONST) {
-		opline->op1_type = IS_CONST;
-		opline->op1.constant = zend_add_class_name_literal(
-			CG(active_op_array), Z_STR(class_node.u.constant));
+	opnum = get_next_op_number(CG(active_op_array));
+	if (0 && is_type_parameter) {
+		opline = zend_emit_op(result, ZEND_NEW, &type_parameter_node, NULL);
 	} else {
-		SET_NODE(opline->op1, &class_node);
+		opline = zend_emit_op(result, ZEND_NEW, NULL, NULL);
+
+		if (class_node.op_type == IS_CONST) {
+			opline->op1_type = IS_CONST;
+			opline->op1.constant = zend_add_class_name_literal(
+				CG(active_op_array), Z_STR(class_node.u.constant));
+		} else {
+			SET_NODE(opline->op1, &class_node);
+		}
 	}
 
 	zend_compile_call_common(&ctor_result, args_ast, NULL);
@@ -6231,16 +6253,16 @@ HashTable * zend_compile_type_parameters(zend_ast *ast) /* {{{ */
 {
 	HashTable *result;
 	zend_ast_list *list = zend_ast_get_list(ast);
-	uint32_t i;
+	zend_ulong i;
 
 	ZEND_ASSERT(ast->kind == ZEND_AST_NAME_LIST);
 
 	result = zend_new_array(list->children);
 	for (i = 0; i < list->children; ++i) {
 		zend_ast *elem_ast = list->child[i];
-		zend_string * value = zend_ast_get_str(elem_ast);
+		zend_string * key = zend_ast_get_str(elem_ast);
 		zval tmp;
-		ZVAL_STR(&tmp, value);
+		ZVAL_STR_COPY(&tmp, key);
 		zend_hash_index_update(result, i, &tmp);
 	}
 	return result;
@@ -6338,21 +6360,28 @@ void zend_compile_implements(znode *class_node, zend_ast *ast) /* {{{ */
 }
 /* }}} */
 
-void zend_compile_type_arguments(znode *class_node, zend_ast *ast) /* {{{ */
+void zend_compile_type_arguments(zend_class_entry * ce, zend_ast *ast) /* {{{ */
 {
 	zend_ast_list *list = zend_ast_get_list(ast);
-	uint32_t i;
+	zend_ulong i;
+
+	if (list->children > 0) {
+		ce->type_parameters = zend_new_array(list->children);
+	}
 	for (i = 0; i < list->children; ++i) {
 		zend_ast *class_ast = list->child[i];
 		zend_string *name = zend_ast_get_str(class_ast);
+		zval tmp;
+
 		if (!zend_is_const_default_class_ref(class_ast)) {
 			zend_error_noreturn(E_COMPILE_ERROR,
 				"Cannot use '%s' as type parameter name as it is reserved", ZSTR_VAL(name));
 		}
 
-		// todo: store type parameters on CE
+		ZVAL_STR_COPY(&tmp, name);
+		zend_hash_index_update(ce->type_parameters, i, &tmp);
 
-		CG(active_class_entry)->num_interfaces++;
+		ce->num_interfaces++;
 	}
 }
 /* }}} */
@@ -6489,6 +6518,10 @@ void zend_compile_class_decl(zend_ast *ast) /* {{{ */
 
 	CG(active_class_entry) = ce;
 
+	if (is_trait) {
+		zend_compile_type_arguments(ce, implements_ast);
+	}
+
 	zend_compile_stmt(stmt_ast);
 
 	/* Reset lineno for final opcodes and errors */
@@ -6544,9 +6577,7 @@ void zend_compile_class_decl(zend_ast *ast) /* {{{ */
 		zend_emit_op(NULL, ZEND_BIND_TRAITS, &declare_node, NULL);
 	}
 
-	if (is_trait) {
-		zend_compile_type_arguments(&declare_node, implements_ast);
-	} else if (implements_ast) {
+	if (implements_ast && !is_trait) {
 		zend_compile_implements(&declare_node, implements_ast);
 	}
 

@@ -6962,7 +6962,7 @@ ZEND_VM_HANDLER(198, ZEND_SPECIALIZE_TRAIT, ANY, CONST)
 {
 	USE_OPLINE
 	zend_class_entry *ce = Z_CE_P(EX_VAR(opline->op1.var));
-	zend_class_entry *trait, *specialized_trait;
+	zend_class_entry *trait;
 	HashTable * type_parameters;
 
 	SAVE_OPLINE();
@@ -6982,17 +6982,8 @@ ZEND_VM_HANDLER(198, ZEND_SPECIALIZE_TRAIT, ANY, CONST)
 	}
 
 	type_parameters = Z_ARRVAL_P(GET_OP2_ZVAL_PTR(BP_VAR_R));
-	if (zend_hash_num_elements(type_parameters) != trait->num_interfaces) {
-			zend_error_noreturn(E_ERROR,
-				"Number of type arguments %d does not match expected %d",
-				zend_hash_num_elements(type_parameters),
-				trait->num_interfaces
-			);
-	}
-	// todo: actually specialize
-	specialized_trait = trait;
 
-	Z_CE_P(EX_VAR(opline->result.var)) = specialized_trait;
+	Z_CE_P(EX_VAR(opline->result.var)) = zend_specialize_trait(trait, type_parameters);
 
 	ZEND_VM_NEXT_OPCODE_CHECK_EXCEPTION();
 }
@@ -8381,6 +8372,18 @@ ZEND_VM_HANDLER(195, ZEND_FUNC_GET_ARGS, UNUSED|CONST, UNUSED)
 		ZVAL_EMPTY_ARRAY(EX_VAR(opline->result.var));
 	}
 	ZEND_VM_NEXT_OPCODE();
+}
+
+ZEND_VM_HANDLER(199, ZEND_FETCH_TYPE_PARAMETER, ANY, ANY)
+{
+	USE_OPLINE
+	zend_class_entry *trait = Z_CE_P(EX_VAR(opline->op1.var));
+
+	SAVE_OPLINE();
+
+	Z_CE_P(EX_VAR(opline->result.var)) = trait;
+
+	ZEND_VM_NEXT_OPCODE_CHECK_EXCEPTION();
 }
 
 ZEND_VM_HOT_TYPE_SPEC_HANDLER(ZEND_ADD, (res_info == MAY_BE_LONG && op1_info == MAY_BE_LONG && op2_info == MAY_BE_LONG), ZEND_ADD_LONG_NO_OVERFLOW, CONST|TMPVARCV, CONST|TMPVARCV, SPEC(NO_CONST_CONST,COMMUTATIVE))
