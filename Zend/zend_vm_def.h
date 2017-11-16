@@ -6958,17 +6958,19 @@ ZEND_VM_HANDLER(144, ZEND_ADD_INTERFACE, ANY, CONST)
 	ZEND_VM_NEXT_OPCODE_CHECK_EXCEPTION();
 }
 
-ZEND_VM_HANDLER(154, ZEND_ADD_TRAIT, ANY, ANY)
+ZEND_VM_HANDLER(198, ZEND_SPECIALIZE_TRAIT, ANY, CONST)
 {
 	USE_OPLINE
 	zend_class_entry *ce = Z_CE_P(EX_VAR(opline->op1.var));
 	zend_class_entry *trait;
+	HashTable * type_parameters;
 
 	SAVE_OPLINE();
-	trait = CACHED_PTR(Z_CACHE_SLOT_P(RT_CONSTANT(opline, opline->op2)));
+
+	trait = CACHED_PTR(Z_CACHE_SLOT_P(RT_CONSTANT(opline, opline->op1)));
 	if (UNEXPECTED(trait == NULL)) {
-		trait = zend_fetch_class_by_name(Z_STR_P(RT_CONSTANT(opline, opline->op2)),
-		                                 RT_CONSTANT(opline, opline->op2) + 1,
+		trait = zend_fetch_class_by_name(Z_STR_P(RT_CONSTANT(opline, opline->op1)),
+		                                 RT_CONSTANT(opline, opline->op1) + 1,
 		                                 ZEND_FETCH_CLASS_TRAIT);
 		if (UNEXPECTED(trait == NULL)) {
 			ZEND_VM_NEXT_OPCODE_CHECK_EXCEPTION();
@@ -6976,7 +6978,39 @@ ZEND_VM_HANDLER(154, ZEND_ADD_TRAIT, ANY, ANY)
 		if (!(trait->ce_flags & ZEND_ACC_TRAIT)) {
 			zend_error_noreturn(E_ERROR, "%s cannot use %s - it is not a trait", ZSTR_VAL(ce->name), ZSTR_VAL(trait->name));
 		}
-		CACHE_PTR(Z_CACHE_SLOT_P(RT_CONSTANT(opline, opline->op2)), trait);
+		CACHE_PTR(Z_CACHE_SLOT_P(RT_CONSTANT(opline, opline->op1)), trait);
+	}
+
+	type_parameters = Z_ARRVAL_P(GET_OP2_ZVAL_PTR(BP_VAR_R));
+
+	Z_CE_P(EX_VAR(opline->result.var)) = zend_specialize_trait(trait, type_parameters);
+
+	ZEND_VM_NEXT_OPCODE_CHECK_EXCEPTION();
+}
+
+ZEND_VM_HANDLER(154, ZEND_ADD_TRAIT, ANY, ANY)
+{
+	USE_OPLINE
+	zend_class_entry *ce = Z_CE_P(EX_VAR(opline->op1.var));
+	zend_class_entry *trait;
+
+	SAVE_OPLINE();
+	if (opline->op2_type == IS_CONST) {
+		trait = CACHED_PTR(Z_CACHE_SLOT_P(RT_CONSTANT(opline, opline->op2)));
+		if (UNEXPECTED(trait == NULL)) {
+			trait = zend_fetch_class_by_name(Z_STR_P(RT_CONSTANT(opline, opline->op2)),
+														RT_CONSTANT(opline, opline->op2) + 1,
+														ZEND_FETCH_CLASS_TRAIT);
+			if (UNEXPECTED(trait == NULL)) {
+				ZEND_VM_NEXT_OPCODE_CHECK_EXCEPTION();
+			}
+			if (!(trait->ce_flags & ZEND_ACC_TRAIT)) {
+				zend_error_noreturn(E_ERROR, "%s cannot use %s - it is not a trait", ZSTR_VAL(ce->name), ZSTR_VAL(trait->name));
+			}
+			CACHE_PTR(Z_CACHE_SLOT_P(RT_CONSTANT(opline, opline->op2)), trait);
+		}
+	} else {
+		trait = Z_CE_P(EX_VAR(opline->op2.var));
 	}
 
 	zend_do_implement_trait(ce, trait);
@@ -8338,6 +8372,18 @@ ZEND_VM_HANDLER(195, ZEND_FUNC_GET_ARGS, UNUSED|CONST, UNUSED)
 		ZVAL_EMPTY_ARRAY(EX_VAR(opline->result.var));
 	}
 	ZEND_VM_NEXT_OPCODE();
+}
+
+ZEND_VM_HANDLER(199, ZEND_FETCH_TYPE_PARAMETER, ANY, ANY)
+{
+	USE_OPLINE
+	zend_class_entry *trait = Z_CE_P(EX_VAR(opline->op1.var));
+
+	SAVE_OPLINE();
+
+	Z_CE_P(EX_VAR(opline->result.var)) = trait;
+
+	ZEND_VM_NEXT_OPCODE_CHECK_EXCEPTION();
 }
 
 ZEND_VM_HOT_TYPE_SPEC_HANDLER(ZEND_ADD, (res_info == MAY_BE_LONG && op1_info == MAY_BE_LONG && op2_info == MAY_BE_LONG), ZEND_ADD_LONG_NO_OVERFLOW, CONST|TMPVARCV, CONST|TMPVARCV, SPEC(NO_CONST_CONST,COMMUTATIVE))

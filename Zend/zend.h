@@ -156,7 +156,11 @@ struct _zend_class_entry {
 
 	uint32_t num_interfaces;
 	uint32_t num_traits;
-	zend_class_entry **interfaces;
+
+	union {
+		zend_class_entry **interfaces;
+		HashTable * type_parameters;
+	};
 
 	zend_class_entry **traits;
 	zend_trait_alias **trait_aliases;
