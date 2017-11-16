@@ -2086,11 +2086,18 @@ call_trampoline_end:
 static ZEND_OPCODE_HANDLER_RET ZEND_FASTCALL ZEND_FETCH_TYPE_PARAMETER_SPEC_HANDLER(ZEND_OPCODE_HANDLER_ARGS)
 {
 	USE_OPLINE
-	zend_class_entry *trait = Z_CE_P(EX_VAR(opline->op1.var));
+	zend_free_op free_op2;
+	zend_class_entry *type_arg;
+	const zend_string * type_parameter;
 
 	SAVE_OPLINE();
 
-	Z_CE_P(EX_VAR(opline->result.var)) = trait;
+	//type_parameter = Z_STR_P(get_zval_ptr_undef(opline->op2_type, opline->op2, &free_op2, BP_VAR_R));
+	type_parameter = NULL;
+
+	type_arg = zend_fetch_type_parameter(EX(func), type_parameter);
+
+	Z_CE_P(EX_VAR(opline->result.var)) = type_arg;
 
 	ZEND_VM_NEXT_OPCODE_CHECK_EXCEPTION();
 }
@@ -2387,13 +2394,6 @@ static ZEND_OPCODE_HANDLER_RET ZEND_FASTCALL ZEND_SPECIALIZE_TRAIT_SPEC_CONST_HA
 	}
 
 	type_parameters = Z_ARRVAL_P(RT_CONSTANT(opline, opline->op2));
-	if (zend_hash_num_elements(type_parameters) != trait->num_interfaces) {
-			zend_error_noreturn(E_ERROR,
-				"Number of type arguments %d does not match expected %d",
-				zend_hash_num_elements(type_parameters),
-				trait->num_interfaces
-			);
-	}
 
 	Z_CE_P(EX_VAR(opline->result.var)) = zend_specialize_trait(trait, type_parameters);
 

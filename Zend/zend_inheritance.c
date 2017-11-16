@@ -1232,6 +1232,10 @@ static void zend_add_trait_method(zend_class_entry *ce, const char *name, zend_s
 	new_fn = zend_arena_alloc(&CG(arena), sizeof(zend_op_array));
 	memcpy(new_fn, fn, sizeof(zend_op_array));
 	new_fn->common.fn_flags |= ZEND_ACC_ARENA_ALLOCATED;
+
+	if (fn->common.scope->num_interfaces > 0) {
+		new_fn->common.prototype = fn;
+	}
 	fn = zend_hash_update_ptr(&ce->function_table, key, new_fn);
 	zend_add_magic_methods(ce, key, fn);
 }
@@ -1771,10 +1775,53 @@ ZEND_API zend_class_entry * zend_specialize_trait(zend_class_entry *trait, HashT
 
 	{
 		zend_ulong hash;
-		zval * key;
-		ZEND_HASH_FOREACH_NUM_KEY_VAL(trait->type_parameters, hash, key) {
-			zval * value = zend_hash_index_find(type_parameters, hash);
-			zend_hash_update(specialized_ce->type_parameters, Z_STR_P(key), value);
+		zval * value;
+		zend_string * key;
+
+		/* Build mapping from type parameter to concrete type */
+		ZEND_HASH_FOREACH_NUM_KEY_VAL(trait->type_parameters, hash, value) {
+			zval * type = zend_hash_index_find(type_parameters, hash);
+			zend_hash_update(specialized_ce->type_parameters, Z_STR_P(value), type);
+		} ZEND_HASH_FOREACH_END();
+
+		/* Copy all methods and perform type substitution. */
+		ZEND_HASH_FOREACH_KEY_VAL(&specialized_ce->function_table, hash, key, value) {
+			#if 0
+			zend_function * new_fn = zend_arena_alloc(&CG(arena), sizeof(zend_op_array));
+			int64_t i;
+			zend_bool has_return_type;
+			zval new_fn_zv;
+			zend_arg_info * arg_infos;
+			ZVAL_FUNC(&new_fn_zv, new_fn);
+
+			memcpy(new_fn, Z_FUNC_P(value), sizeof(zend_function));
+			new_fn->common.fn_flags |= ZEND_ACC_ARENA_ALLOCATED;
+			new_fn->common.scope = specialized_ce;
+			has_return_type = (new_fn->common.fn_flags & ZEND_ACC_HAS_RETURN_TYPE) == ZEND_ACC_HAS_RETURN_TYPE ? 1 : 0;
+
+
+			arg_infos = zend_arena_alloc(
+				&CG(arena),
+				sizeof(zend_arg_info) * (new_fn->common.num_args + has_return_type)
+			);
+			new_fn->common.arg_info = &arg_infos[has_return_type];
+
+			for (i = -has_return_type; i < (int64_t) new_fn->common.num_args; ++i) {
+				new_fn->common.arg_info[i] = Z_FUNC_P(value)->common.arg_info[i];
+				zend_arg_info * arg = &new_fn->common.arg_info[i];
+				if (ZEND_TYPE_IS_CLASS(arg->type)) {
+					zend_string * arg_type_name = ZEND_TYPE_NAME(arg->type);
+					zval * new_type = zend_hash_find(specialized_ce->type_parameters, arg_type_name);
+					if (new_type != NULL) {
+						arg->type = ZEND_TYPE_ENCODE_CLASS(zend_string_copy(Z_STR_P(new_type)), 0);
+					} else {
+						zend_string_addref(arg_type_name);
+					}
+				}
+			}
+
+			zend_hash_update(&specialized_ce->function_table, key, &new_fn_zv);
+			#endif
 		} ZEND_HASH_FOREACH_END();
 	}
 

@@ -1311,6 +1311,13 @@ static zend_always_inline void zend_parse_arg_zval_deref(zval *arg, zval **dest,
 	*dest = (check_null && UNEXPECTED(Z_TYPE_P(arg) == IS_NULL)) ? NULL : arg;
 }
 
+static zend_always_inline zend_class_entry * zend_fetch_type_parameter(const zend_function * method, const zend_string * type_parameter)
+{
+	const zend_class_entry * scope = method->common.scope;
+	const zend_function * prototype = method->common.prototype;
+	return NULL;
+}
+
 END_EXTERN_C()
 
 #endif /* ZEND_API_H */
