@@ -128,6 +128,8 @@ struct _zend_class_entry {
 	HashTable properties_info;
 	HashTable constants_table;
 
+	HashTable method_type_parameters;
+
 	union _zend_function *constructor;
 	union _zend_function *destructor;
 	union _zend_function *clone;

@@ -8400,18 +8400,18 @@ ZEND_VM_HANDLER(195, ZEND_FUNC_GET_ARGS, UNUSED|CONST, UNUSED)
 ZEND_VM_HANDLER(199, ZEND_FETCH_TYPE_PARAMETER, ANY, ANY)
 {
 	USE_OPLINE
-	zend_free_op free_op2;
-	zend_class_entry *type_arg;
-	const zend_string * type_parameter;
+	zend_type type_argument;
+	zval * type_parameter;
 
 	SAVE_OPLINE();
 
-	//type_parameter = Z_STR_P(GET_OP2_ZVAL_PTR_UNDEF(BP_VAR_R));
-	type_parameter = NULL;
+	type_parameter = RT_CONSTANT(opline, opline->op1);
+	type_argument = zend_fetch_type_parameter(EX(func), Z_STR_P(type_parameter));
 
-	type_arg = zend_fetch_type_parameter(EX(func), type_parameter);
+	/* todo: use op_data to store next opcode and pack result as CE or const as
+	 * appropriate. For now just assume a CE. */
 
-	Z_CE_P(EX_VAR(opline->result.var)) = type_arg;
+	Z_CE_P(EX_VAR(opline->result.var)) = ZEND_TYPE_CE(type_argument);
 
 	ZEND_VM_NEXT_OPCODE_CHECK_EXCEPTION();
 }

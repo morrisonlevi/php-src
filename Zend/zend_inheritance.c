@@ -1234,8 +1234,14 @@ static void zend_add_trait_method(zend_class_entry *ce, const char *name, zend_s
 	memcpy(new_fn, fn, sizeof(zend_op_array));
 	new_fn->common.fn_flags |= ZEND_ACC_ARENA_ALLOCATED;
 
-	if (fn->common.scope->num_interfaces > 0) {
-		new_fn->common.prototype = fn;
+	if (zend_array_count(fn->common.scope->type_parameters) > 0) {
+		zval type_parameters;
+		ZVAL_ARR(&type_parameters, fn->common.scope->type_parameters);
+		zend_hash_update(&ce->method_type_parameters,
+			// todo: is tolower necessary?
+			zend_string_tolower(fn->common.function_name),
+			&type_parameters
+		);
 	}
 	fn = zend_hash_update_ptr(&ce->function_table, key, new_fn);
 	zend_add_magic_methods(ce, key, fn);
@@ -1918,22 +1924,23 @@ ZEND_API zend_class_entry * zend_specialize_trait(zend_class_entry *trait, HashT
 {
 	zend_class_entry *specialized_ce;
 	zend_string *specialized_name, *specialized_name_lc;
+	zval * cached_ce;
 
-	if (zend_hash_num_elements(type_parameters) != trait->num_interfaces) {
+	if (zend_array_count(type_parameters) != zend_array_count(trait->type_parameters)) {
 			zend_error_noreturn(E_ERROR,
 				"Number of type arguments %d does not match expected %d",
-				zend_hash_num_elements(type_parameters),
-				trait->num_interfaces
+				zend_array_count(type_parameters),
+				zend_array_count(trait->type_parameters)
 			);
 	}
 
 	specialized_name = zend_specialize_trait_name(trait, type_parameters);
 	specialized_name_lc = zend_string_tolower(specialized_name);
 
-	if ((specialized_ce = zend_hash_exists(CG(class_table), specialized_name_lc))) {
+	if ((cached_ce = zend_hash_find(CG(class_table), specialized_name_lc))) {
 		zend_string_release(specialized_name);
 		zend_string_release(specialized_name_lc);
-		return specialized_ce;
+		return Z_CE_P(cached_ce);
 	}
 
 	specialized_ce = (zend_class_entry *) zend_arena_alloc(&CG(arena), sizeof(zend_class_entry));
@@ -1967,11 +1974,13 @@ ZEND_API zend_class_entry * zend_specialize_trait(zend_class_entry *trait, HashT
 				continue;
 			}
 
+			/*
 			ZVAL_STR(value, zend_string_tolower(Z_STR_P(value)));
 
 			if (!zend_hash_update(specialized_ce->type_parameters, zend_string_tolower(Z_STR_P(key)), value)) {
 				continue;
 			}
+			*/
 		} ZEND_HASH_FOREACH_END();
 	}
 

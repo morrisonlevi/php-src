@@ -1311,11 +1311,23 @@ static zend_always_inline void zend_parse_arg_zval_deref(zval *arg, zval **dest,
 	*dest = (check_null && UNEXPECTED(Z_TYPE_P(arg) == IS_NULL)) ? NULL : arg;
 }
 
-static zend_always_inline zend_class_entry * zend_fetch_type_parameter(const zend_function * method, const zend_string * type_parameter)
+static zend_always_inline zend_type zend_fetch_type_parameter(zend_function * method, zend_string * type_parameter)
 {
 	const zend_class_entry * scope = method->common.scope;
-	const zend_function * prototype = method->common.prototype;
-	return NULL;
+	zval * value = zend_hash_find(
+		&scope->method_type_parameters,
+		zend_string_tolower(method->common.function_name)
+	);
+
+	if (value) {
+		HashTable * type_parameters = Z_ARR_P(value);
+		void * type = zend_hash_find_ptr(type_parameters, zend_string_tolower(type_parameter));
+		if (type) {
+			return (zend_type) type;
+		}
+	}
+	zend_error(E_ERROR, "Unable to find type parameter %s", type_parameter->val);
+	return (zend_type) NULL;
 }
 
 END_EXTERN_C()
