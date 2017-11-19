@@ -1783,11 +1783,15 @@ result:
 }
 
 /* {{{ */
-static inline void zend_specialized_trait_info(zend_class_entry *trait, zend_arg_info *info) {
+static inline void zend_specialized_trait_info(zend_class_entry *trait, zend_arg_info *info, zend_bool named) {
 	zval *type;
 
-	if (!ZEND_TYPE_IS_CLASS(info->type)) {
+	if (!ZEND_TYPE_IS_SET(info->type) || !ZEND_TYPE_IS_CLASS(info->type)) {
 		return;
+	}
+
+	if (named && info->name) {
+		zend_string_addref(info->name);
 	}
 
 	type = zend_hash_find(trait->type_parameters, ZEND_TYPE_NAME(info->type));
@@ -1802,7 +1806,7 @@ static inline void zend_specialized_trait_info(zend_class_entry *trait, zend_arg
 static inline int zend_specialized_trait_copy_function(zval *pDest, void *arg) {
 	zend_class_entry *specialized_ce = (zend_class_entry *) arg;
 	zend_function *function = Z_PTR_P(pDest);
-	zend_function *copy;
+	zend_op_array *copy;
 	int var;
 
 	if (function->type != ZEND_USER_FUNCTION || !function->op_array.last_literal) {
@@ -1813,7 +1817,10 @@ static inline int zend_specialized_trait_copy_function(zval *pDest, void *arg) {
 
 	memcpy(copy, function, sizeof(zend_op_array));
 
-	Z_PTR_P(pDest) = function = copy;
+	copy->refcount = emalloc(sizeof(uint32_t));
+	*(copy->refcount) = 1;
+
+	Z_PTR_P(pDest) = function = (zend_function*) copy;
 
 	for (var = 0; var < function->op_array.last_literal; var++) {
 		zval *type;
@@ -1859,7 +1866,7 @@ static inline int zend_specialized_trait_copy_function(zval *pDest, void *arg) {
 
 		function->common.arg_info = (zend_arg_info*) ecalloc(length, sizeof(zend_arg_info));
 
-		memcpy(function->common.arg_info, info, length);
+		memcpy(function->common.arg_info, info, length * sizeof(zend_arg_info));
 
 		if (function->common.fn_flags & ZEND_ACC_HAS_RETURN_TYPE) {
 			function->common.arg_info++;
@@ -1867,24 +1874,50 @@ static inline int zend_specialized_trait_copy_function(zval *pDest, void *arg) {
 	}
 
 	if (function->common.fn_flags & ZEND_ACC_HAS_RETURN_TYPE) {
-		zend_specialized_trait_info(specialized_ce, &function->common.arg_info[-1]);
+		zend_specialized_trait_info(specialized_ce, &function->common.arg_info[-1], 0);
 	}
 
 	if (function->common.num_args && function->common.arg_info) {
 		int arg;
 
 		for (arg = 0; arg < function->common.num_args; arg++) {
-			zend_specialized_trait_info(specialized_ce, &function->common.arg_info[arg]);
+			zend_specialized_trait_info(specialized_ce, &function->common.arg_info[arg], 1);
 		}
 	}
 	
 	return ZEND_HASH_APPLY_KEEP;
 }
 
+static inline zend_string* zend_specialize_trait_name(zend_class_entry *trait, HashTable *type_parameters) {
+	uint32_t limit = zend_hash_num_elements(type_parameters), position = 0;
+	zval *type = NULL;
+	smart_str format;
+
+	memset(&format, 0, sizeof(smart_str));
+
+	smart_str_alloc(&format, 8, ZSTR_LEN(trait->name) + 2);
+	smart_str_append(&format, trait->name);
+	smart_str_appends(&format, "<");
+
+	ZEND_HASH_FOREACH_VAL(type_parameters, type) {
+		smart_str_append(&format, Z_STR_P(type));
+		position++;
+
+		if (position >= limit) {
+			break;
+		}
+
+		smart_str_appends(&format, ", ");
+	} ZEND_HASH_FOREACH_END();
+	smart_str_appends(&format, ">");
+
+	return format.s;
+}
+
 ZEND_API zend_class_entry * zend_specialize_trait(zend_class_entry *trait, HashTable * type_parameters) /* {{{ */
 {
-	// todo: find proper arena?
-	zend_class_entry * specialized_ce;
+	zend_class_entry *specialized_ce;
+	zend_string *specialized_name, *specialized_name_lc;
 
 	if (zend_hash_num_elements(type_parameters) != trait->num_interfaces) {
 			zend_error_noreturn(E_ERROR,
@@ -1894,10 +1927,33 @@ ZEND_API zend_class_entry * zend_specialize_trait(zend_class_entry *trait, HashT
 			);
 	}
 
-	specialized_ce = (zend_class_entry *) zend_arena_alloc(&CG(arena), sizeof(zend_class_entry));
+	specialized_name = zend_specialize_trait_name(trait, type_parameters);
+	specialized_name_lc = zend_string_tolower(specialized_name);
 
-	// todo: figure out the proper way to duplicate the members
-	memcpy(specialized_ce, trait, sizeof(zend_class_entry));
+	if ((specialized_ce = zend_hash_exists(CG(class_table), specialized_name_lc))) {
+		zend_string_release(specialized_name);
+		zend_string_release(specialized_name_lc);
+		return specialized_ce;
+	}
+
+	specialized_ce = (zend_class_entry *) zend_arena_alloc(&CG(arena), sizeof(zend_class_entry));
+	specialized_ce->name = specialized_name;
+	specialized_ce->type = trait->type;
+
+	zend_initialize_class_data(specialized_ce, 1);
+
+	specialized_ce->ce_flags = trait->ce_flags;
+	specialized_ce->refcount = 1;
+
+	memcpy(&specialized_ce->info.user, &trait->info.user, sizeof(trait->info.user));
+
+	if (specialized_ce->info.user.doc_comment) {
+		zend_string_addref(specialized_ce->info.user.doc_comment);
+	}
+
+	if (specialized_ce->info.user.filename) {
+		zend_string_addref(specialized_ce->info.user.filename);
+	}
 
 	specialized_ce->type_parameters = zend_new_array(zend_hash_num_elements(type_parameters));
 
@@ -1911,8 +1967,6 @@ ZEND_API zend_class_entry * zend_specialize_trait(zend_class_entry *trait, HashT
 				continue;
 			}
 
-			Z_ADDREF_P(value);
-
 			ZVAL_STR(value, zend_string_tolower(Z_STR_P(value)));
 
 			if (!zend_hash_update(specialized_ce->type_parameters, zend_string_tolower(Z_STR_P(key)), value)) {
@@ -1920,22 +1974,37 @@ ZEND_API zend_class_entry * zend_specialize_trait(zend_class_entry *trait, HashT
 			}
 		} ZEND_HASH_FOREACH_END();
 	}
+
+	if (trait->default_properties_table) {
+		zval *p = trait->default_properties_table;
+		zval *end = p + trait->default_properties_count;
+
+		specialized_ce->default_properties_table = 
+			(zval*) ecalloc(sizeof(zval), trait->default_properties_count);
+
+		memcpy(
+			specialized_ce->default_properties_table, 
+			trait->default_properties_table, 
+			sizeof(zval) * trait->default_properties_count);
+
+		while (p != end) {
+			Z_ADDREF_P(p);
+			p++;
+		}
+
+		specialized_ce->default_properties_count = trait->default_properties_count;
+	}
 	
 	{
-		HashTable copied;
-
-		zend_hash_init(&copied, 
-			zend_hash_num_elements(&specialized_ce->function_table),
-			NULL, ZEND_FUNCTION_DTOR, 0);
-		zend_hash_copy(&copied, 
+		zend_hash_copy(&specialized_ce->function_table, &trait->function_table, NULL);
+		zend_hash_apply_with_argument(
 			&specialized_ce->function_table, 
-			NULL);
-		zend_hash_apply_with_argument(&copied, zend_specialized_trait_copy_function, specialized_ce);
-
-		specialized_ce->function_table = copied;
+			zend_specialized_trait_copy_function, specialized_ce);
 	}
 
-	return specialized_ce;
+	zend_string_release(specialized_name_lc);
+
+	return zend_hash_update_ptr(CG(class_table), specialized_name_lc, specialized_ce);
 }
 /* }}} */
 
