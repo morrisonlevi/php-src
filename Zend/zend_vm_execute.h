@@ -2387,13 +2387,6 @@ static ZEND_OPCODE_HANDLER_RET ZEND_FASTCALL ZEND_SPECIALIZE_TRAIT_SPEC_CONST_HA
 	}
 
 	type_parameters = Z_ARRVAL_P(RT_CONSTANT(opline, opline->op2));
-	if (zend_hash_num_elements(type_parameters) != trait->num_interfaces) {
-			zend_error_noreturn(E_ERROR,
-				"Number of type arguments %d does not match expected %d",
-				zend_hash_num_elements(type_parameters),
-				trait->num_interfaces
-			);
-	}
 
 	Z_CE_P(EX_VAR(opline->result.var)) = zend_specialize_trait(trait, type_parameters);
 
