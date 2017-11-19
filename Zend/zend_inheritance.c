@@ -1232,6 +1232,10 @@ static void zend_add_trait_method(zend_class_entry *ce, const char *name, zend_s
 	new_fn = zend_arena_alloc(&CG(arena), sizeof(zend_op_array));
 	memcpy(new_fn, fn, sizeof(zend_op_array));
 	new_fn->common.fn_flags |= ZEND_ACC_ARENA_ALLOCATED;
+
+	if (fn->common.scope->num_interfaces > 0) {
+		new_fn->common.prototype = fn;
+	}
 	fn = zend_hash_update_ptr(&ce->function_table, key, new_fn);
 	zend_add_magic_methods(ce, key, fn);
 }
@@ -1810,20 +1814,16 @@ static inline int zend_specialized_trait_copy_function(zval *pDest, void *arg) {
 
 	Z_PTR_P(pDest) = function = copy;
 
-	
-
 	for (var = 0; var < function->op_array.last_var; var++) {
 		zval *type = zend_hash_find(specialized_ce->type_parameters, function->op_array.vars[var]);
 
 		if (!type || Z_TYPE_P(type) != IS_STRING) {
 			continue;
-		}			
+		}
 
-		php_printf("%s =", ZSTR_VAL(function->op_array.vars[var]));
 		zend_string_release(function->op_array.vars[var]);
 
 		function->op_array.vars[var] = zend_string_copy(Z_STR_P(type));
-		php_printf("%s\n", ZSTR_VAL(function->op_array.vars[var]));
 	}
 
 	if (!function->common.num_args && !(function->common.fn_flags & ZEND_ACC_HAS_RETURN_TYPE)) {

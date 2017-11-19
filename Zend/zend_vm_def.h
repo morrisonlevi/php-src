@@ -8377,11 +8377,18 @@ ZEND_VM_HANDLER(195, ZEND_FUNC_GET_ARGS, UNUSED|CONST, UNUSED)
 ZEND_VM_HANDLER(199, ZEND_FETCH_TYPE_PARAMETER, ANY, ANY)
 {
 	USE_OPLINE
-	zend_class_entry *trait = Z_CE_P(EX_VAR(opline->op1.var));
+	zend_free_op free_op2;
+	zend_class_entry *type_arg;
+	const zend_string * type_parameter;
 
 	SAVE_OPLINE();
 
-	Z_CE_P(EX_VAR(opline->result.var)) = trait;
+	//type_parameter = Z_STR_P(GET_OP2_ZVAL_PTR_UNDEF(BP_VAR_R));
+	type_parameter = NULL;
+
+	type_arg = zend_fetch_type_parameter(EX(func), type_parameter);
+
+	Z_CE_P(EX_VAR(opline->result.var)) = type_arg;
 
 	ZEND_VM_NEXT_OPCODE_CHECK_EXCEPTION();
 }
