@@ -1815,7 +1815,22 @@ static inline int zend_specialized_trait_copy_function(zval *pDest, void *arg) {
 
 	Z_PTR_P(pDest) = function = copy;
 
-	
+	for (var = 0; var < function->op_array.last_literal; var++) {
+		zval *type;
+
+		if (Z_TYPE(function->op_array.literals[var]) != IS_STRING)
+			continue;
+
+		type = zend_hash_find(specialized_ce->type_parameters, Z_STR(function->op_array.literals[var]));
+
+		if (!type || Z_TYPE_P(type) != IS_STRING) {
+			continue;
+		}
+
+		zval_ptr_dtor(&function->op_array.literals[var]);
+
+		ZVAL_COPY(&function->op_array.literals[var], type);
+	}
 
 	for (var = 0; var < function->op_array.last_var; var++) {
 		zval *type = zend_hash_find(specialized_ce->type_parameters, function->op_array.vars[var]);
@@ -1824,11 +1839,9 @@ static inline int zend_specialized_trait_copy_function(zval *pDest, void *arg) {
 			continue;
 		}			
 
-		php_printf("%s =", ZSTR_VAL(function->op_array.vars[var]));
 		zend_string_release(function->op_array.vars[var]);
 
 		function->op_array.vars[var] = zend_string_copy(Z_STR_P(type));
-		php_printf("%s\n", ZSTR_VAL(function->op_array.vars[var]));
 	}
 
 	if (!function->common.num_args && !(function->common.fn_flags & ZEND_ACC_HAS_RETURN_TYPE)) {
