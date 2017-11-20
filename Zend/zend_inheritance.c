@@ -1857,6 +1857,8 @@ static inline int zend_specialized_trait_copy_function(zval *pDest, void *arg) {
 		function->op_array.vars[var] = zend_string_copy(Z_STR_P(type));
 	}
 
+	function->common.scope = specialized_ce;
+
 	if (!function->common.num_args && !(function->common.fn_flags & ZEND_ACC_HAS_RETURN_TYPE)) {
 		return ZEND_HASH_APPLY_KEEP;
 	}
@@ -1962,15 +1964,16 @@ ZEND_API zend_class_entry * zend_specialize_trait(zend_class_entry *trait, HashT
 		zend_string_addref(specialized_ce->info.user.filename);
 	}
 
-	specialized_ce->type_parameters = zend_new_array(zend_hash_num_elements(type_parameters));
+	specialized_ce->type_parameters = zend_new_array(zend_array_count(type_parameters));
 
 	{
 		zend_ulong hash;
 		zval * key;
 		ZEND_HASH_FOREACH_NUM_KEY_VAL(trait->type_parameters, hash, key) {
 			zval * value = zend_hash_index_find(type_parameters, hash);
+			zend_string * lowered = zend_string_tolower(Z_STR_P(key));
 			
-			if (!zend_hash_update(specialized_ce->type_parameters, Z_STR_P(key), value)) {
+			if (!zend_hash_add_new(specialized_ce->type_parameters, lowered, value)) {
 				continue;
 			}
 

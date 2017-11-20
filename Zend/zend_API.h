@@ -1321,10 +1321,20 @@ static zend_always_inline zend_type zend_fetch_type_parameter(zend_function * me
 
 	if (value) {
 		HashTable * type_parameters = Z_ARR_P(value);
-		void * type = zend_hash_find_ptr(type_parameters, zend_string_tolower(type_parameter));
+		zend_string * lowered = zend_string_tolower(type_parameter);
+		void * type = zend_hash_find_ptr(type_parameters, lowered);
 		if (type) {
-			return (zend_type) type;
+			zend_type argument = (zend_type) type;
+			if (ZEND_TYPE_IS_CLASS(argument)) {
+				/* TODO: figure out nullability */
+				zend_string * class_name = ZEND_TYPE_NAME(argument);
+				zend_class_entry * ce = zend_fetch_class(class_name, 0);
+				argument = ZEND_TYPE_ENCODE_CLASS(ce, 0);
+			}
+			zend_string_delref(lowered);
+			return argument;
 		}
+		zend_string_delref(lowered);
 	}
 	zend_error(E_ERROR, "Unable to find type parameter %s", type_parameter->val);
 	return (zend_type) NULL;
