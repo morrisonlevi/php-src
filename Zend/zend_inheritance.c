@@ -1816,7 +1816,7 @@ static inline int zend_specialized_trait_copy_function(zval *pDest, void *arg) {
 	copy->refcount = emalloc(sizeof(uint32_t));
 	*(copy->refcount) = 1;
 
-	copy->prototype = function;
+	copy->prototype = copy;
 	copy->scope = specialized_ce;
 
 	Z_PTR_P(pDest) = function = (zend_function*) copy;
@@ -1944,7 +1944,7 @@ ZEND_API zend_class_entry * zend_specialize_trait(zend_class_entry *trait, HashT
 
 	zend_initialize_class_data(specialized_ce, 1);
 
-	specialized_ce->ce_flags |= trait->ce_flags;
+	specialized_ce->ce_flags |= trait->ce_flags | ZEND_ACC_PARAMETERIZED;
 	specialized_ce->refcount = 1;
 
 	memcpy(&specialized_ce->info.user, &trait->info.user, sizeof(trait->info.user));
