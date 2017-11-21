@@ -4152,6 +4152,7 @@ void zend_compile_new(znode *result, zend_ast *ast) /* {{{ */
 	opnum = get_next_op_number(CG(active_op_array));
 	if (class_node.op_type == IS_CONST && (ce && ce->ce_flags & ZEND_ACC_PARAMETERIZED)) {
 		zval * type_parameter;
+
 		ZEND_HASH_FOREACH_VAL(ce->type_parameters, type_parameter) {
 			zend_string * new_type = Z_STR(class_node.u.constant);
 			if (zend_string_equals_ci(new_type, Z_STR_P(type_parameter))) {
@@ -4164,7 +4165,7 @@ void zend_compile_new(znode *result, zend_ast *ast) /* {{{ */
 		} ZEND_HASH_FOREACH_END();
 	}
 
-	opline = zend_emit_op(result, ZEND_NEW, is_parameterized ? &type_parameter_node : NULL, NULL);
+	opline = zend_emit_op(result, ZEND_NEW, NULL, NULL);
 
 	if (class_node.op_type == IS_CONST) {
 		opline->op1_type = IS_CONST;
