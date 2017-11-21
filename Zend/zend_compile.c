@@ -4128,10 +4128,8 @@ void zend_compile_new(znode *result, zend_ast *ast) /* {{{ */
 	zend_ast *class_ast = ast->child[0];
 	zend_ast *args_ast = ast->child[1];
 
-	znode class_node, ctor_result, type_parameter_node;
+	znode class_node, ctor_result;
 	zend_op *opline;
-	zend_class_entry * ce =  CG(active_class_entry);
-	zend_bool is_type_parameter = 0;
 	uint32_t opnum;
 
 	if (class_ast->kind == ZEND_AST_CLASS) {
@@ -4149,33 +4147,15 @@ void zend_compile_new(znode *result, zend_ast *ast) /* {{{ */
 		zend_compile_class_ref_ex(&class_node, class_ast, ZEND_FETCH_CLASS_EXCEPTION);
 	}
 
-	if (class_node.op_type == IS_CONST && ce && (ce->ce_flags & ZEND_ACC_TRAIT) == ZEND_ACC_TRAIT && zend_array_count(ce->type_parameters) > 0) {
-		zval * type_parameter;
-		ZEND_HASH_FOREACH_VAL(ce->type_parameters, type_parameter) {
-			zend_string * new_type = Z_STR(class_node.u.constant);
-			if (zend_string_equals_ci(new_type, Z_STR_P(type_parameter))) {
-				is_type_parameter = 1;
-				opline = zend_emit_op(&type_parameter_node, ZEND_FETCH_TYPE_PARAMETER, NULL, NULL);
-				opline->op1_type = IS_CONST;
-				opline->op1.constant = zend_add_class_name_literal(
-					CG(active_op_array), Z_STR(class_node.u.constant));
-			}
-		} ZEND_HASH_FOREACH_END();
-	}
-
 	opnum = get_next_op_number(CG(active_op_array));
-	if (is_type_parameter) {
-		opline = zend_emit_op(result, ZEND_NEW, &type_parameter_node, NULL);
-	} else {
-		opline = zend_emit_op(result, ZEND_NEW, NULL, NULL);
+	opline = zend_emit_op(result, ZEND_NEW, NULL, NULL);
 
-		if (class_node.op_type == IS_CONST) {
-			opline->op1_type = IS_CONST;
-			opline->op1.constant = zend_add_class_name_literal(
-				CG(active_op_array), Z_STR(class_node.u.constant));
-		} else {
-			SET_NODE(opline->op1, &class_node);
-		}
+	if (class_node.op_type == IS_CONST) {
+		opline->op1_type = IS_CONST;
+		opline->op1.constant = zend_add_class_name_literal(
+			CG(active_op_array), Z_STR(class_node.u.constant));
+	} else {
+		SET_NODE(opline->op1, &class_node);
 	}
 
 	zend_compile_call_common(&ctor_result, args_ast, NULL);
@@ -6358,20 +6338,22 @@ void zend_compile_type_parameters(zend_class_entry * ce, zend_ast *ast) /* {{{ *
 	zend_ast_list *list = zend_ast_get_list(ast);
 	zend_ulong i;
 
-	if (list->children > 0) {
-		ce->type_parameters = zend_new_array(list->children);
+	if (!list->children) {
+		return;
 	}
-	for (i = 0; i < list->children; ++i) {
-		zend_ast *class_ast = list->child[i];
-		zend_string *class_name = zend_ast_get_str(class_ast);
+
+	ce->type_parameters = zend_new_array(list->children);
+
+	for (i = 0; i < list->children; i++) {
+		zend_string *type_name = zend_ast_get_str(list->child[i]);
 		zval tmp;
 
-		if (!zend_is_const_default_class_ref(class_ast)) {
+		if (!zend_is_const_default_class_ref(list->child[i])) {
 			zend_error_noreturn(E_COMPILE_ERROR,
-				"Cannot use '%s' as type parameter name as it is reserved", ZSTR_VAL(class_name));
+				"Cannot use '%s' as type parameter name as it is reserved", ZSTR_VAL(type_name));
 		}
 
-		ZVAL_STR_COPY(&tmp, class_name);
+		ZVAL_STR_COPY(&tmp, type_name);
 		zend_hash_index_update(ce->type_parameters, i, &tmp);
 
 	}
@@ -6513,7 +6495,6 @@ void zend_compile_class_decl(zend_ast *ast) /* {{{ */
 	if (is_trait) {
 		zend_compile_type_parameters(ce, implements_ast);
 	}
-	zend_hash_init(&ce->method_type_parameters, 0, NULL, ZVAL_PTR_DTOR, 0);
 
 	zend_compile_stmt(stmt_ast);
 

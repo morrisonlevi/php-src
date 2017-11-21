@@ -1233,16 +1233,6 @@ static void zend_add_trait_method(zend_class_entry *ce, const char *name, zend_s
 	new_fn = zend_arena_alloc(&CG(arena), sizeof(zend_op_array));
 	memcpy(new_fn, fn, sizeof(zend_op_array));
 	new_fn->common.fn_flags |= ZEND_ACC_ARENA_ALLOCATED;
-
-	if (zend_array_count(fn->common.scope->type_parameters) > 0) {
-		zval type_parameters;
-		ZVAL_ARR(&type_parameters, fn->common.scope->type_parameters);
-		zend_hash_update(&ce->method_type_parameters,
-			// todo: is tolower necessary?
-			zend_string_tolower(fn->common.function_name),
-			&type_parameters
-		);
-	}
 	fn = zend_hash_update_ptr(&ce->function_table, key, new_fn);
 	zend_add_magic_methods(ce, key, fn);
 }
@@ -1826,8 +1816,12 @@ static inline int zend_specialized_trait_copy_function(zval *pDest, void *arg) {
 	copy->refcount = emalloc(sizeof(uint32_t));
 	*(copy->refcount) = 1;
 
+	copy->prototype = function;
+	copy->scope = specialized_ce;
+
 	Z_PTR_P(pDest) = function = (zend_function*) copy;
 
+	/*
 	for (var = 0; var < function->op_array.last_literal; var++) {
 		zval *type;
 
@@ -1856,9 +1850,8 @@ static inline int zend_specialized_trait_copy_function(zval *pDest, void *arg) {
 
 		function->op_array.vars[var] = zend_string_copy(Z_STR_P(type));
 	}
-
-	function->common.scope = specialized_ce;
-
+	*/
+	
 	if (!function->common.num_args && !(function->common.fn_flags & ZEND_ACC_HAS_RETURN_TYPE)) {
 		return ZEND_HASH_APPLY_KEEP;
 	}
@@ -1951,7 +1944,7 @@ ZEND_API zend_class_entry * zend_specialize_trait(zend_class_entry *trait, HashT
 
 	zend_initialize_class_data(specialized_ce, 1);
 
-	specialized_ce->ce_flags = trait->ce_flags;
+	specialized_ce->ce_flags |= trait->ce_flags;
 	specialized_ce->refcount = 1;
 
 	memcpy(&specialized_ce->info.user, &trait->info.user, sizeof(trait->info.user));
@@ -1967,23 +1960,17 @@ ZEND_API zend_class_entry * zend_specialize_trait(zend_class_entry *trait, HashT
 	specialized_ce->type_parameters = zend_new_array(zend_array_count(type_parameters));
 
 	{
-		zend_ulong hash;
-		zval * key;
-		ZEND_HASH_FOREACH_NUM_KEY_VAL(trait->type_parameters, hash, key) {
-			zval * value = zend_hash_index_find(type_parameters, hash);
-			zend_string * lowered = zend_string_tolower(Z_STR_P(key));
-			
-			if (!zend_hash_add_new(specialized_ce->type_parameters, lowered, value)) {
+		zend_ulong idx = 0UL;
+		zval * type = NULL;
+		ZEND_HASH_FOREACH_NUM_KEY_VAL(trait->type_parameters, idx, type) {
+			zend_type parameter = (zend_type) zend_hash_index_find_ptr(type_parameters, idx);
+
+			if (!parameter) {
+				/* bad things are happening */
 				continue;
 			}
 
-			/*
-			ZVAL_STR(value, zend_string_tolower(Z_STR_P(value)));
-
-			if (!zend_hash_update(specialized_ce->type_parameters, zend_string_tolower(Z_STR_P(key)), value)) {
-				continue;
-			}
-			*/
+			zend_hash_update_ptr(specialized_ce->type_parameters, Z_STR_P(type), (void*) parameter);
 		} ZEND_HASH_FOREACH_END();
 	}
 
