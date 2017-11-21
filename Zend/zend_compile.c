@@ -4128,9 +4128,11 @@ void zend_compile_new(znode *result, zend_ast *ast) /* {{{ */
 	zend_ast *class_ast = ast->child[0];
 	zend_ast *args_ast = ast->child[1];
 
-	znode class_node, ctor_result;
+	znode class_node, ctor_result, type_parameter_node;
 	zend_op *opline;
 	uint32_t opnum;
+	zend_class_entry *ce = CG(active_class_entry);
+	zend_bool is_parameterized = 0;
 
 	if (class_ast->kind == ZEND_AST_CLASS) {
 		uint32_t dcl_opnum = get_next_op_number(CG(active_op_array));
@@ -4148,7 +4150,21 @@ void zend_compile_new(znode *result, zend_ast *ast) /* {{{ */
 	}
 
 	opnum = get_next_op_number(CG(active_op_array));
-	opline = zend_emit_op(result, ZEND_NEW, NULL, NULL);
+	if (class_node.op_type == IS_CONST && (ce && ce->ce_flags & ZEND_ACC_PARAMETERIZED)) {
+		zval * type_parameter;
+		ZEND_HASH_FOREACH_VAL(ce->type_parameters, type_parameter) {
+			zend_string * new_type = Z_STR(class_node.u.constant);
+			if (zend_string_equals_ci(new_type, Z_STR_P(type_parameter))) {
+				opline = zend_emit_op(&type_parameter_node, ZEND_FETCH_TYPE_PARAMETER, NULL, NULL);
+				opline->op1_type = IS_CONST;
+				opline->op1.constant = zend_add_class_name_literal(
+					CG(active_op_array), Z_STR(class_node.u.constant));
+				is_parameterized = 1;
+			}
+		} ZEND_HASH_FOREACH_END();
+	}
+
+	opline = zend_emit_op(result, ZEND_NEW, is_parameterized ? &type_parameter_node : NULL, NULL);
 
 	if (class_node.op_type == IS_CONST) {
 		opline->op1_type = IS_CONST;
