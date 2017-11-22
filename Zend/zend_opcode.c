@@ -309,7 +309,7 @@ ZEND_API void destroy_zend_class(zval *zv)
 			_destroy_zend_class_traits_info(ce);
 
 			if (ce->type_parameters) {
-				//zend_array_destroy(ce->type_parameters);
+				zend_array_destroy(ce->type_parameters);
 			}
 
 			break;
