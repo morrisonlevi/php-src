@@ -2461,6 +2461,18 @@ static inline void zend_set_class_name_op1(zend_op *opline, znode *class_node) /
 }
 /* }}} */
 
+static zend_bool _is_type_parameter(const zend_class_entry * ce, const zend_string * type) /* {{{ */
+{
+	zval * value;
+	ZEND_HASH_FOREACH_VAL(ce->type_parameters, value) {
+		if (zend_string_equals_ci(type, Z_STR_P(value))) {
+			return 1;
+		}
+	} ZEND_HASH_FOREACH_END();
+	return 0;
+}
+/* }}} */
+
 static zend_op *zend_compile_class_ref(znode *result, zend_ast *name_ast, int throw_exception) /* {{{ */
 {
 	zend_op *opline;
@@ -4151,19 +4163,13 @@ void zend_compile_new(znode *result, zend_ast *ast) /* {{{ */
 
 	opnum = get_next_op_number(CG(active_op_array));
 	if (class_node.op_type == IS_CONST && (ce && ce->ce_flags & ZEND_ACC_PARAMETERIZED)) {
-		zval * type_parameter;
-
-		ZEND_HASH_FOREACH_VAL(ce->type_parameters, type_parameter) {
-			zend_string * new_type = Z_STR(class_node.u.constant);
-			if (zend_string_equals_ci(new_type, Z_STR_P(type_parameter))) {
-				popline = zend_emit_op(&type_parameter_node, ZEND_FETCH_TYPE_PARAMETER, NULL, NULL);
-				popline->op1_type = IS_CONST;
-				popline->op1.constant = zend_add_class_name_literal(
-					CG(active_op_array), Z_STR(class_node.u.constant));
-				is_parameterized = 1;
-				break;
-			}
-		} ZEND_HASH_FOREACH_END();
+		zend_string * type = Z_STR(class_node.u.constant);
+		is_parameterized = _is_type_parameter(ce, type);
+		if (is_parameterized) {
+			popline = zend_emit_op(&type_parameter_node, ZEND_FETCH_TYPE_PARAMETER, NULL, NULL);
+			popline->op1_type = IS_CONST;
+			popline->op1.constant = zend_add_class_name_literal(CG(active_op_array), type);
+		}
 	}
 
 	opline = zend_emit_op(result, ZEND_NEW, NULL, NULL);
