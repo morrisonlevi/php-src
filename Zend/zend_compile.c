@@ -7565,8 +7565,10 @@ void zend_compile_instanceof(znode *result, zend_ast *ast) /* {{{ */
 	zend_ast *obj_ast = ast->child[0];
 	zend_ast *class_ast = ast->child[1];
 
-	znode obj_node, class_node;
-	zend_op *opline;
+	znode obj_node, class_node, type_parameter_node;
+	zend_op *opline, *popline;
+	zend_class_entry * ce = CG(active_class_entry);
+	zend_bool is_parameterized = 0;
 
 	zend_compile_expr(&obj_node, obj_ast);
 	if (obj_node.op_type == IS_CONST) {
@@ -7577,9 +7579,22 @@ void zend_compile_instanceof(znode *result, zend_ast *ast) /* {{{ */
 	zend_compile_class_ref_ex(&class_node, class_ast,
 		ZEND_FETCH_CLASS_NO_AUTOLOAD | ZEND_FETCH_CLASS_EXCEPTION);
 
+	if (class_node.op_type == IS_CONST && ce && (ce->ce_flags & ZEND_ACC_PARAMETERIZED)) {
+		zend_string * type = Z_STR(class_node.u.constant);
+		is_parameterized = _is_type_parameter(ce, type);
+		if (is_parameterized) {
+			popline = zend_emit_op(&type_parameter_node, ZEND_FETCH_TYPE_PARAMETER, NULL, NULL);
+			popline->op1_type = IS_CONST;
+			popline->op1.constant = zend_add_class_name_literal(CG(active_op_array), type);
+		}
+	}
+
 	opline = zend_emit_op_tmp(result, ZEND_INSTANCEOF, &obj_node, NULL);
 
-	if (class_node.op_type == IS_CONST) {
+	if (is_parameterized) {
+		opline->op2_type = IS_VAR;
+		opline->op2.var = popline->result.var;
+	} else if (class_node.op_type == IS_CONST) {
 		opline->op2_type = IS_CONST;
 		opline->op2.constant = zend_add_class_name_literal(
 			CG(active_op_array), Z_STR(class_node.u.constant));
