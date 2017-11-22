@@ -1901,7 +1901,11 @@ static inline zend_string* zend_specialize_trait_name(zend_class_entry *trait, H
 	smart_str_appends(&format, "<");
 
 	ZEND_HASH_FOREACH_VAL(type_parameters, type) {
-		smart_str_append(&format, Z_STR_P(type));
+		if (Z_TYPE_P(type) == IS_STRING) {
+			smart_str_append(&format, Z_STR_P(type));
+		} else {
+			smart_str_appends(&format, zend_get_type_by_const(Z_LVAL_P(type)));
+		}
 		position++;
 
 		if (position >= limit) {
