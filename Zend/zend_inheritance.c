@@ -1919,7 +1919,6 @@ ZEND_API zend_class_entry * zend_specialize_trait(zend_class_entry *trait, HashT
 {
 	zend_class_entry *specialized_ce;
 	zend_string *specialized_name, *specialized_name_lc;
-	zval * cached_ce;
 
 	if (zend_array_count(type_parameters) != zend_array_count(trait->type_parameters)) {
 			zend_error_noreturn(E_ERROR,
@@ -1932,10 +1931,10 @@ ZEND_API zend_class_entry * zend_specialize_trait(zend_class_entry *trait, HashT
 	specialized_name = zend_specialize_trait_name(trait, type_parameters);
 	specialized_name_lc = zend_string_tolower(specialized_name);
 
-	if ((cached_ce = zend_hash_find(CG(class_table), specialized_name_lc))) {
+	if ((specialized_ce = zend_hash_find_ptr(CG(class_table), specialized_name_lc))) {
 		zend_string_release(specialized_name);
 		zend_string_release(specialized_name_lc);
-		return Z_CE_P(cached_ce);
+		return specialized_ce;
 	}
 
 	specialized_ce = (zend_class_entry *) zend_arena_alloc(&CG(arena), sizeof(zend_class_entry));
@@ -1962,15 +1961,16 @@ ZEND_API zend_class_entry * zend_specialize_trait(zend_class_entry *trait, HashT
 	{
 		zend_ulong idx = 0UL;
 		zval * type = NULL;
-		ZEND_HASH_FOREACH_NUM_KEY_VAL(trait->type_parameters, idx, type) {
-			zend_type parameter = (zend_type) zend_hash_index_find_ptr(type_parameters, idx);
 
-			if (!parameter) {
+		ZEND_HASH_FOREACH_NUM_KEY_VAL(trait->type_parameters, idx, type) {
+			zval *parameter = zend_hash_index_find(type_parameters, idx);
+
+			if (!parameter || !zend_hash_update(specialized_ce->type_parameters, Z_STR_P(type), parameter)) {
 				/* bad things are happening */
 				continue;
 			}
 
-			zend_hash_update_ptr(specialized_ce->type_parameters, Z_STR_P(type), (void*) parameter);
+			Z_TRY_ADDREF_P(parameter);
 		} ZEND_HASH_FOREACH_END();
 	}
 

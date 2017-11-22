@@ -2097,7 +2097,9 @@ static ZEND_OPCODE_HANDLER_RET ZEND_FASTCALL ZEND_FETCH_TYPE_PARAMETER_SPEC_HAND
 	/* todo: use op_data to store next opcode and pack result as CE or const as
 	 * appropriate. For now just assume a CE. */
 
-	Z_CE_P(EX_VAR(opline->result.var)) = ZEND_TYPE_CE(type_argument);
+	if (ZEND_TYPE_IS_CLASS(type_argument)) {
+		Z_CE_P(EX_VAR(opline->result.var)) = zend_fetch_class(ZEND_TYPE_NAME(type_argument), ZEND_FETCH_CLASS_SILENT);
+	}
 
 	ZEND_VM_NEXT_OPCODE_CHECK_EXCEPTION();
 }

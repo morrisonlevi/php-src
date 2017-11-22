@@ -6237,8 +6237,7 @@ HashTable * zend_compile_type_arguments(zend_ast *ast) /* {{{ */
 		zval tmp;
 
 		if (type != 0) {
-			/* TODO: figure out nullability */
-			ZVAL_PTR(&tmp, (void*) ZEND_TYPE_ENCODE(type, 0));
+			ZVAL_LONG(&tmp, type);
 		} else {
 			uint32_t fetch_type = zend_get_class_fetch_type_ast(elem_ast);
 			zend_string * class_name;
@@ -6250,10 +6249,10 @@ HashTable * zend_compile_type_arguments(zend_ast *ast) /* {{{ */
 				zend_string_addref(class_name);
 			}
 
-			ZVAL_PTR(&tmp, (void*) ZEND_TYPE_ENCODE_CLASS(class_name, 0));
+			ZVAL_STR(&tmp, class_name);
 		}
 
-		zend_hash_index_update_ptr(result, i, &tmp);
+		zend_hash_index_update(result, i, &tmp);
 	}
 	return result;
 }

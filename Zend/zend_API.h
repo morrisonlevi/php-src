@@ -1313,7 +1313,15 @@ static zend_always_inline void zend_parse_arg_zval_deref(zval *arg, zval **dest,
 
 static zend_always_inline zend_type zend_fetch_type_parameter(zend_function * method, zend_string *type_parameter)
 {
-	return (zend_type) zend_hash_find_ptr(method->common.prototype->common.scope->type_parameters, type_parameter);
+	zval *parameter = zend_hash_find(method->common.prototype->common.scope->type_parameters, type_parameter);
+
+	ZEND_ASSERT(parameter && (Z_TYPE_P(parameter) == IS_STRING || Z_TYPE_P(parameter) == IS_LONG));
+
+	if (Z_TYPE_P(parameter) == IS_LONG) {
+		return ZEND_TYPE_ENCODE(Z_LVAL_P(parameter), 0);
+	}
+
+	return ZEND_TYPE_ENCODE_CLASS(Z_STR_P(parameter), 0);
 }
 
 END_EXTERN_C()
