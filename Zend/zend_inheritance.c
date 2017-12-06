@@ -1926,9 +1926,10 @@ ZEND_API zend_class_entry * zend_specialize_trait(zend_class_entry *trait, HashT
 
 	if (zend_array_count(type_parameters) != zend_array_count(trait->type_parameters)) {
 			zend_error_noreturn(E_ERROR,
-				"Number of type arguments %d does not match expected %d",
+				"Number of type arguments %d does not match expected %d for parameterized type %s",
 				zend_array_count(type_parameters),
-				zend_array_count(trait->type_parameters)
+				zend_array_count(trait->type_parameters),
+				ZSTR_VAL(trait->name)
 			);
 	}
 
