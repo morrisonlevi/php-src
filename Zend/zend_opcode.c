@@ -308,7 +308,7 @@ ZEND_API void destroy_zend_class(zval *zv)
 
 			_destroy_zend_class_traits_info(ce);
 
-			if (ce->type_parameters) {
+			if (((ce->ce_flags & ZEND_ACC_PARAMETERIZED) || (ce->ce_flags & ZEND_ACC_TEMPLATE)) && ce->type_parameters) {
 				zend_array_destroy(ce->type_parameters);
 			}
 
