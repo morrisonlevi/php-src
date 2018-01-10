@@ -1,5 +1,5 @@
 --TEST--
-Parameterized Traits - missing type arguments
+Parameterized Traits - dictionary
 --FILE--
 <?php
 
@@ -25,13 +25,13 @@ trait Dictionary<Key, Value> {
 		return [$hashcode, null];
 	}
 
-	function put(/*Key*/ $key, /*Value*/ $value): void {
+	function put(Key $key, Value $value): void {
 		$location = $this->location($key);
 		$this->data[$location[0]][$location[1]] = [$key, $value];
 		$this->size += 1;
 	}
 
-	function get(/*Key*/ $key)/*: ?Value*/ {
+	function get(Key $key): ?Value {
 		$location = $this->location($key);
 		if ($location[1] != null) {
 			return $this->data[$location[0]][$location[1]][1];
@@ -39,7 +39,7 @@ trait Dictionary<Key, Value> {
 		return null;
 	}
 
-	function remove(/*Key*/ $key): ?array {
+	function remove(Key $key): ?array {
 		$location = $this->location($key);
 		if ($location[1] != null) {
 			$this->size--;
