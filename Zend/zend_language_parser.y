@@ -254,6 +254,7 @@ static YYSIZE_T zend_yytnamerr(char*, const char*);
 %type <ast> isset_variable type return_type type_expr
 %type <ast> identifier
 %type <ast> expr_without_stmt left_recursive_expr left_recursive_expr_without_stmt
+%type <ast> object_literal object_literal_list object_literal_pair
 
 %type <num> returns_ref function is_reference is_variadic variable_modifiers
 %type <num> method_modifiers non_empty_member_modifiers member_modifier
@@ -1153,6 +1154,26 @@ constant:
 			{ $$ = zend_ast_create(ZEND_AST_CLASS_CONST, $1, $3); }
 ;
 
+object_literal_pair:
+	expr ':' expr
+		{ $$ = zend_ast_create(ZEND_AST_ARRAY_ELEM, $3, $1); }
+;
+
+// todo: fix stand-alone commas
+object_literal_list:
+		/* empty */
+			{ $$ = zend_ast_create_list(0, ZEND_AST_ARRAY); }
+	|	object_literal_pair
+			{ $$ = zend_ast_create_list(1, ZEND_AST_ARRAY, $1); }
+	|	object_literal_list ',' object_literal_pair
+			{ $$ = zend_ast_list_add($1, $3); }
+;
+
+object_literal:
+	'{' object_literal_list '}'
+		{ $$ = $2; }
+;
+
 expr_without_stmt:
 		variable
 			{ $$ = $1; }
@@ -1163,10 +1184,10 @@ expr_without_stmt:
 ;
 
 expr:
-		variable					{ $$ = $1; }
-	|	expr_without_variable		{ $$ = $1; }
-	|	left_recursive_expr
-			{ $$ = $1; }
+		variable	{ $$ = $1; }
+	|	expr_without_variable	{ $$ = $1; }
+	|	left_recursive_expr	{ $$ = $1; }
+	|	object_literal	{ $$ = $1; }
 ;
 
 optional_expr:
