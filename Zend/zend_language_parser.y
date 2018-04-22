@@ -252,6 +252,7 @@ static YYSIZE_T zend_yytnamerr(char*, const char*);
 %type <ast> array_pair non_empty_array_pair_list array_pair_list possible_array_pair
 %type <ast> isset_variable type return_type type_expr
 %type <ast> identifier
+%type <ast> type_declaration type_declaration_list type_declaration_list2
 
 %type <num> returns_ref function is_reference is_variadic variable_modifiers
 %type <num> method_modifiers non_empty_member_modifiers member_modifier
@@ -289,8 +290,29 @@ identifier:
 		}
 ;
 
+type_declaration:
+		class_declaration_statement			{ $$ = $1; }
+	|	trait_declaration_statement			{ $$ = $1; }
+	|	interface_declaration_statement		{ $$ = $1; }
+;
+
+type_declaration_list2:
+		/* empty */
+			{ $$ = zend_ast_create_list(0, ZEND_AST_TYPE_DECL_LIST); }
+	|	type_declaration_list2 type_declaration
+			{ $$ = zend_ast_list_add($1, $2); }
+;
+
+type_declaration_list:
+		type_declaration_list2 type_declaration
+			{ $$ = zend_ast_list_add($1, $2); }
+	|	top_statement_list top_statement type_declaration_list2 type_declaration
+			{ $$ = zend_ast_list_add(zend_ast_list_add($1, $2), zend_ast_list_add($3, $4)); }
+;
+
 top_statement_list:
 		top_statement_list top_statement { $$ = zend_ast_list_add($1, $2); }
+	|	type_declaration_list { $$ = $1; }
 	|	/* empty */ { $$ = zend_ast_create_list(0, ZEND_AST_STMT_LIST); }
 ;
 
@@ -308,9 +330,6 @@ name:
 top_statement:
 		statement							{ $$ = $1; }
 	|	function_declaration_statement		{ $$ = $1; }
-	|	class_declaration_statement			{ $$ = $1; }
-	|	trait_declaration_statement			{ $$ = $1; }
-	|	interface_declaration_statement		{ $$ = $1; }
 	|	T_HALT_COMPILER '(' ')' ';'
 			{ $$ = zend_ast_create(ZEND_AST_HALT_COMPILER,
 			      zend_ast_create_zval_from_long(zend_get_scanned_file_offset()));

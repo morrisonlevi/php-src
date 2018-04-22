@@ -2309,7 +2309,8 @@ static inline zend_bool zend_is_unticked_stmt(zend_ast *ast) /* {{{ */
 {
 	return ast->kind == ZEND_AST_STMT_LIST || ast->kind == ZEND_AST_LABEL
 		|| ast->kind == ZEND_AST_PROP_DECL || ast->kind == ZEND_AST_CLASS_CONST_DECL
-		|| ast->kind == ZEND_AST_USE_TRAIT || ast->kind == ZEND_AST_METHOD;
+		|| ast->kind == ZEND_AST_USE_TRAIT || ast->kind == ZEND_AST_METHOD
+		|| ast->kind == ZEND_AST_TYPE_DECL_LIST;
 }
 /* }}} */
 
@@ -7624,7 +7625,7 @@ void zend_compile_const(znode *result, zend_ast *ast) /* {{{ */
 	if (zend_string_equals_literal(resolved_name, "__COMPILER_HALT_OFFSET__") || (name_ast->attr != ZEND_NAME_RELATIVE && zend_string_equals_literal(orig_name, "__COMPILER_HALT_OFFSET__"))) {
 		zend_ast *last = CG(ast);
 
-		while (last->kind == ZEND_AST_STMT_LIST) {
+		while (last->kind == ZEND_AST_STMT_LIST || last->kind == ZEND_AST_TYPE_DECL_LIST) {
 			zend_ast_list *list = zend_ast_get_list(last);
 			last = list->child[list->children-1];
 		}
@@ -8048,7 +8049,7 @@ void zend_compile_top_stmt(zend_ast *ast) /* {{{ */
 		return;
 	}
 
-	if (ast->kind == ZEND_AST_STMT_LIST) {
+	if (ast->kind == ZEND_AST_STMT_LIST || ast->kind == ZEND_AST_TYPE_DECL_LIST) {
 		zend_ast_list *list = zend_ast_get_list(ast);
 		uint32_t i;
 		for (i = 0; i < list->children; ++i) {
@@ -8088,6 +8089,7 @@ void zend_compile_stmt(zend_ast *ast) /* {{{ */
 
 	switch (ast->kind) {
 		case ZEND_AST_STMT_LIST:
+		case ZEND_AST_TYPE_DECL_LIST:
 			zend_compile_stmt_list(ast);
 			break;
 		case ZEND_AST_GLOBAL:
