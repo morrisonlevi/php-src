@@ -3949,6 +3949,64 @@ PHP_FUNCTION(array_replace_recursive)
 }
 /* }}} */
 
+static inline
+void _zend_hash_fetch_key_value_pair(HashTable *ht, zval *out, HashPosition pos)
+{
+	HashTable *ret_ht;
+	zval key, *value;
+
+	if (zend_hash_num_elements(ht) == 0) {
+		ZVAL_NULL(out);
+		return;
+	}
+
+	array_init_size(out, 2);
+	ret_ht = Z_ARRVAL_P(out);
+	zend_hash_real_init_packed(ret_ht);
+
+	zend_hash_get_current_key_zval_ex(ht, &key, &pos);
+	zend_hash_next_index_insert(ret_ht, &key);
+
+	value = zend_hash_get_current_data_ex(ht, &pos);
+	Z_TRY_ADDREF_P(value);
+	zend_hash_next_index_insert(ret_ht, value);
+}
+
+/* {{{ proto array array_first(array input): ?array */
+PHP_FUNCTION(array_first)
+{
+	zval *input;
+	HashTable *ht;
+
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_ARRAY(input)
+	ZEND_PARSE_PARAMETERS_END();
+
+	ht = Z_ARRVAL_P(input);
+
+	_zend_hash_fetch_key_value_pair(ht, return_value, 0);
+}
+/* }}} */
+
+
+/* {{{ proto array array_last(array input): ?array */
+PHP_FUNCTION(array_last)
+{
+	zval *input;
+	HashTable *ht;
+	HashPosition pos;
+
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_ARRAY(input)
+	ZEND_PARSE_PARAMETERS_END();
+
+	ht = Z_ARRVAL_P(input);
+
+	zend_hash_internal_pointer_end_ex(ht, &pos);
+	_zend_hash_fetch_key_value_pair(ht, return_value, pos);
+}
+/* }}} */
+
 /* {{{ proto array array_keys(array input [, mixed search_value[, bool strict]])
    Return just the keys from the input array, optionally only for the specified search_value */
 PHP_FUNCTION(array_keys)
