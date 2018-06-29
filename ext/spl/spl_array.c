@@ -44,6 +44,9 @@ zend_object_handlers spl_handler_ArrayIterator;
 PHPAPI zend_class_entry  *spl_ce_ArrayIterator;
 PHPAPI zend_class_entry  *spl_ce_RecursiveArrayIterator;
 
+zend_object_handlers spl_handler_ReverseArrayIterator;
+PHPAPI zend_class_entry  *spl_ce_ReverseArrayIterator;
+
 #define SPL_ARRAY_STD_PROP_LIST      0x00000001
 #define SPL_ARRAY_ARRAY_AS_PROPS     0x00000002
 #define SPL_ARRAY_CHILD_ARRAYS_ONLY  0x00000004
@@ -715,6 +718,193 @@ static inline int spl_array_object_verify_pos(spl_array_object *object, HashTabl
 {
 	return spl_array_object_verify_pos_ex(object, ht, "");
 } /* }}} */
+
+
+typedef struct {
+	zval array;
+	HashPosition pos;
+	uint32_t num_remaining;
+	zend_object std;
+} spl_ReverseArrayIterator;
+
+
+static inline
+spl_ReverseArrayIterator *spl_ReverseArrayIterator_from_obj(zend_object *obj) /* {{{ */
+{
+	return (spl_ReverseArrayIterator*)((char*)(obj) - XtOffsetOf(spl_ReverseArrayIterator, std));
+}
+/* }}} */
+
+
+static
+zend_object *spl_ReverseArrayIterator_new(zend_class_entry *class_type)
+{
+	spl_ReverseArrayIterator *intern =
+		zend_object_alloc(sizeof(spl_ReverseArrayIterator), class_type);
+	zend_object *std = &intern->std;
+	std->handlers = &spl_handler_ReverseArrayIterator;
+
+	zend_object_std_init(std, class_type);
+	object_properties_init(std, class_type);
+
+	return std;
+}
+
+
+static
+zend_object *spl_ReverseArrayIterator_clone(zval *zobject)
+{
+	spl_ReverseArrayIterator *from, *to;
+	zend_object *std;
+
+	from = spl_ReverseArrayIterator_from_obj(Z_OBJ_P(zobject));
+	std = spl_ReverseArrayIterator_new(from->std.ce);
+	to = spl_ReverseArrayIterator_from_obj(std);
+
+	ZVAL_COPY(&to->array, &from->array);
+	to->pos = from->pos;
+	to->num_remaining = from->num_remaining;
+
+	zend_objects_clone_members(std, &from->std);
+
+	return std;
+}
+
+
+static
+void spl_ReverseArrayIterator_free_storage(zend_object *object) /* {{{ */
+{
+	spl_ReverseArrayIterator *intern = spl_ReverseArrayIterator_from_obj(object);
+	zval_ptr_dtor(&intern->array);
+}
+/* }}} */
+
+
+/* {{{ proto ReverseArrayIterator::__construct(array $input) */
+SPL_METHOD(ReverseArrayIterator, __construct)
+{
+	zval *array;
+	spl_ReverseArrayIterator *intern;
+
+	if (zend_parse_parameters_throw(ZEND_NUM_ARGS(), "a", &array) == FAILURE) {
+		return;
+	}
+
+	intern = spl_ReverseArrayIterator_from_obj(Z_OBJ_P(getThis()));
+	ZVAL_COPY(&intern->array, array);
+
+	// must be rewound
+	intern->pos = 0;
+	intern->num_remaining = 0;
+}
+/* }}} */
+
+
+/* {{{ proto int ReverseArrayIterator::count()
+   Return the number of elements in the Iterator. {{{ */
+SPL_METHOD(ReverseArrayIterator, count)
+{
+	spl_ReverseArrayIterator *intern;
+	zend_long count;
+
+	if (zend_parse_parameters_none_throw() == FAILURE) {
+		return;
+	}
+
+	intern = spl_ReverseArrayIterator_from_obj(Z_OBJ_P(getThis()));
+	count = zend_hash_num_elements(Z_ARRVAL(intern->array));
+
+	RETURN_LONG(count);
+} /* }}} */
+
+
+/* {{{ proto void ReverseArrayIterator::rewind() {{{ */
+SPL_METHOD(ReverseArrayIterator, rewind)
+{
+	spl_ReverseArrayIterator *intern;
+	HashTable *ht;
+
+	if (zend_parse_parameters_none_throw() == FAILURE) {
+		return;
+	}
+
+	intern = spl_ReverseArrayIterator_from_obj(Z_OBJ_P(getThis()));
+	ht = Z_ARRVAL(intern->array);
+	zend_hash_internal_pointer_end_ex(ht, &intern->pos);
+	intern->num_remaining = zend_hash_num_elements(ht);
+
+} /* }}} */
+
+
+/* {{{ proto bool ReverseArrayIterator::valid() {{{ */
+SPL_METHOD(ReverseArrayIterator, valid)
+{
+	spl_ReverseArrayIterator *intern;
+
+	if (zend_parse_parameters_none_throw() == FAILURE) {
+		return;
+	}
+
+	intern = spl_ReverseArrayIterator_from_obj(Z_OBJ_P(getThis()));
+	RETURN_BOOL(intern->num_remaining);
+
+} /* }}} */
+
+
+/* {{{ proto mixed ReverseArrayIterator::key() {{{ */
+SPL_METHOD(ReverseArrayIterator, key)
+{
+	spl_ReverseArrayIterator *intern;
+
+	if (zend_parse_parameters_none_throw() == FAILURE) {
+		return;
+	}
+
+	// todo: throw if not valid
+	intern = spl_ReverseArrayIterator_from_obj(Z_OBJ_P(getThis()));
+	zend_hash_get_current_key_zval_ex(Z_ARRVAL(intern->array), return_value, &intern->pos);
+}
+
+
+/* {{{ proto mixed ReverseArrayIterator::current() {{{ */
+SPL_METHOD(ReverseArrayIterator, current)
+{
+	spl_ReverseArrayIterator *intern;
+
+	if (zend_parse_parameters_none_throw() == FAILURE) {
+		return;
+	}
+
+	// todo: throw if not valid
+	intern = spl_ReverseArrayIterator_from_obj(Z_OBJ_P(getThis()));
+	*return_value = *zend_hash_get_current_data_ex(Z_ARRVAL(intern->array), &intern->pos);
+	Z_TRY_ADDREF_P(return_value);
+}
+
+
+/* {{{ proto void ReverseArrayIterator::next() {{{ */
+SPL_METHOD(ReverseArrayIterator, next)
+{
+	spl_ReverseArrayIterator *intern;
+	Bucket *bucket;
+
+	if (zend_parse_parameters_none_throw() == FAILURE) {
+		return;
+	}
+
+	intern = spl_ReverseArrayIterator_from_obj(Z_OBJ_P(getThis()));
+	if (!--intern->num_remaining) {
+		return;
+	}
+	bucket = Z_ARRVAL(intern->array)->arData + intern->pos;
+	for (--intern->pos, --bucket; intern->pos > 0; --intern->pos, --bucket) {
+		if (EXPECTED(Z_TYPE_P(&bucket->val) != IS_UNDEF)) {
+			break;
+		}
+	}
+
+} /* }}} */
+
 
 /* {{{ proto bool ArrayObject::offsetExists(mixed $index)
        proto bool ArrayIterator::offsetExists(mixed $index)
@@ -1996,7 +2186,33 @@ static const zend_function_entry spl_funcs_RecursiveArrayIterator[] = {
 	SPL_ME(Array, getChildren,   arginfo_array_void, ZEND_ACC_PUBLIC)
 	PHP_FE_END
 };
+
+
+ZEND_BEGIN_ARG_INFO(arginfo_ReverseArrayIterator__construct, 0)
+	ZEND_ARG_ARRAY_INFO(0, input, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO(arginfo_ReverseArrayIterator_void, IS_VOID, 1)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO(arginfo_ReverseArrayIterator_valid, _IS_BOOL, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO(arginfo_ReverseArrayIterator_count, IS_LONG, 0)
+ZEND_END_ARG_INFO()
+
+static const zend_function_entry spl_funcs_ReverseArrayIterator[] = {
+	SPL_ME(ReverseArrayIterator, __construct, arginfo_ReverseArrayIterator__construct, ZEND_ACC_PUBLIC|ZEND_ACC_CTOR)
+	SPL_ME(ReverseArrayIterator, valid,       arginfo_ReverseArrayIterator_valid,      ZEND_ACC_PUBLIC)
+	SPL_ME(ReverseArrayIterator, key,         arginfo_array_void,                      ZEND_ACC_PUBLIC)
+	SPL_ME(ReverseArrayIterator, current,     arginfo_array_void,                      ZEND_ACC_PUBLIC)
+	SPL_ME(ReverseArrayIterator, next,        arginfo_ReverseArrayIterator_void,       ZEND_ACC_PUBLIC)
+	SPL_ME(ReverseArrayIterator, rewind,      arginfo_ReverseArrayIterator_void,       ZEND_ACC_PUBLIC)
+	SPL_ME(ReverseArrayIterator, count,       arginfo_ReverseArrayIterator_count,      ZEND_ACC_PUBLIC)
+	PHP_FE_END
+};
 /* }}} */
+
 
 /* {{{ PHP_MINIT_FUNCTION(spl_array) */
 PHP_MINIT_FUNCTION(spl_array)
@@ -2050,6 +2266,18 @@ PHP_MINIT_FUNCTION(spl_array)
 	spl_ce_RecursiveArrayIterator->get_iterator = spl_array_get_iterator;
 
 	REGISTER_SPL_CLASS_CONST_LONG(RecursiveArrayIterator, "CHILD_ARRAYS_ONLY", SPL_ARRAY_CHILD_ARRAYS_ONLY);
+
+
+	REGISTER_SPL_STD_CLASS_EX(ReverseArrayIterator, spl_ReverseArrayIterator_new, spl_funcs_ReverseArrayIterator);
+	spl_ce_ReverseArrayIterator->ce_flags |= ZEND_ACC_FINAL;
+
+	REGISTER_SPL_IMPLEMENTS(ReverseArrayIterator, Iterator);
+	REGISTER_SPL_IMPLEMENTS(ReverseArrayIterator, Countable);
+
+	memcpy(&spl_handler_ReverseArrayIterator, &std_object_handlers, sizeof(zend_object_handlers));
+	spl_handler_ReverseArrayIterator.offset = XtOffsetOf(spl_ReverseArrayIterator, std);
+	spl_handler_ReverseArrayIterator.free_obj = spl_ReverseArrayIterator_free_storage;
+	spl_handler_ReverseArrayIterator.clone_obj = spl_ReverseArrayIterator_clone;
 
 	return SUCCESS;
 }
