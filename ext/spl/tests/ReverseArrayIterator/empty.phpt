@@ -6,8 +6,9 @@ SPL: ReverseArrayIterator on empty array
 $ar = [];
 $it = new ReverseArrayIterator($ar);
 $it->rewind();
-echo $it->valid() ? "not empty" : "empty";
+echo $it->valid() ? "not empty\n" : "empty\n";
 
 ?>
 --EXPECT--
 empty
+
