@@ -42,6 +42,9 @@ zend_object_handlers spl_handler_ArrayIterator;
 PHPAPI zend_class_entry  *spl_ce_ArrayIterator;
 PHPAPI zend_class_entry  *spl_ce_RecursiveArrayIterator;
 
+zend_object_handlers spl_handler_BidirectionalArrayIterator;
+PHPAPI zend_class_entry  *spl_ce_BidirectionalArrayIterator;
+
 #define SPL_ARRAY_STD_PROP_LIST      0x00000001
 #define SPL_ARRAY_ARRAY_AS_PROPS     0x00000002
 #define SPL_ARRAY_CHILD_ARRAYS_ONLY  0x00000004
@@ -698,6 +701,255 @@ static int spl_array_has_dimension(zval *object, zval *offset, int check_empty) 
 {
 	return spl_array_has_dimension_ex(1, object, offset, check_empty);
 } /* }}} */
+
+
+typedef struct {
+	zval array;
+	Bucket *current, *end;
+	zend_object std;
+} spl_BidirectionalArrayIterator;
+
+
+static inline
+spl_BidirectionalArrayIterator *spl_BidirectionalArrayIterator_from_obj(zend_object *obj) /* {{{ */
+{
+	return (spl_BidirectionalArrayIterator*)((char*)(obj) - XtOffsetOf(spl_BidirectionalArrayIterator, std));
+}
+/* }}} */
+
+
+static
+zend_object *spl_BidirectionalArrayIterator_new(zend_class_entry *class_type)
+{
+	spl_BidirectionalArrayIterator *intern =
+		zend_object_alloc(sizeof(spl_BidirectionalArrayIterator), class_type);
+	zend_object *std = &intern->std;
+	std->handlers = &spl_handler_BidirectionalArrayIterator;
+
+	zend_object_std_init(std, class_type);
+	object_properties_init(std, class_type);
+
+	return std;
+}
+
+
+static
+zend_object *spl_BidirectionalArrayIterator_clone(zval *zobject)
+{
+	spl_BidirectionalArrayIterator *from, *to;
+	HashPosition current, end;
+	zend_object *std;
+
+	from = spl_BidirectionalArrayIterator_from_obj(Z_OBJ_P(zobject));
+	std = spl_BidirectionalArrayIterator_new(from->std.ce);
+	to = spl_BidirectionalArrayIterator_from_obj(std);
+
+	ZVAL_COPY(&to->array, &from->array);
+
+	current = from->current - Z_ARRVAL(from->array)->arData;
+	end = from->end - Z_ARRVAL(from->array)->arData;
+
+	to->current = Z_ARRVAL(to->array)->arData + current;
+	to->end = Z_ARRVAL(to->array)->arData + end;
+
+	zend_objects_clone_members(std, &from->std);
+
+	return std;
+}
+
+
+static
+void spl_BidirectionalArrayIterator_free_storage(zend_object *object) /* {{{ */
+{
+	spl_BidirectionalArrayIterator *intern = spl_BidirectionalArrayIterator_from_obj(object);
+	zval_ptr_dtor(&intern->array);
+}
+/* }}} */
+
+
+/* {{{ proto BidirectionalArrayIterator::__construct(array $input) */
+SPL_METHOD(BidirectionalArrayIterator, __construct)
+{
+	zval *array;
+
+	if (zend_parse_parameters_throw(ZEND_NUM_ARGS(), "a", &array) == FAILURE) {
+		return;
+	}
+
+	{
+		HashPosition pos;
+		spl_BidirectionalArrayIterator *intern =
+			spl_BidirectionalArrayIterator_from_obj(Z_OBJ_P(getThis()));
+		HashTable *ht;
+
+		ZVAL_COPY(&intern->array, array);
+		ht = Z_ARRVAL(intern->array);
+
+		// must be rewound
+		intern->current = ht->arData;
+		zend_hash_internal_pointer_end_ex(ht, &pos);
+		intern->end = ht->arData + pos + 1;
+	}
+}
+/* }}} */
+
+
+/* {{{ proto int BidirectionalArrayIterator::count()
+   Return the number of elements in the Iterator. {{{ */
+SPL_METHOD(BidirectionalArrayIterator, count)
+{
+	spl_BidirectionalArrayIterator *intern;
+	zend_long count;
+
+	if (zend_parse_parameters_none_throw() == FAILURE) {
+		return;
+	}
+
+	intern = spl_BidirectionalArrayIterator_from_obj(Z_OBJ_P(getThis()));
+	count = zend_hash_num_elements(Z_ARRVAL(intern->array));
+
+	RETURN_LONG(count);
+} /* }}} */
+
+
+/* {{{ proto void BidirectionalArrayIterator::rewind() {{{ */
+SPL_METHOD(BidirectionalArrayIterator, rewind)
+{
+	spl_BidirectionalArrayIterator *intern;
+
+	if (zend_parse_parameters_none_throw() == FAILURE) {
+		return;
+	}
+
+	intern = spl_BidirectionalArrayIterator_from_obj(Z_OBJ_P(getThis()));
+	intern->current = Z_ARRVAL(intern->array)->arData;
+	if (!zend_hash_num_elements(Z_ARRVAL(intern->array))) {
+		intern->current = intern->end;
+	}
+
+} /* }}} */
+
+
+/* {{{ proto void BidirectionalArrayIterator::end() {{{ */
+SPL_METHOD(BidirectionalArrayIterator, end)
+{
+	spl_BidirectionalArrayIterator *intern;
+
+	if (zend_parse_parameters_none_throw() == FAILURE) {
+		return;
+	}
+
+	intern = spl_BidirectionalArrayIterator_from_obj(Z_OBJ_P(getThis()));
+	intern->current = intern->end;
+	if (zend_hash_num_elements(Z_ARRVAL(intern->array))) {
+		--intern->current;
+	}
+
+} /* }}} */
+
+
+/* {{{ proto bool BidirectionalArrayIterator::valid() {{{ */
+SPL_METHOD(BidirectionalArrayIterator, valid)
+{
+
+	spl_BidirectionalArrayIterator *intern =
+		spl_BidirectionalArrayIterator_from_obj(Z_OBJ_P(getThis()));
+
+	if (zend_parse_parameters_none_throw() == FAILURE) {
+		return;
+	}
+
+	RETURN_BOOL(intern->current != intern->end);
+
+} /* }}} */
+
+
+/* {{{ proto mixed BidirectionalArrayIterator::key() {{{ */
+SPL_METHOD(BidirectionalArrayIterator, key)
+{
+	spl_BidirectionalArrayIterator *intern =
+		spl_BidirectionalArrayIterator_from_obj(Z_OBJ_P(getThis()));
+	HashTable *ht = Z_ARRVAL(intern->array);
+	HashPosition pos = intern->current - ht->arData;
+
+	if (zend_parse_parameters_none_throw() == FAILURE) {
+		return;
+	}
+
+	// todo: throw if not valid
+	zend_hash_get_current_key_zval_ex(ht, return_value, &pos);
+}
+
+
+/* {{{ proto mixed BidirectionalArrayIterator::current() {{{ */
+SPL_METHOD(BidirectionalArrayIterator, current)
+{
+	spl_BidirectionalArrayIterator *intern =
+		spl_BidirectionalArrayIterator_from_obj(Z_OBJ_P(getThis()));
+	HashTable *ht = Z_ARRVAL(intern->array);
+	HashPosition pos = intern->current - ht->arData;
+
+	if (zend_parse_parameters_none_throw() == FAILURE) {
+		return;
+	}
+
+	// todo: throw if not valid
+	ZVAL_COPY(return_value, zend_hash_get_current_data_ex(ht, &pos));
+}
+
+
+/* {{{ proto void BidirectionalArrayIterator::next() {{{ */
+SPL_METHOD(BidirectionalArrayIterator, next)
+{
+	spl_BidirectionalArrayIterator *intern =
+		spl_BidirectionalArrayIterator_from_obj(Z_OBJ_P(getThis()));
+
+	if (zend_parse_parameters_none_throw() == FAILURE) {
+		return;
+	}
+
+	if (intern->current == intern->end) {
+		return;
+	}
+	while (++intern->current < intern->end) {
+		if (EXPECTED(Z_TYPE_P(&intern->current->val) != IS_UNDEF)) {
+			return;
+		}
+	}
+
+} /* }}} */
+
+
+/* {{{ proto void BidirectionalArrayIterator::prev() {{{ */
+SPL_METHOD(BidirectionalArrayIterator, prev)
+{
+	spl_BidirectionalArrayIterator *intern =
+		spl_BidirectionalArrayIterator_from_obj(Z_OBJ_P(getThis()));
+	HashTable *ht = Z_ARRVAL(intern->array);
+
+	if (zend_parse_parameters_none_throw() == FAILURE) {
+		return;
+	}
+
+	if (intern->current == intern->end) {
+		return;
+	}
+	if (intern->current == ht->arData) {
+		intern->current = intern->end;
+		return;
+	}
+	while (--intern->current > ht->arData) {
+		if (EXPECTED(Z_TYPE_P(&intern->current->val) != IS_UNDEF)) {
+			return;
+		}
+	}
+	if (UNEXPECTED(Z_TYPE(intern->current->val) == IS_UNDEF)) {
+		intern->current = intern->end;
+	}
+
+
+} /* }}} */
+
 
 /* {{{ proto bool ArrayObject::offsetExists(mixed $index)
        proto bool ArrayIterator::offsetExists(mixed $index)
@@ -1927,7 +2179,35 @@ static const zend_function_entry spl_funcs_RecursiveArrayIterator[] = {
 	SPL_ME(Array, getChildren,   arginfo_array_void, ZEND_ACC_PUBLIC)
 	PHP_FE_END
 };
+
+
+ZEND_BEGIN_ARG_INFO(arginfo_BidirectionalArrayIterator__construct, 0)
+	ZEND_ARG_ARRAY_INFO(0, input, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO(arginfo_BidirectionalArrayIterator_void, IS_VOID, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO(arginfo_BidirectionalArrayIterator_valid, _IS_BOOL, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO(arginfo_BidirectionalArrayIterator_count, IS_LONG, 0)
+ZEND_END_ARG_INFO()
+
+static const zend_function_entry spl_funcs_BidirectionalArrayIterator[] = {
+	SPL_ME(BidirectionalArrayIterator, __construct, arginfo_BidirectionalArrayIterator__construct, ZEND_ACC_PUBLIC)
+	SPL_ME(BidirectionalArrayIterator, valid,       arginfo_BidirectionalArrayIterator_valid,      ZEND_ACC_PUBLIC)
+	SPL_ME(BidirectionalArrayIterator, key,         arginfo_array_void,                      ZEND_ACC_PUBLIC)
+	SPL_ME(BidirectionalArrayIterator, current,     arginfo_array_void,                      ZEND_ACC_PUBLIC)
+	SPL_ME(BidirectionalArrayIterator, next,        arginfo_BidirectionalArrayIterator_void,       ZEND_ACC_PUBLIC)
+	SPL_ME(BidirectionalArrayIterator, prev,        arginfo_BidirectionalArrayIterator_void,       ZEND_ACC_PUBLIC)
+	SPL_ME(BidirectionalArrayIterator, rewind,      arginfo_BidirectionalArrayIterator_void,       ZEND_ACC_PUBLIC)
+	SPL_ME(BidirectionalArrayIterator, end,         arginfo_BidirectionalArrayIterator_void,       ZEND_ACC_PUBLIC)
+	SPL_ME(BidirectionalArrayIterator, count,       arginfo_BidirectionalArrayIterator_count,      ZEND_ACC_PUBLIC)
+	PHP_FE_END
+};
 /* }}} */
+
 
 /* {{{ PHP_MINIT_FUNCTION(spl_array) */
 PHP_MINIT_FUNCTION(spl_array)
@@ -1981,6 +2261,18 @@ PHP_MINIT_FUNCTION(spl_array)
 	spl_ce_RecursiveArrayIterator->get_iterator = spl_array_get_iterator;
 
 	REGISTER_SPL_CLASS_CONST_LONG(RecursiveArrayIterator, "CHILD_ARRAYS_ONLY", SPL_ARRAY_CHILD_ARRAYS_ONLY);
+
+
+	REGISTER_SPL_STD_CLASS_EX(BidirectionalArrayIterator, spl_BidirectionalArrayIterator_new, spl_funcs_BidirectionalArrayIterator);
+	spl_ce_BidirectionalArrayIterator->ce_flags |= ZEND_ACC_FINAL;
+
+	REGISTER_SPL_IMPLEMENTS(BidirectionalArrayIterator, BidirectionalIterator);
+	REGISTER_SPL_IMPLEMENTS(BidirectionalArrayIterator, Countable);
+
+	memcpy(&spl_handler_BidirectionalArrayIterator, &std_object_handlers, sizeof(zend_object_handlers));
+	spl_handler_BidirectionalArrayIterator.offset = XtOffsetOf(spl_BidirectionalArrayIterator, std);
+	spl_handler_BidirectionalArrayIterator.free_obj = spl_BidirectionalArrayIterator_free_storage;
+	spl_handler_BidirectionalArrayIterator.clone_obj = spl_BidirectionalArrayIterator_clone;
 
 	return SUCCESS;
 }

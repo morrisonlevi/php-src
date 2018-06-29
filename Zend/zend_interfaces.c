@@ -27,6 +27,8 @@ ZEND_API zend_class_entry *zend_ce_iterator;
 ZEND_API zend_class_entry *zend_ce_arrayaccess;
 ZEND_API zend_class_entry *zend_ce_serializable;
 ZEND_API zend_class_entry *zend_ce_countable;
+ZEND_API zend_class_entry *zend_ce_reversable_aggregate;
+ZEND_API zend_class_entry *zend_ce_bidirectional_iterator;
 
 /* {{{ zend_call_method
  Only returns the returned zval if retval_ptr != NULL */
@@ -411,6 +413,21 @@ static int zend_implement_iterator(zend_class_entry *interface, zend_class_entry
 }
 /* }}} */
 
+/* {{{ zend_implement_reversable_aggregate */
+static int zend_implement_reversable_aggregate(zend_class_entry *interface, zend_class_entry *class_type)
+{
+	// todo: implement zend_implement_reversable_aggregate
+	return SUCCESS;
+}
+/* }}} */
+
+/* {{{ zend_implement_bidirectional_iterator */
+static int zend_implement_bidirectional_iterator(zend_class_entry *interface, zend_class_entry *class_type)
+{
+	// todo: implement zend_implement_bidirectional_iterator
+	return SUCCESS;
+}
+
 /* {{{ zend_implement_arrayaccess */
 static int zend_implement_arrayaccess(zend_class_entry *interface, zend_class_entry *class_type)
 {
@@ -573,6 +590,23 @@ static const zend_function_entry zend_funcs_countable[] = {
 	ZEND_ABSTRACT_ME(Countable, count, arginfo_countable_count)
 	ZEND_FE_END
 };
+
+ZEND_BEGIN_ARG_WITH_RETURN_OBJ_INFO_EX(arginfo_ReversableAggregate_getReverseIterator, 0, 0, "iterable", 0)
+ZEND_END_ARG_INFO()
+
+static const zend_function_entry zend_funcs_reversable_aggregate[] = {
+	ZEND_ABSTRACT_ME(iterator, getReverseIterator, arginfo_ReversableAggregate_getReverseIterator)
+	ZEND_FE_END
+};
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO(arginfo_bidirectional_iterator_void, IS_VOID, 0)
+ZEND_END_ARG_INFO()
+
+static const zend_function_entry zend_funcs_bidirectional_iterator[] = {
+	ZEND_ABSTRACT_ME(iterator, prev, arginfo_bidirectional_iterator_void)
+	ZEND_ABSTRACT_ME(iterator, end, arginfo_bidirectional_iterator_void)
+	ZEND_FE_END
+};
 /* }}} */
 
 /* {{{ zend_register_interfaces */
@@ -591,6 +625,12 @@ ZEND_API void zend_register_interfaces(void)
 	REGISTER_MAGIC_INTERFACE(serializable, Serializable);
 
 	REGISTER_MAGIC_INTERFACE(countable, Countable);
+
+	REGISTER_MAGIC_INTERFACE(reversable_aggregate, ReversableAggregate);
+	REGISTER_MAGIC_IMPLEMENT(reversable_aggregate, aggregate);
+
+	REGISTER_MAGIC_INTERFACE(bidirectional_iterator, BidirectionalIterator);
+	REGISTER_MAGIC_IMPLEMENT(bidirectional_iterator, iterator);
 }
 /* }}} */
 

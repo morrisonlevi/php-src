@@ -31,6 +31,8 @@
 #define spl_ce_ArrayAccess   zend_ce_arrayaccess
 #define spl_ce_Serializable  zend_ce_serializable
 #define spl_ce_Countable     zend_ce_countable
+#define spl_ce_BidirectionalIterator  zend_ce_bidirectional_iterator
+#define spl_ce_ReversableAggregate    zend_ce_reversable_aggregate
 
 extern PHPAPI zend_class_entry *spl_ce_RecursiveIterator;
 extern PHPAPI zend_class_entry *spl_ce_RecursiveIteratorIterator;
