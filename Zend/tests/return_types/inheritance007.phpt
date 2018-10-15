@@ -18,5 +18,7 @@ class Bar extends Foo {
     }
 }
 
---EXPECTF--
-Fatal error: Declaration of Bar::test(): ArrayObject must be compatible with Foo::test(): Traversable in %sinheritance007.php on line 12
+echo get_class(Bar::test());
+
+--EXPECT--
+ArrayObject
