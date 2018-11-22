@@ -2002,7 +2002,7 @@ static void _inheritance_runtime_error_msg(zend_function *child, zend_function *
 	zend_function *proto = child->common.prototype;
 	if ((proto && (proto->common.fn_flags & ZEND_ACC_ABSTRACT))
 	    || ((parent->common.fn_flags & ZEND_ACC_HAS_RETURN_TYPE)
-	        && !_check_inherited_return_type(child, child->common.arg_info - 1, parent, parent->common.arg_info - 1)))
+	        && _check_inherited_return_type(child, child->common.arg_info - 1, parent, parent->common.arg_info - 1) <= 0))
 	{
 		zend_string *method_prototype = zend_get_function_declaration(parent);
 		zend_string *child_prototype = zend_get_function_declaration(child);
@@ -2042,7 +2042,7 @@ ZEND_API void zend_verify_variance(zend_class_entry *ce) /* {{{ */
 					int check = _check_inherited_return_type(
 						child, &child->common.arg_info[-1],
 						parent, &parent->common.arg_info[-1]);
-					if (check < 0) {
+					if (check <= 0) {
 						_inheritance_runtime_error_msg(child, parent);
 						// todo: what to do with errors, not warnings?
 						continue;
@@ -2083,7 +2083,7 @@ ZEND_API void zend_verify_variance(zend_class_entry *ce) /* {{{ */
 					child, child_arg_info,
 					parent, parent_arg_info);
 
-				if (check < 0) {
+				if (check <= 0) {
 					_inheritance_runtime_error_msg(child, parent);
 					// todo: what to do with errors, not warnings?
 					continue;
