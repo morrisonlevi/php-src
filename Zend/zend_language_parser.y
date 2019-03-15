@@ -251,6 +251,7 @@ static YYSIZE_T zend_yytnamerr(char*, const char*);
 %type <ast> array_pair non_empty_array_pair_list array_pair_list possible_array_pair
 %type <ast> isset_variable type return_type type_expr
 %type <ast> identifier
+%type <ast> brace_construction_members brace_construction_member_initializer brace_construction_member
 
 %type <num> returns_ref function is_reference is_variadic variable_modifiers
 %type <num> method_modifiers non_empty_member_modifiers member_modifier
@@ -1123,6 +1124,28 @@ callable_expr:
 	|	dereferencable_scalar	{ $$ = $1; }
 ;
 
+brace_construction_member:
+	expr ':' expr	{ $$ = zend_ast_create(ZEND_AST_ARRAY_ELEM, $3, $1); }
+;
+
+brace_construction_member_initializer:
+		brace_construction_member
+			{ $$ = zend_ast_create_list(1, ZEND_AST_ARRAY, $1); }
+	|	brace_construction_member_initializer ',' brace_construction_member
+			{ $$ = zend_ast_list_add($1, $3); }
+;
+
+brace_construction_members:
+		/* empty */
+			{ $$ = zend_ast_create_list(0, ZEND_AST_ARRAY); }
+	|	brace_construction_member_initializer
+			{ $$ = $1; }
+
+		/* Allow a single trailing comma for UX */
+	|	brace_construction_member_initializer ','
+			{ $$ = $1; }
+;
+
 callable_variable:
 		simple_variable
 			{ $$ = zend_ast_create(ZEND_AST_VAR, $1); }
@@ -1132,6 +1155,8 @@ callable_variable:
 			{ $$ = zend_ast_create(ZEND_AST_DIM, $1, $3); }
 	|	dereferencable '{' expr '}'
 			{ $$ = zend_ast_create(ZEND_AST_DIM, $1, $3); }
+	|	name '{' brace_construction_members '}'
+			{ $$ = ($1, $3); }
 	|	dereferencable T_OBJECT_OPERATOR property_name argument_list
 			{ $$ = zend_ast_create(ZEND_AST_METHOD_CALL, $1, $3, $4); }
 	|	function_call { $$ = $1; }
