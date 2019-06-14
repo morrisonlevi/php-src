@@ -1104,6 +1104,7 @@ static zend_always_inline zval *zend_try_array_init(zval *zv)
 	_(Z_EXPECTED_OBJECT,	"object") \
 	_(Z_EXPECTED_DOUBLE,	"float") \
 	_(Z_EXPECTED_NUMBER,	"int or float") \
+	_(Z_EXPECTED_ITERABLE,	"iterable") \
 
 #define Z_EXPECTED_TYPE_ENUM(id, str) id,
 #define Z_EXPECTED_TYPE_STR(id, str)  str,
@@ -1362,6 +1363,18 @@ ZEND_API ZEND_COLD void ZEND_FASTCALL zend_wrong_callback_error(int num, char *e
 
 #define Z_PARAM_NUMBER(dest) \
 	Z_PARAM_NUMBER_EX(dest, 0)
+
+/* no old equivalent */
+#define Z_PARAM_ITERABLE_EX(dest, check_null) \
+	Z_PARAM_PROLOGUE(0, 0); \
+	if (UNEXPECTED(!zend_parse_arg_iterable(_arg, &dest, check_null))) { \
+		_expected_type = Z_EXPECTED_ITERABLE; \
+		_error_code = ZPP_ERROR_WRONG_ARG; \
+		break; \
+	}
+
+#define Z_PARAM_ITERABLE(dest) \
+	Z_PARAM_ITERABLE_EX(dest, 0)
 
 /* old "o" */
 #define Z_PARAM_OBJECT_EX2(dest, check_null, deref, separate) \
@@ -1671,6 +1684,18 @@ static zend_always_inline int zend_parse_arg_array_ht(zval *arg, HashTable **des
 		}
 		*dest = zobj->handlers->get_properties(zobj);
 	} else if (check_null && EXPECTED(Z_TYPE_P(arg) == IS_NULL)) {
+		*dest = NULL;
+	} else {
+		return 0;
+	}
+	return 1;
+}
+
+static zend_always_inline int zend_parse_arg_iterable(zval *arg, zval **dest, int check_null)
+{
+	if (EXPECTED(zend_is_iterable(arg))) {
+		*dest = arg;
+	} else if (check_null && Z_TYPE_P(arg) == IS_NULL) {
 		*dest = NULL;
 	} else {
 		return 0;
