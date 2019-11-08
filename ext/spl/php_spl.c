@@ -247,15 +247,57 @@ PHP_FUNCTION(spl_classes)
 }
 /* }}} */
 
+int zend_include_file(const char *filename, zval *retval) {
+	zval dummy;
+	zend_file_handle file_handle;
+	zend_op_array *new_op_array;
+	zend_string *opened_path;
+	int stream_options = USE_PATH | STREAM_OPEN_FOR_INCLUDE;
+
+	ZVAL_UNDEF(retval);
+	if (php_stream_open_for_zend_ex(filename, &file_handle, stream_options)) {
+		return FAILURE;
+	}
+
+	/* The code this was extracted from seems to indicate that opened_path
+	 * is not always set on the file handle even when the stream opened
+	 * correctly, so that's the reason for init based on filename. I do not
+	 * know if this is actually necessary or just being cautious.
+	 */
+	opened_path = file_handle.opened_path
+		? zend_string_copy(file_handle.opened_path)
+		: zend_string_init(filename, strlen(filename), 0);
+
+	if (zend_hash_add(&EG(included_files), opened_path, &dummy)) {
+		/* Only compile the file if it was successfuly added to include
+		 * list, otherwise the include may misbehave.
+		 */
+		new_op_array = zend_compile_file(&file_handle, ZEND_REQUIRE);
+		zend_destroy_file_handle(&file_handle);
+	} else {
+		new_op_array = NULL;
+		zend_file_handle_dtor(&file_handle);
+	}
+
+	zend_string_release_ex(opened_path, 0);
+
+	if (!new_op_array) {
+		return FAILURE;
+	}
+
+	zend_execute(new_op_array, retval);
+	destroy_op_array(new_op_array);
+	efree(new_op_array);
+
+	return SUCCESS;
+}
+
 static int spl_autoload(zend_string *class_name, zend_string *lc_name, const char *ext, int ext_len) /* {{{ */
 {
 	char *class_file;
 	int class_file_len;
-	zval dummy;
-	zend_file_handle file_handle;
-	zend_op_array *new_op_array;
 	zval result;
-	int ret;
+	int included;
 
 	class_file_len = (int)spprintf(&class_file, 0, "%s%.*s", ZSTR_VAL(lc_name), ext_len, ext);
 
@@ -270,39 +312,11 @@ static int spl_autoload(zend_string *class_name, zend_string *lc_name, const cha
 	}
 #endif
 
-	ret = php_stream_open_for_zend_ex(class_file, &file_handle, USE_PATH|STREAM_OPEN_FOR_INCLUDE);
+	included = zend_include_file(class_file, &result) == SUCCESS;
+	zval_ptr_dtor(&result);
 
-	if (ret == SUCCESS) {
-		zend_string *opened_path;
-		if (!file_handle.opened_path) {
-			file_handle.opened_path = zend_string_init(class_file, class_file_len, 0);
-		}
-		opened_path = zend_string_copy(file_handle.opened_path);
-		ZVAL_NULL(&dummy);
-		if (zend_hash_add(&EG(included_files), opened_path, &dummy)) {
-			new_op_array = zend_compile_file(&file_handle, ZEND_REQUIRE);
-			zend_destroy_file_handle(&file_handle);
-		} else {
-			new_op_array = NULL;
-			zend_file_handle_dtor(&file_handle);
-		}
-		zend_string_release_ex(opened_path, 0);
-		if (new_op_array) {
-			ZVAL_UNDEF(&result);
-			zend_execute(new_op_array, &result);
-
-			destroy_op_array(new_op_array);
-			efree(new_op_array);
-			if (!EG(exception)) {
-				zval_ptr_dtor(&result);
-			}
-
-			efree(class_file);
-			return zend_hash_exists(EG(class_table), lc_name);
-		}
-	}
 	efree(class_file);
-	return 0;
+	return included && zend_hash_exists(EG(class_table), lc_name);
 } /* }}} */
 
 /* {{{ proto void spl_autoload(string class_name [, string file_extensions])
