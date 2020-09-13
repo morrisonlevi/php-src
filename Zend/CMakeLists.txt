@@ -109,3 +109,4 @@ target_include_directories(Zend
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
 
+target_compile_definitions(Zend INTERFACE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1)

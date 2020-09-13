@@ -18,3 +18,11 @@ endif ()
 
 add_subdirectory(Zend)
 
+# add all the extensions in ext/ that have a CMakeLists.txt
+file(GLOB extensions ${PROJECT_SOURCE_DIR}/ext/*)
+foreach (extension ${extensions})
+    if (IS_DIRECTORY ${extension} AND EXISTS ${extension}/CMakeLists.txt)
+        add_subdirectory(${extension})
+    endif ()
+endforeach ()
+
