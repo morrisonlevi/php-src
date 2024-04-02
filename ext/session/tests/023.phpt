@@ -1,5 +1,7 @@
 --TEST--
 session object deserialization
+--EXTENSIONS--
+session
 --SKIPIF--
 <?php include('skipif.inc'); ?>
 --INI--
@@ -14,6 +16,7 @@ error_reporting(E_ALL);
 
 class foo {
     public $bar = "ok";
+    public $yes;
     function method() { $this->yes++; }
 }
 

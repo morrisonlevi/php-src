@@ -3,14 +3,15 @@ ldap_modify() - Modify operations that should fail
 --CREDITS--
 Patrick Allaert <patrickallaert@php.net>
 # Belgian PHP Testfest 2009
+--EXTENSIONS--
+ldap
 --SKIPIF--
-<?php require_once('skipif.inc'); ?>
 <?php require_once('skipifbindfailure.inc'); ?>
 --FILE--
 <?php
 require "connect.inc";
 
-$link = ldap_connect_and_bind($host, $port, $user, $passwd, $protocol_version);
+$link = ldap_connect_and_bind($uri, $user, $passwd, $protocol_version);
 
 // DN not found
 var_dump(ldap_modify($link, "cn=not-found,$base", array()));
@@ -43,7 +44,7 @@ var_dump(ldap_modify($link, "dc=my-domain,$base", $entry2));
 <?php
 require "connect.inc";
 
-$link = ldap_connect_and_bind($host, $port, $user, $passwd, $protocol_version);
+$link = ldap_connect_and_bind($uri, $user, $passwd, $protocol_version);
 
 ldap_delete($link, "dc=my-domain,$base");
 ?>

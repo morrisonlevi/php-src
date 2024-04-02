@@ -5,7 +5,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -23,6 +23,7 @@
 #if defined(HAVE_LIBXML) && defined(HAVE_DOM)
 #include "php_dom.h"
 #include "dom_ce.h"
+#include "dom_properties.h"
 
 /*
 * class DOMText extends DOMCharacterData
@@ -43,21 +44,19 @@ PHP_METHOD(DOMText, __construct)
 		RETURN_THROWS();
 	}
 
-	nodep = xmlNewText((xmlChar *) value);
+	nodep = xmlNewText(BAD_CAST value);
 
 	if (!nodep) {
-		php_dom_throw_error(INVALID_STATE_ERR, 1);
+		php_dom_throw_error(INVALID_STATE_ERR, true);
 		RETURN_THROWS();
 	}
 
 	intern = Z_DOMOBJ_P(ZEND_THIS);
-	if (intern != NULL) {
-		oldnode = dom_object_get_node(intern);
-		if (oldnode != NULL) {
-			php_libxml_node_free_resource(oldnode );
-		}
-		php_libxml_increment_node_ptr((php_libxml_node_object *)intern, nodep, (void *)intern);
+	oldnode = dom_object_get_node(intern);
+	if (oldnode != NULL) {
+		php_libxml_node_decrement_resource((php_libxml_node_object *)intern);
 	}
+	php_libxml_increment_node_ptr((php_libxml_node_object *)intern, nodep, (void *)intern);
 }
 /* }}} end DOMText::__construct */
 
@@ -66,17 +65,11 @@ readonly=yes
 URL: http://www.w3.org/TR/2003/WD-DOM-Level-3-Core-20030226/DOM3-Core.html#core-Text3-wholeText
 Since: DOM Level 3
 */
-int dom_text_whole_text_read(dom_object *obj, zval *retval)
+zend_result dom_text_whole_text_read(dom_object *obj, zval *retval)
 {
-	xmlNodePtr node;
+	DOM_PROP_NODE(xmlNodePtr, node, obj);
+
 	xmlChar *wholetext = NULL;
-
-	node = dom_object_get_node(obj);
-
-	if (node == NULL) {
-		php_dom_throw_error(INVALID_STATE_ERR, 0);
-		return FAILURE;
-	}
 
 	/* Find starting text node */
 	while (node->prev && ((node->prev->type == XML_TEXT_NODE) || (node->prev->type == XML_CDATA_SECTION_NODE))) {
@@ -102,6 +95,7 @@ int dom_text_whole_text_read(dom_object *obj, zval *retval)
 /* }}} */
 
 /* {{{ URL: http://www.w3.org/TR/2003/WD-DOM-Level-3-Core-20030226/DOM3-Core.html#core-ID-38853C1D
+Modern spec URL: https://dom.spec.whatwg.org/#dom-text-splittext
 Since:
 */
 PHP_METHOD(DOMText, splitText)
@@ -127,28 +121,22 @@ PHP_METHOD(DOMText, splitText)
 		RETURN_THROWS();
 	}
 
-	if (node->type != XML_TEXT_NODE && node->type != XML_CDATA_SECTION_NODE) {
-		/* TODO Add warning? */
-		RETURN_FALSE;
-	}
-
-	cur = xmlNodeGetContent(node);
+	cur = node->content;
 	if (cur == NULL) {
-		/* TODO Add warning? */
-		RETURN_FALSE;
+		/* TODO: is this even possible? */
+		cur = BAD_CAST "";
 	}
 	length = xmlUTF8Strlen(cur);
 
 	if (ZEND_LONG_INT_OVFL(offset) || (int)offset > length) {
-		/* TODO Add warning? */
-		xmlFree(cur);
+		if (php_dom_follow_spec_intern(intern)) {
+			php_dom_throw_error(INDEX_SIZE_ERR, /* strict */ true);
+		}
 		RETURN_FALSE;
 	}
 
 	first = xmlUTF8Strndup(cur, (int)offset);
 	second = xmlUTF8Strsub(cur, (int)offset, (int)(length - offset));
-
-	xmlFree(cur);
 
 	xmlNodeSetContent(node, first);
 	nnode = xmlNewDocText(node->doc, second);
@@ -157,8 +145,8 @@ PHP_METHOD(DOMText, splitText)
 	xmlFree(second);
 
 	if (nnode == NULL) {
-		/* TODO Add warning? */
-		RETURN_FALSE;
+		php_dom_throw_error(INVALID_STATE_ERR, /* strict */ true);
+		RETURN_THROWS();
 	}
 
 	if (node->parent != NULL) {

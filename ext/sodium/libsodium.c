@@ -5,7 +5,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -22,6 +22,7 @@
 #include "php_ini.h"
 #include "ext/standard/info.h"
 #include "php_libsodium.h"
+#include "zend_attributes.h"
 #include "zend_exceptions.h"
 
 #include <sodium.h>
@@ -33,8 +34,35 @@
 static zend_class_entry *sodium_exception_ce;
 
 #if (defined(__amd64) || defined(__amd64__) || defined(__x86_64__) || defined(__i386__) || \
-	 defined(_M_AMD64) || defined(_M_IX86))
+	 defined(_M_AMD64) || defined(_M_IX86) || defined(__aarch64__) || defined(_M_ARM64))
 # define HAVE_AESGCM 1
+#endif
+
+static zend_always_inline zend_string *zend_string_checked_alloc(size_t len, int persistent)
+{
+	zend_string *zs;
+
+	if (ZEND_MM_ALIGNED_SIZE(_ZSTR_STRUCT_SIZE(len)) < len) {
+		zend_error_noreturn(E_ERROR, "Memory allocation too large (%zu bytes)", len);
+	}
+	zs = zend_string_alloc(len, persistent);
+	ZSTR_VAL(zs)[len] = 0;
+
+	return zs;
+}
+
+#ifndef crypto_kdf_BYTES_MIN
+# define crypto_kdf_BYTES_MIN 16
+# define crypto_kdf_BYTES_MAX 64
+# define crypto_kdf_CONTEXTBYTES 8
+# define crypto_kdf_KEYBYTES 32
+#endif
+
+#ifndef crypto_kx_SEEDBYTES
+# define crypto_kx_SEEDBYTES 32
+# define crypto_kx_SESSIONKEYBYTES 32
+# define crypto_kx_PUBLICKEYBYTES 32
+# define crypto_kx_SECRETKEYBYTES 32
 #endif
 
 #include "libsodium_arginfo.h"
@@ -97,12 +125,12 @@ ZEND_GET_MODULE(sodium)
 /* Remove argument information from backtrace to prevent information leaks */
 static void sodium_remove_param_values_from_backtrace(zend_object *obj) {
 	zval rv;
-	zval *trace = zend_read_property(zend_get_exception_base(obj), obj, "trace", sizeof("trace")-1, 0, &rv);
+	zval *trace = zend_read_property_ex(zend_get_exception_base(obj), obj, ZSTR_KNOWN(ZEND_STR_TRACE), /* silent */ false, &rv);
 	if (trace && Z_TYPE_P(trace) == IS_ARRAY) {
 		zval *frame;
 		ZEND_HASH_FOREACH_VAL(Z_ARRVAL_P(trace), frame) {
 			if (Z_TYPE_P(frame) == IS_ARRAY) {
-				zval *args = zend_hash_str_find(Z_ARRVAL_P(frame), "args", sizeof("args")-1);
+				zval *args = zend_hash_find(Z_ARRVAL_P(frame), ZSTR_KNOWN(ZEND_STR_ARGS));
 				if (args) {
 					zval_ptr_dtor(args);
 					ZVAL_EMPTY_ARRAY(args);
@@ -129,231 +157,20 @@ static void sodium_separate_string(zval *zv) {
 
 PHP_MINIT_FUNCTION(sodium)
 {
-	zend_class_entry ce;
-
 	if (sodium_init() < 0) {
-		zend_error(E_ERROR, "sodium_init()");
+		zend_error_noreturn(E_ERROR, "sodium_init()");
 	}
 
-	INIT_CLASS_ENTRY(ce, "SodiumException", NULL);
-	sodium_exception_ce = zend_register_internal_class_ex(&ce, zend_ce_exception);
+	sodium_exception_ce = register_class_SodiumException(zend_ce_exception);
 	sodium_exception_ce->create_object = sodium_exception_create_object;
-
-	REGISTER_STRING_CONSTANT("SODIUM_LIBRARY_VERSION",
-							 (char *) (void *) sodium_version_string(), CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_LIBRARY_MAJOR_VERSION",
-						   sodium_library_version_major(), CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_LIBRARY_MINOR_VERSION",
-						   sodium_library_version_minor(), CONST_CS | CONST_PERSISTENT);
-#ifdef HAVE_AESGCM
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_AEAD_AES256GCM_KEYBYTES",
-						   crypto_aead_aes256gcm_KEYBYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_AEAD_AES256GCM_NSECBYTES",
-						   crypto_aead_aes256gcm_NSECBYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_AEAD_AES256GCM_NPUBBYTES",
-						   crypto_aead_aes256gcm_NPUBBYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_AEAD_AES256GCM_ABYTES",
-						   crypto_aead_aes256gcm_ABYTES, CONST_CS | CONST_PERSISTENT);
-#endif
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_AEAD_CHACHA20POLY1305_KEYBYTES",
-						   crypto_aead_chacha20poly1305_KEYBYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_AEAD_CHACHA20POLY1305_NSECBYTES",
-						   crypto_aead_chacha20poly1305_NSECBYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_AEAD_CHACHA20POLY1305_NPUBBYTES",
-						   crypto_aead_chacha20poly1305_NPUBBYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_AEAD_CHACHA20POLY1305_ABYTES",
-						   crypto_aead_chacha20poly1305_ABYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_AEAD_CHACHA20POLY1305_IETF_KEYBYTES",
-						   crypto_aead_chacha20poly1305_IETF_KEYBYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_AEAD_CHACHA20POLY1305_IETF_NSECBYTES",
-						   crypto_aead_chacha20poly1305_IETF_NSECBYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_AEAD_CHACHA20POLY1305_IETF_NPUBBYTES",
-						   crypto_aead_chacha20poly1305_IETF_NPUBBYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_AEAD_CHACHA20POLY1305_IETF_ABYTES",
-						   crypto_aead_chacha20poly1305_IETF_ABYTES, CONST_CS | CONST_PERSISTENT);
-#ifdef crypto_aead_xchacha20poly1305_IETF_NPUBBYTES
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_KEYBYTES",
-						   crypto_aead_xchacha20poly1305_IETF_KEYBYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NSECBYTES",
-						   crypto_aead_xchacha20poly1305_IETF_NSECBYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES",
-						   crypto_aead_xchacha20poly1305_IETF_NPUBBYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_ABYTES",
-						   crypto_aead_xchacha20poly1305_IETF_ABYTES, CONST_CS | CONST_PERSISTENT);
-#endif
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_AUTH_BYTES",
-						   crypto_auth_BYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_AUTH_KEYBYTES",
-						   crypto_auth_KEYBYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_BOX_SEALBYTES",
-						   crypto_box_SEALBYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_BOX_SECRETKEYBYTES",
-						   crypto_box_SECRETKEYBYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_BOX_PUBLICKEYBYTES",
-						   crypto_box_PUBLICKEYBYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_BOX_KEYPAIRBYTES",
-						   crypto_box_SECRETKEYBYTES + crypto_box_PUBLICKEYBYTES,
-						   CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_BOX_MACBYTES",
-						   crypto_box_MACBYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_BOX_NONCEBYTES",
-						   crypto_box_NONCEBYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_BOX_SEEDBYTES",
-						   crypto_box_SEEDBYTES, CONST_CS | CONST_PERSISTENT);
-#ifndef crypto_kdf_BYTES_MIN
-# define crypto_kdf_BYTES_MIN 16
-# define crypto_kdf_BYTES_MAX 64
-# define crypto_kdf_CONTEXTBYTES 8
-# define crypto_kdf_KEYBYTES 32
-#endif
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_KDF_BYTES_MIN",
-						   crypto_kdf_BYTES_MIN, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_KDF_BYTES_MAX",
-						   crypto_kdf_BYTES_MAX, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_KDF_CONTEXTBYTES",
-						   crypto_kdf_CONTEXTBYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_KDF_KEYBYTES",
-						   crypto_kdf_KEYBYTES, CONST_CS | CONST_PERSISTENT);
-#ifndef crypto_kx_SEEDBYTES
-# define crypto_kx_SEEDBYTES 32
-# define crypto_kx_SESSIONKEYBYTES 32
-# define crypto_kx_PUBLICKEYBYTES 32
-# define crypto_kx_SECRETKEYBYTES 32
-#endif
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_KX_SEEDBYTES",
-						   crypto_kx_SEEDBYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_KX_SESSIONKEYBYTES",
-						   crypto_kx_SESSIONKEYBYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_KX_PUBLICKEYBYTES",
-						   crypto_kx_PUBLICKEYBYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_KX_SECRETKEYBYTES",
-						   crypto_kx_SECRETKEYBYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_KX_KEYPAIRBYTES",
-						   crypto_kx_SECRETKEYBYTES + crypto_kx_PUBLICKEYBYTES,
-						   CONST_CS | CONST_PERSISTENT);
-#ifdef crypto_secretstream_xchacha20poly1305_ABYTES
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_SECRETSTREAM_XCHACHA20POLY1305_ABYTES",
-						   crypto_secretstream_xchacha20poly1305_ABYTES,
-						   CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_SECRETSTREAM_XCHACHA20POLY1305_HEADERBYTES",
-						   crypto_secretstream_xchacha20poly1305_HEADERBYTES,
-						   CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_SECRETSTREAM_XCHACHA20POLY1305_KEYBYTES",
-						   crypto_secretstream_xchacha20poly1305_KEYBYTES,
-						   CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_SECRETSTREAM_XCHACHA20POLY1305_MESSAGEBYTES_MAX",
-						   crypto_secretstream_xchacha20poly1305_MESSAGEBYTES_MAX,
-						   CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_SECRETSTREAM_XCHACHA20POLY1305_TAG_MESSAGE",
-						   crypto_secretstream_xchacha20poly1305_TAG_MESSAGE,
-						   CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_SECRETSTREAM_XCHACHA20POLY1305_TAG_PUSH",
-						   crypto_secretstream_xchacha20poly1305_TAG_PUSH,
-						   CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_SECRETSTREAM_XCHACHA20POLY1305_TAG_REKEY",
-						   crypto_secretstream_xchacha20poly1305_TAG_REKEY,
-						   CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_SECRETSTREAM_XCHACHA20POLY1305_TAG_FINAL",
-						   crypto_secretstream_xchacha20poly1305_TAG_FINAL,
-						   CONST_CS | CONST_PERSISTENT);
-#endif
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_GENERICHASH_BYTES",
-						   crypto_generichash_BYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_GENERICHASH_BYTES_MIN",
-						   crypto_generichash_BYTES_MIN, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_GENERICHASH_BYTES_MAX",
-						   crypto_generichash_BYTES_MAX, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_GENERICHASH_KEYBYTES",
-						   crypto_generichash_KEYBYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_GENERICHASH_KEYBYTES_MIN",
-						   crypto_generichash_KEYBYTES_MIN, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_GENERICHASH_KEYBYTES_MAX",
-						   crypto_generichash_KEYBYTES_MAX, CONST_CS | CONST_PERSISTENT);
-#ifdef crypto_pwhash_SALTBYTES
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_PWHASH_ALG_ARGON2I13",
-						   crypto_pwhash_ALG_ARGON2I13, CONST_CS | CONST_PERSISTENT);
-# ifdef crypto_pwhash_ALG_ARGON2ID13
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_PWHASH_ALG_ARGON2ID13",
-						   crypto_pwhash_ALG_ARGON2ID13, CONST_CS | CONST_PERSISTENT);
-# endif
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_PWHASH_ALG_DEFAULT",
-						   crypto_pwhash_ALG_DEFAULT, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_PWHASH_SALTBYTES",
-						   crypto_pwhash_SALTBYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_STRING_CONSTANT("SODIUM_CRYPTO_PWHASH_STRPREFIX",
-							 crypto_pwhash_STRPREFIX, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_PWHASH_OPSLIMIT_INTERACTIVE",
-						   crypto_pwhash_opslimit_interactive(), CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_PWHASH_MEMLIMIT_INTERACTIVE",
-						   crypto_pwhash_memlimit_interactive(), CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_PWHASH_OPSLIMIT_MODERATE",
-						   crypto_pwhash_opslimit_moderate(), CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_PWHASH_MEMLIMIT_MODERATE",
-						   crypto_pwhash_memlimit_moderate(), CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_PWHASH_OPSLIMIT_SENSITIVE",
-						   crypto_pwhash_opslimit_sensitive(), CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_PWHASH_MEMLIMIT_SENSITIVE",
-						   crypto_pwhash_memlimit_sensitive(), CONST_CS | CONST_PERSISTENT);
-#endif
-#ifdef crypto_pwhash_scryptsalsa208sha256_SALTBYTES
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_PWHASH_SCRYPTSALSA208SHA256_SALTBYTES",
-						   crypto_pwhash_scryptsalsa208sha256_SALTBYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_STRING_CONSTANT("SODIUM_CRYPTO_PWHASH_SCRYPTSALSA208SHA256_STRPREFIX",
-							 crypto_pwhash_scryptsalsa208sha256_STRPREFIX, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_PWHASH_SCRYPTSALSA208SHA256_OPSLIMIT_INTERACTIVE",
-						   crypto_pwhash_scryptsalsa208sha256_opslimit_interactive(), CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_PWHASH_SCRYPTSALSA208SHA256_MEMLIMIT_INTERACTIVE",
-						   crypto_pwhash_scryptsalsa208sha256_memlimit_interactive(), CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_PWHASH_SCRYPTSALSA208SHA256_OPSLIMIT_SENSITIVE",
-						   crypto_pwhash_scryptsalsa208sha256_opslimit_sensitive(), CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_PWHASH_SCRYPTSALSA208SHA256_MEMLIMIT_SENSITIVE",
-						   crypto_pwhash_scryptsalsa208sha256_memlimit_sensitive(), CONST_CS | CONST_PERSISTENT);
-#endif
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_SCALARMULT_BYTES",
-						   crypto_scalarmult_BYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_SCALARMULT_SCALARBYTES",
-						   crypto_scalarmult_SCALARBYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_SHORTHASH_BYTES",
-						   crypto_shorthash_BYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_SHORTHASH_KEYBYTES",
-						   crypto_shorthash_KEYBYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_SECRETBOX_KEYBYTES",
-						   crypto_secretbox_KEYBYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_SECRETBOX_MACBYTES",
-						   crypto_secretbox_MACBYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_SECRETBOX_NONCEBYTES",
-						   crypto_secretbox_NONCEBYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_SIGN_BYTES",
-						   crypto_sign_BYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_SIGN_SEEDBYTES",
-						   crypto_sign_SEEDBYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_SIGN_PUBLICKEYBYTES",
-						   crypto_sign_PUBLICKEYBYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_SIGN_SECRETKEYBYTES",
-						   crypto_sign_SECRETKEYBYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_SIGN_KEYPAIRBYTES",
-						   crypto_sign_SECRETKEYBYTES + crypto_sign_PUBLICKEYBYTES,
-						   CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_STREAM_NONCEBYTES",
-						   crypto_stream_NONCEBYTES, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_CRYPTO_STREAM_KEYBYTES",
-						   crypto_stream_KEYBYTES, CONST_CS | CONST_PERSISTENT);
-#ifdef sodium_base64_VARIANT_ORIGINAL
-	REGISTER_LONG_CONSTANT("SODIUM_BASE64_VARIANT_ORIGINAL",
-						   sodium_base64_VARIANT_ORIGINAL, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_BASE64_VARIANT_ORIGINAL_NO_PADDING",
-						   sodium_base64_VARIANT_ORIGINAL_NO_PADDING, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_BASE64_VARIANT_URLSAFE",
-						   sodium_base64_VARIANT_URLSAFE, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("SODIUM_BASE64_VARIANT_URLSAFE_NO_PADDING",
-						   sodium_base64_VARIANT_URLSAFE_NO_PADDING, CONST_CS | CONST_PERSISTENT);
-#endif
 
 #if SODIUM_LIBRARY_VERSION_MAJOR > 9 || (SODIUM_LIBRARY_VERSION_MAJOR == 9 && SODIUM_LIBRARY_VERSION_MINOR >= 6)
 	if (FAILURE == PHP_MINIT(sodium_password_hash)(INIT_FUNC_ARGS_PASSTHRU)) {
 		return FAILURE;
 	}
 #endif
+
+	register_libsodium_symbols(module_number);
 
 	return SUCCESS;
 }
@@ -367,7 +184,7 @@ PHP_MSHUTDOWN_FUNCTION(sodium)
 PHP_MINFO_FUNCTION(sodium)
 {
 	php_info_print_table_start();
-	php_info_print_table_header(2, "sodium support", "enabled");
+	php_info_print_table_row(2, "sodium support", "enabled");
 	php_info_print_table_row(2, "libsodium headers version", SODIUM_VERSION_STRING);
 	php_info_print_table_row(2, "libsodium library version", sodium_version_string());
 	php_info_print_table_end();
@@ -1468,6 +1285,130 @@ PHP_FUNCTION(sodium_crypto_stream_xor)
 	RETURN_NEW_STR(ciphertext);
 }
 
+#ifdef crypto_stream_xchacha20_KEYBYTES
+PHP_FUNCTION(sodium_crypto_stream_xchacha20)
+{
+	zend_string   *ciphertext;
+	unsigned char *key;
+	unsigned char *nonce;
+	zend_long      ciphertext_len;
+	size_t         key_len;
+	size_t         nonce_len;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "lss",
+									&ciphertext_len,
+									&nonce, &nonce_len,
+									&key, &key_len) == FAILURE) {
+		sodium_remove_param_values_from_backtrace(EG(exception));
+		RETURN_THROWS();
+	}
+	if (ciphertext_len <= 0 || ciphertext_len >= SIZE_MAX) {
+		zend_argument_error(sodium_exception_ce, 1, "must be greater than 0");
+		RETURN_THROWS();
+	}
+	if (nonce_len != crypto_stream_xchacha20_NONCEBYTES) {
+		zend_argument_error(sodium_exception_ce, 2, "must be SODIUM_CRYPTO_STREAM_XCHACHA20_NONCEBYTES bytes long");
+		RETURN_THROWS();
+	}
+	if (key_len != crypto_stream_xchacha20_KEYBYTES) {
+		zend_argument_error(sodium_exception_ce, 3, "must be SODIUM_CRYPTO_STREAM_XCHACHA20_KEYBYTES bytes long");
+		RETURN_THROWS();
+	}
+	ciphertext = zend_string_checked_alloc((size_t) ciphertext_len, 0);
+	if (crypto_stream_xchacha20((unsigned char *) ZSTR_VAL(ciphertext),
+								(unsigned long long) ciphertext_len, nonce, key) != 0) {
+		zend_string_free(ciphertext);
+		zend_throw_exception(sodium_exception_ce, "internal error", 0);
+		RETURN_THROWS();
+	}
+	ZSTR_VAL(ciphertext)[ciphertext_len] = 0;
+
+	RETURN_NEW_STR(ciphertext);
+}
+
+PHP_FUNCTION(sodium_crypto_stream_xchacha20_xor)
+{
+	zend_string   *ciphertext;
+	unsigned char *key;
+	unsigned char *msg;
+	unsigned char *nonce;
+	size_t         ciphertext_len;
+	size_t         key_len;
+	size_t         msg_len;
+	size_t         nonce_len;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "sss",
+									&msg, &msg_len,
+									&nonce, &nonce_len,
+									&key, &key_len) == FAILURE) {
+		sodium_remove_param_values_from_backtrace(EG(exception));
+		RETURN_THROWS();
+	}
+	if (nonce_len != crypto_stream_xchacha20_NONCEBYTES) {
+		zend_argument_error(sodium_exception_ce, 2, "must be SODIUM_CRYPTO_STREAM_XCHACHA20_NONCEBYTES bytes long");
+		RETURN_THROWS();
+	}
+	if (key_len != crypto_stream_xchacha20_KEYBYTES) {
+		zend_argument_error(sodium_exception_ce, 3, "must be SODIUM_CRYPTO_STREAM_XCHACHA20_KEYBYTES bytes long");
+		RETURN_THROWS();
+	}
+	ciphertext_len = msg_len;
+	ciphertext = zend_string_checked_alloc((size_t) ciphertext_len, 0);
+	if (crypto_stream_xchacha20_xor((unsigned char *) ZSTR_VAL(ciphertext), msg,
+									(unsigned long long) msg_len, nonce, key) != 0) {
+		zend_string_free(ciphertext);
+		zend_throw_exception(sodium_exception_ce, "internal error", 0);
+		RETURN_THROWS();
+	}
+	ZSTR_VAL(ciphertext)[ciphertext_len] = 0;
+
+	RETURN_NEW_STR(ciphertext);
+}
+
+PHP_FUNCTION(sodium_crypto_stream_xchacha20_xor_ic)
+{
+	zend_string   *ciphertext;
+	unsigned char *key;
+	unsigned char *msg;
+	unsigned char *nonce;
+	zend_long      ic;
+
+	size_t         ciphertext_len;
+	size_t         key_len;
+	size_t         msg_len;
+	size_t         nonce_len;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "ssls",
+									&msg, &msg_len,
+									&nonce, &nonce_len,
+									&ic,
+									&key, &key_len) == FAILURE) {
+		sodium_remove_param_values_from_backtrace(EG(exception));
+		RETURN_THROWS();
+	}
+	if (nonce_len != crypto_stream_xchacha20_NONCEBYTES) {
+		zend_argument_error(sodium_exception_ce, 2, "must be SODIUM_CRYPTO_STREAM_XCHACHA20_NONCEBYTES bytes long");
+		RETURN_THROWS();
+	}
+	if (key_len != crypto_stream_xchacha20_KEYBYTES) {
+		zend_argument_error(sodium_exception_ce, 3, "must be SODIUM_CRYPTO_STREAM_XCHACHA20_KEYBYTES bytes long");
+		RETURN_THROWS();
+	}
+	ciphertext_len = msg_len;
+	ciphertext = zend_string_checked_alloc((size_t) ciphertext_len, 0);
+	if (crypto_stream_xchacha20_xor_ic((unsigned char *) ZSTR_VAL(ciphertext), msg,
+									   (unsigned long long) msg_len, nonce,
+									   (uint64_t) ic, key) != 0) {
+		zend_string_free(ciphertext);
+		zend_throw_exception(sodium_exception_ce, "internal error", 0);
+		RETURN_THROWS();
+	}
+	ZSTR_VAL(ciphertext)[ciphertext_len] = 0;
+
+	RETURN_NEW_STR(ciphertext);
+}
+#endif
+
 #ifdef crypto_pwhash_SALTBYTES
 PHP_FUNCTION(sodium_crypto_pwhash)
 {
@@ -1925,6 +1866,236 @@ PHP_FUNCTION(sodium_crypto_aead_aes256gcm_decrypt)
 }
 #endif
 
+#ifdef crypto_aead_aegis128l_KEYBYTES
+PHP_FUNCTION(sodium_crypto_aead_aegis128l_encrypt)
+{
+	zend_string        *ciphertext;
+	unsigned char      *ad;
+	unsigned char      *msg;
+	unsigned char      *npub;
+	unsigned char      *secretkey;
+	unsigned long long  ciphertext_real_len;
+	size_t              ad_len;
+	size_t              ciphertext_len;
+	size_t              msg_len;
+	size_t              npub_len;
+	size_t              secretkey_len;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "ssss",
+							  &msg, &msg_len,
+							  &ad, &ad_len,
+							  &npub, &npub_len,
+							  &secretkey, &secretkey_len) == FAILURE) {
+		sodium_remove_param_values_from_backtrace(EG(exception));
+		RETURN_THROWS();
+	}
+	if (npub_len != crypto_aead_aegis128l_NPUBBYTES) {
+		zend_argument_error(sodium_exception_ce, 3, "must be SODIUM_CRYPTO_AEAD_AEGIS128L_NPUBBYTES bytes long");
+		RETURN_THROWS();
+	}
+	if (secretkey_len != crypto_aead_aegis128l_KEYBYTES) {
+		zend_argument_error(sodium_exception_ce, 4, "must be SODIUM_CRYPTO_AEAD_AEGIS128L_KEYBYTES bytes long");
+		RETURN_THROWS();
+	}
+	if (SIZE_MAX - msg_len <= crypto_aead_aegis128l_ABYTES) {
+		zend_throw_exception(sodium_exception_ce, "arithmetic overflow", 0);
+		RETURN_THROWS();
+	}
+	ciphertext_len = msg_len + crypto_aead_aegis128l_ABYTES;
+	ciphertext = zend_string_alloc((size_t) ciphertext_len, 0);
+	if (crypto_aead_aegis128l_encrypt
+		((unsigned char *) ZSTR_VAL(ciphertext), &ciphertext_real_len, msg,
+		 (unsigned long long) msg_len,
+		 ad, (unsigned long long) ad_len, NULL, npub, secretkey) != 0) {
+		zend_string_efree(ciphertext);
+		zend_throw_exception(sodium_exception_ce, "internal error", 0);
+		RETURN_THROWS();
+	}
+	if (ciphertext_real_len <= 0U || ciphertext_real_len >= SIZE_MAX ||
+		ciphertext_real_len > ciphertext_len) {
+		zend_string_efree(ciphertext);
+		zend_throw_exception(sodium_exception_ce, "arithmetic overflow", 0);
+		RETURN_THROWS();
+	}
+	PHP_SODIUM_ZSTR_TRUNCATE(ciphertext, (size_t) ciphertext_real_len);
+	ZSTR_VAL(ciphertext)[ciphertext_real_len] = 0;
+
+	RETURN_NEW_STR(ciphertext);
+}
+
+PHP_FUNCTION(sodium_crypto_aead_aegis128l_decrypt)
+{
+	zend_string        *msg;
+	unsigned char      *ad;
+	unsigned char      *ciphertext;
+	unsigned char      *npub;
+	unsigned char      *secretkey;
+	unsigned long long  msg_real_len;
+	size_t              ad_len;
+	size_t              ciphertext_len;
+	size_t              msg_len;
+	size_t              npub_len;
+	size_t              secretkey_len;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "ssss",
+							  &ciphertext, &ciphertext_len,
+							  &ad, &ad_len,
+							  &npub, &npub_len,
+							  &secretkey, &secretkey_len) == FAILURE) {
+		sodium_remove_param_values_from_backtrace(EG(exception));
+		RETURN_THROWS();
+	}
+	if (npub_len != crypto_aead_aegis128l_NPUBBYTES) {
+		zend_argument_error(sodium_exception_ce, 3, "must be SODIUM_CRYPTO_AEAD_AEGIS128L_NPUBBYTES bytes long");
+		RETURN_THROWS();
+	}
+	if (secretkey_len != crypto_aead_aegis128l_KEYBYTES) {
+		zend_argument_error(sodium_exception_ce, 4, "must be SODIUM_CRYPTO_AEAD_AEGIS128L_KEYBYTES bytes long");
+		RETURN_THROWS();
+	}
+	if (ciphertext_len < crypto_aead_aegis128l_ABYTES) {
+		RETURN_FALSE;
+	}
+	msg_len = ciphertext_len;
+	if (msg_len >= SIZE_MAX) {
+		zend_throw_exception(sodium_exception_ce, "arithmetic overflow", 0);
+		RETURN_THROWS();
+	}
+	msg = zend_string_alloc((size_t) msg_len, 0);
+	if (crypto_aead_aegis128l_decrypt
+		((unsigned char *) ZSTR_VAL(msg), &msg_real_len, NULL,
+		 ciphertext, (unsigned long long) ciphertext_len,
+		 ad, (unsigned long long) ad_len, npub, secretkey) != 0) {
+		zend_string_efree(msg);
+		RETURN_FALSE;
+	}
+	if (msg_real_len >= SIZE_MAX || msg_real_len > msg_len) {
+		zend_string_efree(msg);
+		zend_throw_exception(sodium_exception_ce, "arithmetic overflow", 0);
+		RETURN_THROWS();
+	}
+	PHP_SODIUM_ZSTR_TRUNCATE(msg, (size_t) msg_real_len);
+	ZSTR_VAL(msg)[msg_real_len] = 0;
+
+	RETURN_NEW_STR(msg);
+}
+#endif
+
+#ifdef crypto_aead_aegis256_KEYBYTES
+PHP_FUNCTION(sodium_crypto_aead_aegis256_encrypt)
+{
+	zend_string        *ciphertext;
+	unsigned char      *ad;
+	unsigned char      *msg;
+	unsigned char      *npub;
+	unsigned char      *secretkey;
+	unsigned long long  ciphertext_real_len;
+	size_t              ad_len;
+	size_t              ciphertext_len;
+	size_t              msg_len;
+	size_t              npub_len;
+	size_t              secretkey_len;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "ssss",
+							  &msg, &msg_len,
+							  &ad, &ad_len,
+							  &npub, &npub_len,
+							  &secretkey, &secretkey_len) == FAILURE) {
+		sodium_remove_param_values_from_backtrace(EG(exception));
+		RETURN_THROWS();
+	}
+	if (npub_len != crypto_aead_aegis256_NPUBBYTES) {
+		zend_argument_error(sodium_exception_ce, 3, "must be SODIUM_CRYPTO_AEAD_AEGIS256_NPUBBYTES bytes long");
+		RETURN_THROWS();
+	}
+	if (secretkey_len != crypto_aead_aegis256_KEYBYTES) {
+		zend_argument_error(sodium_exception_ce, 4, "must be SODIUM_CRYPTO_AEAD_AEGIS256_KEYBYTES bytes long");
+		RETURN_THROWS();
+	}
+	if (SIZE_MAX - msg_len <= crypto_aead_aegis256_ABYTES) {
+		zend_throw_exception(sodium_exception_ce, "arithmetic overflow", 0);
+		RETURN_THROWS();
+	}
+	ciphertext_len = msg_len + crypto_aead_aegis256_ABYTES;
+	ciphertext = zend_string_alloc((size_t) ciphertext_len, 0);
+	if (crypto_aead_aegis256_encrypt
+		((unsigned char *) ZSTR_VAL(ciphertext), &ciphertext_real_len, msg,
+		 (unsigned long long) msg_len,
+		 ad, (unsigned long long) ad_len, NULL, npub, secretkey) != 0) {
+		zend_string_efree(ciphertext);
+		zend_throw_exception(sodium_exception_ce, "internal error", 0);
+		RETURN_THROWS();
+	}
+	if (ciphertext_real_len <= 0U || ciphertext_real_len >= SIZE_MAX ||
+		ciphertext_real_len > ciphertext_len) {
+		zend_string_efree(ciphertext);
+		zend_throw_exception(sodium_exception_ce, "arithmetic overflow", 0);
+		RETURN_THROWS();
+	}
+	PHP_SODIUM_ZSTR_TRUNCATE(ciphertext, (size_t) ciphertext_real_len);
+	ZSTR_VAL(ciphertext)[ciphertext_real_len] = 0;
+
+	RETURN_NEW_STR(ciphertext);
+}
+
+PHP_FUNCTION(sodium_crypto_aead_aegis256_decrypt)
+{
+	zend_string        *msg;
+	unsigned char      *ad;
+	unsigned char      *ciphertext;
+	unsigned char      *npub;
+	unsigned char      *secretkey;
+	unsigned long long  msg_real_len;
+	size_t              ad_len;
+	size_t              ciphertext_len;
+	size_t              msg_len;
+	size_t              npub_len;
+	size_t              secretkey_len;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "ssss",
+							  &ciphertext, &ciphertext_len,
+							  &ad, &ad_len,
+							  &npub, &npub_len,
+							  &secretkey, &secretkey_len) == FAILURE) {
+		sodium_remove_param_values_from_backtrace(EG(exception));
+		RETURN_THROWS();
+	}
+	if (npub_len != crypto_aead_aegis256_NPUBBYTES) {
+		zend_argument_error(sodium_exception_ce, 3, "must be SODIUM_CRYPTO_AEAD_AEGIS256_NPUBBYTES bytes long");
+		RETURN_THROWS();
+	}
+	if (secretkey_len != crypto_aead_aegis256_KEYBYTES) {
+		zend_argument_error(sodium_exception_ce, 4, "must be SODIUM_CRYPTO_AEAD_AEGIS256_KEYBYTES bytes long");
+		RETURN_THROWS();
+	}
+	if (ciphertext_len < crypto_aead_aegis256_ABYTES) {
+		RETURN_FALSE;
+	}
+	msg_len = ciphertext_len;
+	if (msg_len >= SIZE_MAX) {
+		zend_throw_exception(sodium_exception_ce, "arithmetic overflow", 0);
+		RETURN_THROWS();
+	}
+	msg = zend_string_alloc((size_t) msg_len, 0);
+	if (crypto_aead_aegis256_decrypt
+		((unsigned char *) ZSTR_VAL(msg), &msg_real_len, NULL,
+		 ciphertext, (unsigned long long) ciphertext_len,
+		 ad, (unsigned long long) ad_len, npub, secretkey) != 0) {
+		zend_string_efree(msg);
+		RETURN_FALSE;
+	}
+	if (msg_real_len >= SIZE_MAX || msg_real_len > msg_len) {
+		zend_string_efree(msg);
+		zend_throw_exception(sodium_exception_ce, "arithmetic overflow", 0);
+		RETURN_THROWS();
+	}
+	PHP_SODIUM_ZSTR_TRUNCATE(msg, (size_t) msg_real_len);
+	ZSTR_VAL(msg)[msg_real_len] = 0;
+
+	RETURN_NEW_STR(msg);
+}
+#endif
+
 PHP_FUNCTION(sodium_crypto_aead_chacha20poly1305_encrypt)
 {
 	zend_string        *ciphertext;
@@ -1940,10 +2111,10 @@ PHP_FUNCTION(sodium_crypto_aead_chacha20poly1305_encrypt)
 	size_t              secretkey_len;
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS(), "ssss",
-									&msg, &msg_len,
-									&ad, &ad_len,
-									&npub, &npub_len,
-									&secretkey, &secretkey_len) == FAILURE) {
+							  &msg, &msg_len,
+							  &ad, &ad_len,
+							  &npub, &npub_len,
+							  &secretkey, &secretkey_len) == FAILURE) {
 		sodium_remove_param_values_from_backtrace(EG(exception));
 		RETURN_THROWS();
 	}
@@ -2446,6 +2617,69 @@ PHP_FUNCTION(sodium_crypto_scalarmult)
 	RETURN_NEW_STR(q);
 }
 
+#ifdef crypto_core_ristretto255_HASHBYTES
+PHP_FUNCTION(sodium_crypto_scalarmult_ristretto255)
+{
+	zend_string   *q;
+	unsigned char *n;
+	unsigned char *p;
+	size_t         n_len;
+	size_t         p_len;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "ss",
+									&n, &n_len, &p, &p_len) == FAILURE) {
+		sodium_remove_param_values_from_backtrace(EG(exception));
+		RETURN_THROWS();
+	}
+	if (n_len != crypto_scalarmult_ristretto255_SCALARBYTES) {
+		zend_argument_error(sodium_exception_ce, 1,
+							"must be SODIUM_CRYPTO_SCALARMULT_RISTRETTO255_SCALARBYTES bytes long");
+		RETURN_THROWS();
+	}
+	if (p_len != crypto_scalarmult_ristretto255_BYTES) {
+		zend_argument_error(sodium_exception_ce, 2,
+							"must be SODIUM_CRYPTO_SCALARMULT_RISTRETTO255_BYTES bytes long");
+		RETURN_THROWS();
+	}
+	q = zend_string_alloc(crypto_scalarmult_ristretto255_BYTES, 0);
+	if (crypto_scalarmult_ristretto255((unsigned char *) ZSTR_VAL(q), n, p) != 0) {
+		zend_string_efree(q);
+		zend_throw_exception(sodium_exception_ce, "Result is identity element", 0);
+		RETURN_THROWS();
+	}
+	ZSTR_VAL(q)[crypto_scalarmult_ristretto255_BYTES] = 0;
+
+	RETURN_NEW_STR(q);
+}
+
+PHP_FUNCTION(sodium_crypto_scalarmult_ristretto255_base)
+{
+	zend_string   *q;
+	unsigned char *n;
+	size_t         n_len;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "s",
+							  &n, &n_len) == FAILURE) {
+		sodium_remove_param_values_from_backtrace(EG(exception));
+		RETURN_THROWS();
+	}
+	if (n_len != crypto_scalarmult_ristretto255_SCALARBYTES) {
+		zend_argument_error(sodium_exception_ce, 1,
+							"must be SODIUM_CRYPTO_SCALARMULT_RISTRETTO255_SCALARBYTES bytes long");
+		RETURN_THROWS();
+	}
+	q = zend_string_alloc(crypto_scalarmult_ristretto255_BYTES, 0);
+	if (crypto_scalarmult_ristretto255_base((unsigned char *) ZSTR_VAL(q), n) != 0) {
+		zend_string_efree(q);
+		zend_argument_error(sodium_exception_ce, 1, "must not be zero", 0);
+		RETURN_THROWS();
+	}
+	ZSTR_VAL(q)[crypto_scalarmult_BYTES] = 0;
+
+	RETURN_NEW_STR(q);
+}
+#endif
+
 PHP_FUNCTION(sodium_crypto_kx_seed_keypair)
 {
 	unsigned char *sk;
@@ -2797,6 +3031,32 @@ PHP_FUNCTION(sodium_crypto_aead_aes256gcm_keygen)
 }
 #endif
 
+#ifdef crypto_aead_aegis128l_KEYBYTES
+PHP_FUNCTION(sodium_crypto_aead_aegis128l_keygen)
+{
+	unsigned char key[crypto_aead_aegis128l_KEYBYTES];
+
+	if (zend_parse_parameters_none() == FAILURE) {
+		RETURN_THROWS();
+	}
+	crypto_aead_aegis128l_keygen(key);
+	RETURN_STRINGL((const char *) key, sizeof key);
+}
+#endif
+
+#ifdef crypto_aead_aegis256_KEYBYTES
+PHP_FUNCTION(sodium_crypto_aead_aegis256_keygen)
+{
+	unsigned char key[crypto_aead_aegis256_KEYBYTES];
+
+	if (zend_parse_parameters_none() == FAILURE) {
+		RETURN_THROWS();
+	}
+	crypto_aead_aegis256_keygen(key);
+	RETURN_STRINGL((const char *) key, sizeof key);
+}
+#endif
+
 PHP_FUNCTION(sodium_crypto_aead_chacha20poly1305_keygen)
 {
 	unsigned char key[crypto_aead_chacha20poly1305_KEYBYTES];
@@ -2897,6 +3157,18 @@ PHP_FUNCTION(sodium_crypto_stream_keygen)
 	randombytes_buf(key, sizeof key);
 	RETURN_STRINGL((const char *) key, sizeof key);
 }
+#ifdef crypto_stream_xchacha20_KEYBYTES
+PHP_FUNCTION(sodium_crypto_stream_xchacha20_keygen)
+{
+	unsigned char key[crypto_stream_xchacha20_KEYBYTES];
+
+	if (zend_parse_parameters_none() == FAILURE) {
+		return;
+	}
+	randombytes_buf(key, sizeof key);
+	RETURN_STRINGL((const char *) key, sizeof key);
+}
+#endif
 
 PHP_FUNCTION(sodium_crypto_kdf_derive_from_key)
 {
@@ -3316,5 +3588,322 @@ PHP_FUNCTION(sodium_crypto_secretstream_xchacha20poly1305_rekey)
 		RETURN_THROWS();
 	}
 	crypto_secretstream_xchacha20poly1305_rekey((void *) state);
+}
+#endif
+
+#ifdef crypto_core_ristretto255_HASHBYTES
+PHP_FUNCTION(sodium_crypto_core_ristretto255_add)
+{
+	zend_string   *r;
+	unsigned char *p;
+	unsigned char *q;
+	size_t         p_len;
+	size_t         q_len;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "ss",
+									&p, &p_len, &q, &q_len) == FAILURE) {
+		sodium_remove_param_values_from_backtrace(EG(exception));
+		RETURN_THROWS();
+	}
+	if (p_len != crypto_core_ristretto255_BYTES) {
+		zend_argument_error(sodium_exception_ce, 1,
+							"must be SODIUM_CRYPTO_CORE_RISTRETTO255_BYTES bytes long");
+		RETURN_THROWS();
+	}
+	if (q_len != crypto_core_ristretto255_BYTES) {
+		zend_argument_error(sodium_exception_ce, 2,
+							"must be SODIUM_CRYPTO_CORE_RISTRETTO255_BYTES bytes long");
+		RETURN_THROWS();
+	}
+	r = zend_string_alloc(crypto_core_ristretto255_BYTES, 0);
+	if (crypto_core_ristretto255_add((unsigned char *) ZSTR_VAL(r), p, q) != 0) {
+		zend_string_efree(r);
+		zend_throw_exception(sodium_exception_ce, "internal error", 0);
+		RETURN_THROWS();
+	}
+	ZSTR_VAL(r)[crypto_core_ristretto255_BYTES] = 0;
+	RETURN_NEW_STR(r);
+}
+
+PHP_FUNCTION(sodium_crypto_core_ristretto255_from_hash)
+{
+	zend_string   *r;
+	unsigned char *s;
+	size_t         s_len;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "s",
+							  &s, &s_len) == FAILURE) {
+		sodium_remove_param_values_from_backtrace(EG(exception));
+		RETURN_THROWS();
+	}
+	if (s_len != crypto_core_ristretto255_HASHBYTES) {
+		zend_argument_error(sodium_exception_ce, 1,
+							"must be SODIUM_CRYPTO_CORE_RISTRETTO255_HASHBYTES bytes long");
+		RETURN_THROWS();
+	}
+	r = zend_string_alloc(crypto_core_ristretto255_SCALARBYTES, 0);
+	if (crypto_core_ristretto255_from_hash((unsigned char *) ZSTR_VAL(r), s) != 0) {
+		zend_string_efree(r);
+		zend_throw_exception(sodium_exception_ce, "internal error", 0);
+		RETURN_THROWS();
+	}
+	ZSTR_VAL(r)[crypto_core_ristretto255_SCALARBYTES] = 0;
+	RETURN_NEW_STR(r);
+}
+
+PHP_FUNCTION(sodium_crypto_core_ristretto255_is_valid_point)
+{
+	unsigned char *s;
+	size_t         s_len;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "s",
+							  &s, &s_len) == FAILURE) {
+		sodium_remove_param_values_from_backtrace(EG(exception));
+		RETURN_THROWS();
+	}
+	if (s_len != crypto_core_ristretto255_BYTES) {
+		zend_argument_error(sodium_exception_ce, 1,
+							"must be SODIUM_CRYPTO_CORE_RISTRETTO255_BYTES bytes long");
+		RETURN_THROWS();
+	}
+	RETURN_BOOL(crypto_core_ristretto255_is_valid_point(s));
+}
+
+PHP_FUNCTION(sodium_crypto_core_ristretto255_random)
+{
+	zend_string   *r;
+
+	if (zend_parse_parameters_none() == FAILURE) {
+		RETURN_THROWS();
+	}
+	r = zend_string_alloc(crypto_core_ristretto255_BYTES, 0);
+	crypto_core_ristretto255_random((unsigned char *) ZSTR_VAL(r));
+	ZSTR_VAL(r)[crypto_core_ristretto255_BYTES] = 0;
+	RETURN_NEW_STR(r);
+}
+
+PHP_FUNCTION(sodium_crypto_core_ristretto255_scalar_add)
+{
+	zend_string   *r;
+	unsigned char *p;
+	unsigned char *q;
+	size_t         p_len;
+	size_t         q_len;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "ss",
+									&p, &p_len, &q, &q_len) == FAILURE) {
+		sodium_remove_param_values_from_backtrace(EG(exception));
+		RETURN_THROWS();
+	}
+	if (p_len != crypto_core_ristretto255_SCALARBYTES) {
+		zend_argument_error(sodium_exception_ce, 1,
+							"must be SODIUM_CRYPTO_CORE_RISTRETTO255_SCALARBYTES bytes long");
+		RETURN_THROWS();
+	}
+	if (q_len != crypto_core_ristretto255_SCALARBYTES) {
+		zend_argument_error(sodium_exception_ce, 2,
+							"must be SODIUM_CRYPTO_CORE_RISTRETTO255_SCALARBYTES bytes long");
+		RETURN_THROWS();
+	}
+	r = zend_string_alloc(crypto_core_ristretto255_BYTES, 0);
+	crypto_core_ristretto255_scalar_add((unsigned char *) ZSTR_VAL(r), p, q);
+	ZSTR_VAL(r)[crypto_core_ristretto255_SCALARBYTES] = 0;
+	RETURN_NEW_STR(r);
+}
+
+PHP_FUNCTION(sodium_crypto_core_ristretto255_scalar_complement)
+{
+	zend_string   *r;
+	unsigned char *s;
+	size_t         s_len;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "s",
+							  &s, &s_len) == FAILURE) {
+		sodium_remove_param_values_from_backtrace(EG(exception));
+		RETURN_THROWS();
+	}
+	if (s_len != crypto_core_ristretto255_SCALARBYTES) {
+		zend_argument_error(sodium_exception_ce, 1,
+							"must be SODIUM_CRYPTO_CORE_RISTRETTO255_SCALARBYTES bytes long");
+		RETURN_THROWS();
+	}
+	r = zend_string_alloc(crypto_core_ristretto255_SCALARBYTES, 0);
+	crypto_core_ristretto255_scalar_complement((unsigned char *) ZSTR_VAL(r), s);
+	ZSTR_VAL(r)[crypto_core_ristretto255_SCALARBYTES] = 0;
+	RETURN_NEW_STR(r);
+}
+
+PHP_FUNCTION(sodium_crypto_core_ristretto255_scalar_invert)
+{
+	zend_string   *r;
+	unsigned char *s;
+	size_t         s_len;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "s",
+							  &s, &s_len) == FAILURE) {
+		sodium_remove_param_values_from_backtrace(EG(exception));
+		RETURN_THROWS();
+	}
+	if (s_len != crypto_core_ristretto255_SCALARBYTES) {
+		zend_argument_error(sodium_exception_ce, 1,
+							"must be SODIUM_CRYPTO_CORE_RISTRETTO255_SCALARBYTES bytes long");
+		RETURN_THROWS();
+	}
+	r = zend_string_alloc(crypto_core_ristretto255_SCALARBYTES, 0);
+	if (crypto_core_ristretto255_scalar_invert((unsigned char *) ZSTR_VAL(r), s) != 0) {
+		zend_string_efree(r);
+		zend_throw_exception(sodium_exception_ce, "internal error", 0);
+		RETURN_THROWS();
+	}
+	ZSTR_VAL(r)[crypto_core_ristretto255_SCALARBYTES] = 0;
+	RETURN_NEW_STR(r);
+}
+
+PHP_FUNCTION(sodium_crypto_core_ristretto255_scalar_mul)
+{
+	zend_string   *r;
+	unsigned char *x;
+	unsigned char *y;
+	size_t         x_len;
+	size_t         y_len;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "ss",
+									&x, &x_len, &y, &y_len) == FAILURE) {
+		sodium_remove_param_values_from_backtrace(EG(exception));
+		RETURN_THROWS();
+	}
+	if (x_len != crypto_core_ristretto255_SCALARBYTES) {
+		zend_argument_error(sodium_exception_ce, 1,
+							"must be SODIUM_CRYPTO_CORE_RISTRETTO255_SCALARBYTES bytes long");
+		RETURN_THROWS();
+	}
+	if (y_len != crypto_core_ristretto255_SCALARBYTES) {
+		zend_argument_error(sodium_exception_ce, 2,
+							"must be SODIUM_CRYPTO_CORE_RISTRETTO255_SCALARBYTES bytes long");
+		RETURN_THROWS();
+	}
+	r = zend_string_alloc(crypto_core_ristretto255_BYTES, 0);
+	crypto_core_ristretto255_scalar_mul((unsigned char *) ZSTR_VAL(r), x, y);
+	ZSTR_VAL(r)[crypto_core_ristretto255_SCALARBYTES] = 0;
+	RETURN_NEW_STR(r);
+}
+
+PHP_FUNCTION(sodium_crypto_core_ristretto255_scalar_negate)
+{
+	zend_string   *r;
+	unsigned char *s;
+	size_t         s_len;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "s",
+							  &s, &s_len) == FAILURE) {
+		sodium_remove_param_values_from_backtrace(EG(exception));
+		RETURN_THROWS();
+	}
+	if (s_len != crypto_core_ristretto255_SCALARBYTES) {
+		zend_argument_error(sodium_exception_ce, 1,
+							"must be SODIUM_CRYPTO_CORE_RISTRETTO255_SCALARBYTES bytes long");
+		RETURN_THROWS();
+	}
+	r = zend_string_alloc(crypto_core_ristretto255_SCALARBYTES, 0);
+	crypto_core_ristretto255_scalar_negate((unsigned char *) ZSTR_VAL(r), s);
+	ZSTR_VAL(r)[crypto_core_ristretto255_SCALARBYTES] = 0;
+	RETURN_NEW_STR(r);
+}
+
+PHP_FUNCTION(sodium_crypto_core_ristretto255_scalar_random)
+{
+	zend_string   *r;
+
+	if (zend_parse_parameters_none() == FAILURE) {
+		RETURN_THROWS();
+	};
+	r = zend_string_alloc(crypto_core_ristretto255_SCALARBYTES, 0);
+	crypto_core_ristretto255_scalar_random((unsigned char *) ZSTR_VAL(r));
+	ZSTR_VAL(r)[crypto_core_ristretto255_SCALARBYTES] = 0;
+	RETURN_NEW_STR(r);
+}
+
+PHP_FUNCTION(sodium_crypto_core_ristretto255_scalar_reduce)
+{
+	zend_string   *r;
+	unsigned char *s;
+	size_t         s_len;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "s",
+							  &s, &s_len) == FAILURE) {
+		sodium_remove_param_values_from_backtrace(EG(exception));
+		RETURN_THROWS();
+	}
+	if (s_len != crypto_core_ristretto255_NONREDUCEDSCALARBYTES) {
+		zend_argument_error(sodium_exception_ce, 1,
+							"must be SODIUM_CRYPTO_CORE_RISTRETTO255_NONREDUCEDSCALARBYTES bytes long");
+		RETURN_THROWS();
+	}
+	r = zend_string_alloc(crypto_core_ristretto255_SCALARBYTES, 0);
+	crypto_core_ristretto255_scalar_reduce((unsigned char *) ZSTR_VAL(r), s);
+	ZSTR_VAL(r)[crypto_core_ristretto255_SCALARBYTES] = 0;
+	RETURN_NEW_STR(r);
+}
+
+PHP_FUNCTION(sodium_crypto_core_ristretto255_scalar_sub)
+{
+	zend_string   *r;
+	unsigned char *p;
+	unsigned char *q;
+	size_t         p_len;
+	size_t         q_len;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "ss",
+									&p, &p_len, &q, &q_len) == FAILURE) {
+		sodium_remove_param_values_from_backtrace(EG(exception));
+		RETURN_THROWS();
+	}
+	if (p_len != crypto_core_ristretto255_SCALARBYTES) {
+		zend_argument_error(sodium_exception_ce, 1,
+							"must be SODIUM_CRYPTO_CORE_RISTRETTO255_SCALARBYTES bytes long");
+		RETURN_THROWS();
+	}
+	if (q_len != crypto_core_ristretto255_SCALARBYTES) {
+		zend_argument_error(sodium_exception_ce, 2,
+							"must be SODIUM_CRYPTO_CORE_RISTRETTO255_SCALARBYTES bytes long");
+		RETURN_THROWS();
+	}
+	r = zend_string_alloc(crypto_core_ristretto255_BYTES, 0);
+	crypto_core_ristretto255_scalar_sub((unsigned char *) ZSTR_VAL(r), p, q);
+	ZSTR_VAL(r)[crypto_core_ristretto255_SCALARBYTES] = 0;
+	RETURN_NEW_STR(r);
+}
+
+PHP_FUNCTION(sodium_crypto_core_ristretto255_sub)
+{
+	zend_string   *r;
+	unsigned char *p;
+	unsigned char *q;
+	size_t         p_len;
+	size_t         q_len;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "ss",
+									&p, &p_len, &q, &q_len) == FAILURE) {
+		sodium_remove_param_values_from_backtrace(EG(exception));
+		RETURN_THROWS();
+	}
+	if (p_len != crypto_core_ristretto255_BYTES) {
+		zend_argument_error(sodium_exception_ce, 1,
+							"must be SODIUM_CRYPTO_CORE_RISTRETTO255_BYTES bytes long");
+		RETURN_THROWS();
+	}
+	if (q_len != crypto_core_ristretto255_BYTES) {
+		zend_argument_error(sodium_exception_ce, 2,
+							"must be SODIUM_CRYPTO_CORE_RISTRETTO255_BYTES bytes long");
+		RETURN_THROWS();
+	}
+	r = zend_string_alloc(crypto_core_ristretto255_BYTES, 0);
+	if (crypto_core_ristretto255_sub((unsigned char *) ZSTR_VAL(r), p, q) != 0) {
+		zend_string_efree(r);
+		zend_throw_exception(sodium_exception_ce, "internal error", 0);
+		RETURN_THROWS();
+	}
+	ZSTR_VAL(r)[crypto_core_ristretto255_BYTES] = 0;
+	RETURN_NEW_STR(r);
 }
 #endif

@@ -1,8 +1,10 @@
 --TEST--
 PDO PgSQL Bug #33876 (PDO misquotes/miscasts bool(false))
+--EXTENSIONS--
+pdo
+pdo_pgsql
 --SKIPIF--
 <?php
-if (!extension_loaded('pdo') || !extension_loaded('pdo_pgsql')) die('skip not loaded');
 require __DIR__ . '/config.inc';
 require __DIR__ . '/../../../ext/pdo/tests/pdo_test.inc';
 PDOTest::skip();
@@ -14,11 +16,10 @@ $db = PDOTest::test_factory(__DIR__ . '/common.phpt');
 $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_SILENT);
 
 $db->exec("SET LC_MESSAGES='C'");
-$db->exec('CREATE TABLE test (foo varchar(5) NOT NULL, bar bool NOT NULL)');
-$db->exec("INSERT INTO test VALUES('false','f')");
-$db->exec("INSERT INTO test VALUES('true', 't')");
+$db->exec('CREATE TABLE b33876 (foo varchar(5) NOT NULL, bar bool NOT NULL)');
+$db->exec("INSERT INTO b33876 VALUES('false','f'), ('true', 't')");
 
-$res = $db->prepare('SELECT foo from test where bar = ?');
+$res = $db->prepare('SELECT foo from b33876 where bar = ?');
 
 # this is the portable approach to binding a bool
 $res->bindValue(1, false, PDO::PARAM_BOOL);
@@ -45,7 +46,7 @@ else
 # Expected to fail; unless told otherwise, PDO assumes string inputs
 # false -> "" as string, which pgsql doesn't like
 if (!$res->execute(array(false)))
-    print_r($res->errorInfo());
+    print_r(normalizeErrorInfo($res->errorInfo()));
 else
     print_r($res->fetchAll(PDO::FETCH_ASSOC));
 
@@ -53,7 +54,7 @@ else
 echo "EMUL\n";
 
 
-$res = $db->prepare('SELECT foo from test where bar = ?', array(
+$res = $db->prepare('SELECT foo from b33876 where bar = ?', array(
     PDO::ATTR_EMULATE_PREPARES => true));
 
 # this is the portable approach to binding a bool
@@ -81,13 +82,23 @@ else
 # Expected to fail; unless told otherwise, PDO assumes string inputs
 # false -> "" as string, which pgsql doesn't like
 if (!$res->execute(array(false))) {
-    $err = $res->errorInfo();
-    // Strip additional lines outputted by recent PgSQL versions
-    $err[2] = trim(current(explode("\n", $err[2])));
-    print_r($err);
+    print_r(normalizeErrorInfo($res->errorInfo()));
 } else {
     print_r($res->fetchAll(PDO::FETCH_ASSOC));
 }
+
+function normalizeErrorInfo(array $err): array {
+    // Strip additional lines outputted by recent PgSQL versions
+    $err[2] = trim(current(explode("\n", $err[2])));
+    return $err;
+}
+
+?>
+--CLEAN--
+<?php
+require __DIR__ . '/../../../ext/pdo/tests/pdo_test.inc';
+$db = PDOTest::test_factory(__DIR__ . '/common.phpt');
+$db->query('DROP TABLE IF EXISTS b33876 CASCADE');
 ?>
 --EXPECTF--
 Array

@@ -1,7 +1,8 @@
 --TEST--
 IntlTimeZone::getCanonicalID(): second argument
+--EXTENSIONS--
+intl
 --SKIPIF--
-<?php if (!extension_loaded('intl')) die('skip intl extension not enabled'); ?>
 <?php if (version_compare(INTL_ICU_VERSION, '53.1') < 0) die('skip for ICU >= 53.1'); ?>
 --FILE--
 <?php
@@ -19,6 +20,6 @@ var_dump($isSystemId);
 string(13) "Europe/Lisbon"
 bool(true)
 
-Warning: IntlTimeZone::getCanonicalID(): intltz_get_canonical_id: error obtaining canonical ID in %stimezone_getCanonicalID_variant1_2.php on line %d
+Warning: IntlTimeZone::getCanonicalID(): error obtaining canonical ID in %stimezone_getCanonicalID_variant1_2.php on line %d
 bool(false)
 bool(true)

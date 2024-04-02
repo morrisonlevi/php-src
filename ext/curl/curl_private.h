@@ -5,7 +5,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -73,8 +73,10 @@ typedef struct {
 	php_curl_read     *read;
 	zval               std_err;
 	php_curl_callback *progress;
-#if LIBCURL_VERSION_NUM >= 0x071500 /* Available since 7.21.0 */
+	php_curl_callback  *xferinfo;
 	php_curl_callback  *fnmatch;
+#if LIBCURL_VERSION_NUM >= 0x075400 /* Available since 7.84.0 */
+	php_curl_callback  *sshhostkey;
 #endif
 } php_curl_handlers;
 
@@ -137,7 +139,7 @@ php_curl *init_curl_handle_into_zval(zval *curl);
 void init_curl_handle(php_curl *ch);
 void _php_curl_cleanup_handle(php_curl *);
 void _php_curl_multi_cleanup_list(void *data);
-void _php_curl_verify_handlers(php_curl *ch, int reporterror);
+void _php_curl_verify_handlers(php_curl *ch, bool reporterror);
 void _php_setup_easy_copy_handlers(php_curl *ch, php_curl *source);
 
 static inline php_curl *curl_from_obj(zend_object *obj) {
@@ -155,6 +157,6 @@ static inline php_curlsh *curl_share_from_obj(zend_object *obj) {
 void curl_multi_register_handlers(void);
 void curl_share_register_handlers(void);
 void curlfile_register_class(void);
-int curl_cast_object(zend_object *obj, zval *result, int type);
+zend_result curl_cast_object(zend_object *obj, zval *result, int type);
 
 #endif  /* _PHP_CURL_PRIVATE_H */

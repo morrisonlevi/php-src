@@ -1,13 +1,17 @@
 --TEST--
 PDO_DBLIB: PDO::DBLIB_ATTR_DATETIME_CONVERT
+--EXTENSIONS--
+pdo_dblib
 --SKIPIF--
 <?php
-if (!extension_loaded('pdo_dblib')) die('skip not loaded');
 require __DIR__ . '/config.inc';
+getDbConnection();
 ?>
 --FILE--
 <?php
 require __DIR__ . '/config.inc';
+
+$db = getDbConnection();
 
 $sql = "SELECT convert(datetime, '20171027 10:22:44.135') AS [d]";
 

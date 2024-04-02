@@ -5,7 +5,7 @@
   | This source file is subject to version 3.01 of the PHP license,      |
   | that is bundled with this package in the file LICENSE, and is        |
   | available through the world-wide-web at the following url:           |
-  | http://www.php.net/license/3_01.txt                                  |
+  | https://www.php.net/license/3_01.txt                                 |
   | If you did not receive a copy of the PHP license and are unable to   |
   | obtain it through the world-wide-web, please send a note to          |
   | license@php.net so we can mail you a copy immediately.               |
@@ -46,10 +46,11 @@
 #define FILTER_FLAG_PATH_REQUIRED           0x040000
 #define FILTER_FLAG_QUERY_REQUIRED          0x080000
 
-#define FILTER_FLAG_IPV4                    0x100000
-#define FILTER_FLAG_IPV6                    0x200000
-#define FILTER_FLAG_NO_RES_RANGE            0x400000
-#define FILTER_FLAG_NO_PRIV_RANGE           0x800000
+#define FILTER_FLAG_IPV4                    0x00100000
+#define FILTER_FLAG_IPV6                    0x00200000
+#define FILTER_FLAG_NO_RES_RANGE            0x00400000
+#define FILTER_FLAG_NO_PRIV_RANGE           0x00800000
+#define FILTER_FLAG_GLOBAL_RANGE            0x10000000
 
 #define FILTER_FLAG_HOSTNAME               0x100000
 

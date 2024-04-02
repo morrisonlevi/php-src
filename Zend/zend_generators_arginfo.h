@@ -1,5 +1,5 @@
 /* This is a generated file, edit the .stub.php file instead.
- * Stub hash: 06d4e8126db48fe8633ecd40b93904a0f9c59263 */
+ * Stub hash: 0af5e8985dd4645bf23490b8cec312f8fd1fee2e */
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Generator_rewind, 0, 0, IS_VOID, 0)
 ZEND_END_ARG_INFO()
@@ -24,7 +24,6 @@ ZEND_END_ARG_INFO()
 
 #define arginfo_class_Generator_getReturn arginfo_class_Generator_current
 
-
 ZEND_METHOD(Generator, rewind);
 ZEND_METHOD(Generator, valid);
 ZEND_METHOD(Generator, current);
@@ -33,7 +32,6 @@ ZEND_METHOD(Generator, next);
 ZEND_METHOD(Generator, send);
 ZEND_METHOD(Generator, throw);
 ZEND_METHOD(Generator, getReturn);
-
 
 static const zend_function_entry class_Generator_methods[] = {
 	ZEND_ME(Generator, rewind, arginfo_class_Generator_rewind, ZEND_ACC_PUBLIC)
@@ -47,24 +45,23 @@ static const zend_function_entry class_Generator_methods[] = {
 	ZEND_FE_END
 };
 
-
 static const zend_function_entry class_ClosedGeneratorException_methods[] = {
 	ZEND_FE_END
 };
 
-zend_class_entry *register_class_Generator(zend_class_entry *class_entry_Iterator)
+static zend_class_entry *register_class_Generator(zend_class_entry *class_entry_Iterator)
 {
 	zend_class_entry ce, *class_entry;
 
 	INIT_CLASS_ENTRY(ce, "Generator", class_Generator_methods);
 	class_entry = zend_register_internal_class_ex(&ce, NULL);
-	class_entry->ce_flags |= ZEND_ACC_FINAL|ZEND_ACC_NO_DYNAMIC_PROPERTIES;
+	class_entry->ce_flags |= ZEND_ACC_FINAL|ZEND_ACC_NO_DYNAMIC_PROPERTIES|ZEND_ACC_NOT_SERIALIZABLE;
 	zend_class_implements(class_entry, 1, class_entry_Iterator);
 
 	return class_entry;
 }
 
-zend_class_entry *register_class_ClosedGeneratorException(zend_class_entry *class_entry_Exception)
+static zend_class_entry *register_class_ClosedGeneratorException(zend_class_entry *class_entry_Exception)
 {
 	zend_class_entry ce, *class_entry;
 
@@ -73,4 +70,3 @@ zend_class_entry *register_class_ClosedGeneratorException(zend_class_entry *clas
 
 	return class_entry;
 }
-

@@ -1,8 +1,9 @@
 --TEST--
 PDO Common: Bug #69356 (PDOStatement::debugDumpParams() truncates query)
+--EXTENSIONS--
+pdo
 --SKIPIF--
 <?php
-if (!extension_loaded('pdo')) die('skip');
 $dir = getenv('REDIR_TEST_DIR');
 if (false == $dir) die('skip no driver');
 if (!strncasecmp(getenv('PDOTEST_DSN'), 'oci', strlen('oci'))) die('skip query not supported');
@@ -27,13 +28,11 @@ SELECT '
 SQL;
 
 switch ($db->getAttribute(PDO::ATTR_DRIVER_NAME)) {
-    case 'oci':
-        $query .= ' FROM DUAL';
-        break;
-    case 'firebird':
-        $query .= ' FROM RDB$DATABASE';
-        break;
+    case 'oci': $from = ' FROM DUAL'; break;
+    case 'firebird': $from = ' FROM RDB$DATABASE'; break;
+    default: $from = ''; break;
 }
+$query .= $from;
 
 $stmt = $db->query($query);
 var_dump($stmt->debugDumpParams());

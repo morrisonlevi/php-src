@@ -7,7 +7,7 @@
   | This source file is subject to version 3.01 of the PHP license,      |
   | that is bundled with this package in the file LICENSE, and is        |
   | available through the world-wide-web at the following url:           |
-  | http://www.php.net/license/3_01.txt.                                 |
+  | https://www.php.net/license/3_01.txt                                 |
   | If you did not receive a copy of the PHP license and are unable to   |
   | obtain it through the world-wide-web, please send a note to          |
   | license@php.net so we can mail you a copy immediately.               |
@@ -88,6 +88,8 @@
 #define PHAR_SIG_SHA256           0x0003
 #define PHAR_SIG_SHA512           0x0004
 #define PHAR_SIG_OPENSSL          0x0010
+#define PHAR_SIG_OPENSSL_SHA256   0x0011
+#define PHAR_SIG_OPENSSL_SHA512   0x0012
 
 /* flags byte for each file adheres to these bitmasks.
    All unused values are reserved */
@@ -475,10 +477,6 @@ union _phar_entry_object {
 	phar_entry_info          *entry;
 };
 
-#ifndef PHAR_MAIN
-extern zend_string *(*phar_save_resolve_path)(const char *filename, size_t filename_len);
-#endif
-
 BEGIN_EXTERN_C()
 
 #ifdef PHP_WIN32
@@ -549,7 +547,7 @@ char *phar_compress_filter(phar_entry_info * entry, int return_unknown);
 /* void phar_remove_virtual_dirs(phar_archive_data *phar, char *filename, size_t filename_len); */
 void phar_add_virtual_dirs(phar_archive_data *phar, char *filename, size_t filename_len);
 int phar_mount_entry(phar_archive_data *phar, char *filename, size_t filename_len, char *path, size_t path_len);
-zend_string *phar_find_in_include_path(char *file, size_t file_len, phar_archive_data **pphar);
+zend_string *phar_find_in_include_path(zend_string *file, phar_archive_data **pphar);
 char *phar_fix_filepath(char *path, size_t *new_len, int use_cwd);
 phar_entry_info * phar_open_jit(phar_archive_data *phar, phar_entry_info *entry, char **error);
 void phar_parse_metadata_lazy(const char *buffer, phar_metadata_tracker *tracker, uint32_t zip_metadata_len, int persistent);

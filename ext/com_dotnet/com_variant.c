@@ -5,7 +5,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -92,10 +92,10 @@ bogus:
 	}
 }
 
-PHP_COM_DOTNET_API void php_com_variant_from_zval(VARIANT *v, zval *z, int codepage)
+static void php_com_variant_from_zval_ex(VARIANT *v, zval *z, int codepage, VARTYPE vt)
 {
 	php_com_dotnet_object *obj;
-	zend_uchar ztype = IS_NULL;
+	uint8_t ztype = IS_NULL;
 
 	if (z) {
 		ZVAL_DEREF(z);
@@ -145,6 +145,11 @@ PHP_COM_DOTNET_API void php_com_variant_from_zval(VARIANT *v, zval *z, int codep
 			break;
 
 		case IS_LONG:
+			if (vt == VT_ERROR) {
+				V_VT(v) = VT_ERROR;
+				V_ERROR(v) = Z_LVAL_P(z);
+				break;
+			}
 #if SIZEOF_ZEND_LONG == 4
 			V_VT(v) = VT_I4;
 			V_I4(v) = Z_LVAL_P(z);
@@ -172,10 +177,15 @@ PHP_COM_DOTNET_API void php_com_variant_from_zval(VARIANT *v, zval *z, int codep
 	}
 }
 
-PHP_COM_DOTNET_API int php_com_zval_from_variant(zval *z, VARIANT *v, int codepage)
+PHP_COM_DOTNET_API void php_com_variant_from_zval(VARIANT *v, zval *z, int codepage)
+{
+	php_com_variant_from_zval_ex(v, z, codepage, VT_EMPTY);
+}
+
+PHP_COM_DOTNET_API zend_result php_com_zval_from_variant(zval *z, VARIANT *v, int codepage)
 {
 	OLECHAR *olestring = NULL;
-	int ret = SUCCESS;
+	zend_result ret = SUCCESS;
 
 	switch (V_VT(v)) {
 		case VT_EMPTY:
@@ -271,9 +281,9 @@ PHP_COM_DOTNET_API int php_com_zval_from_variant(zval *z, VARIANT *v, int codepa
 }
 
 
-PHP_COM_DOTNET_API int php_com_copy_variant(VARIANT *dstvar, VARIANT *srcvar)
+PHP_COM_DOTNET_API zend_result php_com_copy_variant(VARIANT *dstvar, VARIANT *srcvar)
 {
-	int ret = SUCCESS;
+	zend_result ret = SUCCESS;
 
 	switch (V_VT(dstvar) & ~VT_BYREF) {
 	case VT_EMPTY:
@@ -384,14 +394,14 @@ PHP_COM_DOTNET_API int php_com_copy_variant(VARIANT *dstvar, VARIANT *srcvar)
 		} else {
 			V_BOOL(dstvar) = V_BOOL(srcvar);
 		}
-        break;
+		break;
 
 	case VT_BSTR:
 		if (V_VT(dstvar) & VT_BYREF) {
 			*V_BSTRREF(dstvar) = V_BSTR(srcvar);
 		} else {
 			V_BSTR(dstvar) = V_BSTR(srcvar);
-        }
+		}
 		break;
 
 	case VT_UNKNOWN:
@@ -425,7 +435,7 @@ PHP_METHOD(variant, __construct)
 {
 	/* VARTYPE == unsigned short */ zend_long vt = VT_EMPTY;
 	zend_long codepage = CP_ACP;
-	zval *object = getThis();
+	zval *object = ZEND_THIS;
 	php_com_dotnet_object *obj;
 	zval *zvalue = NULL;
 	HRESULT res;
@@ -448,7 +458,7 @@ PHP_METHOD(variant, __construct)
 	}
 
 	if (zvalue) {
-		php_com_variant_from_zval(&obj->v, zvalue, obj->code_page);
+		php_com_variant_from_zval_ex(&obj->v, zvalue, obj->code_page, vt);
 	}
 
 	/* Only perform conversion if variant not already of type passed */
@@ -510,7 +520,7 @@ PHP_FUNCTION(variant_set)
 		obj->typeinfo = NULL;
 	}
 	if (obj->sink_dispatch) {
-		php_com_object_enable_event_sink(obj, FALSE);
+		php_com_object_enable_event_sink(obj, /* enable */ false);
 		IDispatch_Release(obj->sink_dispatch);
 		obj->sink_dispatch = NULL;
 	}
@@ -1019,6 +1029,7 @@ PHP_FUNCTION(variant_set_type)
 	zval *zobj;
 	php_com_dotnet_object *obj;
 	/* VARTYPE == unsigned short */ zend_long vt;
+	VARIANT vtmp;
 	HRESULT res;
 
 	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(),
@@ -1027,7 +1038,12 @@ PHP_FUNCTION(variant_set_type)
 	}
 	obj = CDNO_FETCH(zobj);
 
-	res = VariantChangeType(&obj->v, &obj->v, 0, (VARTYPE)vt);
+	if (V_VT(&obj->v) == VT_ERROR) {
+		VariantInit(&vtmp);
+		V_VT(&vtmp) = VT_I4;
+		V_I4(&vtmp) = V_ERROR(&obj->v);
+	}
+	res = VariantChangeType(&obj->v, V_VT(&obj->v) != VT_ERROR ? &obj->v : &vtmp, 0, (VARTYPE)vt);
 
 	if (SUCCEEDED(res)) {
 		if (vt != VT_DISPATCH && obj->typeinfo) {
@@ -1063,7 +1079,11 @@ PHP_FUNCTION(variant_cast)
 	obj = CDNO_FETCH(zobj);
 
 	VariantInit(&vres);
-	res = VariantChangeType(&vres, &obj->v, 0, (VARTYPE)vt);
+	if (V_VT(&obj->v) == VT_ERROR) {
+		V_VT(&vres) = VT_I4;
+		V_I4(&vres) = V_ERROR(&obj->v);
+	}
+	res = VariantChangeType(&vres, V_VT(&vres) == VT_EMPTY ? &obj->v : &vres, 0, (VARTYPE)vt);
 
 	if (SUCCEEDED(res)) {
 		php_com_wrap_variant(return_value, &vres, obj->code_page);

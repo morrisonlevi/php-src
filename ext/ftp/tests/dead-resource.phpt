@@ -1,8 +1,8 @@
 --TEST--
-Attempt to use a closed FTPConnection
---SKIPIF--
-<?php
-require 'skipif.inc';
+Attempt to use a closed FTP\Connection
+--EXTENSIONS--
+ftp
+pcntl
 --FILE--
 <?php
 require 'server.inc';
@@ -18,7 +18,8 @@ try {
 } catch (ValueError $ex) {
     echo "Exception: ", $ex->getMessage(), "\n";
 }
+?>
 --EXPECT--
 bool(true)
 bool(true)
-Exception: FTPConnection is already closed
+Exception: FTP\Connection is already closed

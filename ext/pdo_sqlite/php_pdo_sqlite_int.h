@@ -5,7 +5,7 @@
   | This source file is subject to version 3.01 of the PHP license,      |
   | that is bundled with this package in the file LICENSE, and is        |
   | available through the world-wide-web at the following url:           |
-  | http://www.php.net/license/3_01.txt                                  |
+  | https://www.php.net/license/3_01.txt                                 |
   | If you did not receive a copy of the PHP license and are unable to   |
   | obtain it through the world-wide-web, please send a note to          |
   | license@php.net so we can mail you a copy immediately.               |
@@ -77,5 +77,11 @@ enum {
 	PDO_SQLITE_ATTR_READONLY_STATEMENT,
 	PDO_SQLITE_ATTR_EXTENDED_RESULT_CODES
 };
+
+typedef int pdo_sqlite_create_collation_callback(void*, int, const void*, int, const void*);
+
+void pdo_sqlite_create_function_internal(INTERNAL_FUNCTION_PARAMETERS);
+void pdo_sqlite_create_aggregate_internal(INTERNAL_FUNCTION_PARAMETERS);
+void pdo_sqlite_create_collation_internal(INTERNAL_FUNCTION_PARAMETERS, pdo_sqlite_create_collation_callback callback);
 
 #endif

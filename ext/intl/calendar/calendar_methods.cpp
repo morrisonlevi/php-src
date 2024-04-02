@@ -3,7 +3,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -50,7 +50,7 @@ using icu::Locale;
 	}
 
 #define ZEND_VALUE_ERROR_OUT_OF_BOUND_VALUE(argument, zpp_arg_position) \
-	if (argument < INT32_MIN || argument > INT32_MAX) { \
+	if (UNEXPECTED(argument < INT32_MIN || argument > INT32_MAX)) { \
 		zend_argument_value_error(getThis() ? ((zpp_arg_position)-1) : zpp_arg_position, \
 			"must be between %d and %d", INT32_MIN, INT32_MAX); \
 		RETURN_THROWS(); \
@@ -96,7 +96,7 @@ U_CFUNC PHP_FUNCTION(intlcal_create_instance)
 
 	Calendar *cal = Calendar::createInstance(timeZone,
 		Locale::createFromName(locale_str), status);
-	if (cal == NULL) {
+	if (UNEXPECTED(cal == NULL)) {
 		delete timeZone;
 		intl_error_set(NULL, status, "Error creating ICU Calendar object", 0);
 		RETURN_NULL();
@@ -115,11 +115,11 @@ public:
 		uenum_close(uenum);
 	}
 
-	int32_t count(UErrorCode& status) const {
+	int32_t count(UErrorCode& status) const override {
 		return uenum_count(uenum, &status);
 	}
 
-	virtual const UnicodeString* snext(UErrorCode& status)
+	const UnicodeString* snext(UErrorCode& status) override
 	{
 		int32_t length;
 		const UChar* str = uenum_unext(uenum, &length, &status);
@@ -129,7 +129,7 @@ public:
 		return &unistr.setTo(str, length);
 	}
 
-	virtual const char* next(int32_t *resultLength, UErrorCode &status)
+	const char* next(int32_t *resultLength, UErrorCode &status) override
 	{
 		int32_t length = -1;
 		const char* str = uenum_next(uenum, &length, &status);
@@ -144,12 +144,12 @@ public:
 		return str;
 	}
 
-	void reset(UErrorCode& status)
+	void reset(UErrorCode& status) override
 	{
 		uenum_reset(uenum, &status);
 	}
 
-	virtual UClassID getDynamicClassID() const;
+	UClassID getDynamicClassID() const override;
 
 	static UClassID U_EXPORT2 getStaticClassID();
 
@@ -377,6 +377,14 @@ U_CFUNC PHP_FUNCTION(intlcal_set)
 
 	int arg_num = ZEND_NUM_ARGS() - (object ? 0 : 1);
 
+	if (object && arg_num > 2) {
+		zend_error(E_DEPRECATED, "Calling IntlCalendar::set() with more than 2 arguments is deprecated, "
+			"use either IntlCalendar::setDate() or IntlCalendar::setDateTime() instead");
+		if (UNEXPECTED(EG(exception))) {
+			RETURN_THROWS();
+		}
+	}
+
 	if (zend_parse_method_parameters(
 		ZEND_NUM_ARGS(), object, "Oll|llll",
 		&object, Calendar_ce_ptr, &args[0], &args[1], &args[2], &args[3], &args[4], &args[5]
@@ -405,8 +413,59 @@ U_CFUNC PHP_FUNCTION(intlcal_set)
 		co->ucal->set((int32_t)args[0], (int32_t)args[1], (int32_t)args[2], (int32_t)args[3], (int32_t)args[4], (int32_t)args[5]);
 	}
 
-	// TODO Make void?
 	RETURN_TRUE;
+}
+
+U_CFUNC PHP_METHOD(IntlCalendar, setDate)
+{
+	zend_long year, month, day;
+
+	CALENDAR_METHOD_INIT_VARS;
+
+	object = getThis();
+
+	if (zend_parse_method_parameters(ZEND_NUM_ARGS(), object, "Olll",
+		&object, Calendar_ce_ptr, &year, &month, &day) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	ZEND_VALUE_ERROR_OUT_OF_BOUND_VALUE(year, 1);
+	ZEND_VALUE_ERROR_OUT_OF_BOUND_VALUE(month, 2);
+	ZEND_VALUE_ERROR_OUT_OF_BOUND_VALUE(day, 3);
+
+	CALENDAR_METHOD_FETCH_OBJECT;
+
+	co->ucal->set((int32_t) year, (int32_t) month, (int32_t) day);
+}
+
+U_CFUNC PHP_METHOD(IntlCalendar, setDateTime)
+{
+	zend_long year, month, day, hour, minute, second = 0;
+	bool second_is_null = true;
+
+	CALENDAR_METHOD_INIT_VARS;
+
+	object = getThis();
+
+	if (zend_parse_method_parameters(ZEND_NUM_ARGS(), object, "Olllll|l!",
+		&object, Calendar_ce_ptr, &year, &month, &day, &hour, &minute, &second, &second_is_null) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	ZEND_VALUE_ERROR_OUT_OF_BOUND_VALUE(year, 1);
+	ZEND_VALUE_ERROR_OUT_OF_BOUND_VALUE(month, 2);
+	ZEND_VALUE_ERROR_OUT_OF_BOUND_VALUE(day, 3);
+	ZEND_VALUE_ERROR_OUT_OF_BOUND_VALUE(hour, 4);
+	ZEND_VALUE_ERROR_OUT_OF_BOUND_VALUE(minute, 5);
+
+	CALENDAR_METHOD_FETCH_OBJECT;
+
+	if (second_is_null) {
+		co->ucal->set((int32_t) year, (int32_t) month, (int32_t) day, (int32_t) hour, (int32_t) minute);
+	} else {
+		ZEND_VALUE_ERROR_OUT_OF_BOUND_VALUE(second, 6);
+		co->ucal->set((int32_t) year, (int32_t) month, (int32_t) day, (int32_t) hour, (int32_t) minute, (int32_t) second);
+	}
 }
 
 U_CFUNC PHP_FUNCTION(intlcal_roll)
@@ -425,6 +484,7 @@ U_CFUNC PHP_FUNCTION(intlcal_roll)
 
 	if (Z_TYPE_P(zvalue) == IS_FALSE || Z_TYPE_P(zvalue) == IS_TRUE) {
 		value = Z_TYPE_P(zvalue) == IS_TRUE ? 1 : -1;
+		php_error_docref(NULL, E_DEPRECATED, "Passing bool is deprecated, use 1 or -1 instead");
 	} else {
 		value = zval_get_long(zvalue);
 		ZEND_VALUE_ERROR_OUT_OF_BOUND_VALUE(value, 3);
@@ -614,7 +674,7 @@ U_CFUNC PHP_FUNCTION(intlcal_get_minimal_days_in_first_week)
 
 	uint8_t result = co->ucal->getMinimalDaysInFirstWeek();
 	INTL_METHOD_CHECK_STATUS(co,
-		"intlcal_get_first_day_of_week: Call to ICU method has failed");
+		"intlcal_get_first_day_of_week: Call to ICU method has failed"); /* TODO Is it really a failure? */
 
 	RETURN_LONG((zend_long)result);
 }
@@ -637,7 +697,7 @@ U_CFUNC PHP_FUNCTION(intlcal_get_time_zone)
 	CALENDAR_METHOD_FETCH_OBJECT;
 
 	TimeZone *tz = co->ucal->getTimeZone().clone();
-	if (tz == NULL) {
+	if (UNEXPECTED(tz == NULL)) {
 		intl_errors_set(CALENDAR_ERROR_P(co), U_MEMORY_ALLOCATION_ERROR,
 			"intlcal_get_time_zone: could not clone TimeZone", 0);
 		RETURN_FALSE;
@@ -910,7 +970,6 @@ U_CFUNC PHP_FUNCTION(intlcal_set_repeated_wall_time_option)
 
 	co->ucal->setRepeatedWallTimeOption((UCalendarWallTimeOption)option);
 
-	// TODO Return void?
 	RETURN_TRUE;
 }
 
@@ -935,7 +994,6 @@ U_CFUNC PHP_FUNCTION(intlcal_set_skipped_wall_time_option)
 
 	co->ucal->setSkippedWallTimeOption((UCalendarWallTimeOption)option);
 
-	// TODO Return void?
 	RETURN_TRUE;
 }
 
@@ -1002,7 +1060,7 @@ U_CFUNC PHP_FUNCTION(intlcal_from_date_time)
 
 	cal = Calendar::createInstance(timeZone,
 		Locale::createFromName(locale_str), status);
-	if (cal == NULL) {
+	if (UNEXPECTED(cal == NULL)) {
 		delete timeZone;
 		intl_error_set(NULL, status, "intlcal_from_date_time: "
 				"error creating ICU Calendar object", 0);
@@ -1047,7 +1105,7 @@ U_CFUNC PHP_FUNCTION(intlcal_to_date_time)
 
 	INTL_METHOD_CHECK_STATUS(co, "Call to ICU method has failed");
 
-	if (date > (double)U_INT64_MAX || date < (double)U_INT64_MIN) {
+	if (UNEXPECTED(date > (double)U_INT64_MAX || date < (double)U_INT64_MIN)) {
 		intl_errors_set(CALENDAR_ERROR_P(co), U_ILLEGAL_ARGUMENT_ERROR,
 			"intlcal_to_date_time: The calendar date is out of the "
 			"range for a 64-bit integer", 0);

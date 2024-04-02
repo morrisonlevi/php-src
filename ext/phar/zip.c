@@ -7,7 +7,7 @@
   | This source file is subject to version 3.01 of the PHP license,      |
   | that is bundled with this package in the file LICENSE, and is        |
   | available through the world-wide-web at the following url:           |
-  | http://www.php.net/license/3_01.txt.                                 |
+  | https://www.php.net/license/3_01.txt                                 |
   | If you did not receive a copy of the PHP license and are unable to   |
   | obtain it through the world-wide-web, please send a note to          |
   | license@php.net so we can mail you a copy immediately.               |
@@ -44,12 +44,42 @@ static int phar_zip_process_extra(php_stream *fp, phar_entry_info *entry, uint16
 	union {
 		phar_zip_extra_field_header header;
 		phar_zip_unix3 unix3;
+		phar_zip_unix_time time;
 	} h;
 	size_t read;
 
 	do {
 		if (sizeof(h.header) != php_stream_read(fp, (char *) &h.header, sizeof(h.header))) {
 			return FAILURE;
+		}
+
+		if (h.header.tag[0] == 'U' && h.header.tag[1] == 'T') {
+			/* Unix timestamp header found.
+			 * The flags field indicates which timestamp fields are present.
+			 * The size with a timestamp is at least 5 (== 9 - tag size) bytes, but may be larger.
+			 * We only store the modification time in the entry, so only read that.
+			 */
+			const size_t min_size = 5;
+			uint16_t header_size = PHAR_GET_16(h.header.size);
+			if (header_size >= min_size) {
+				read = php_stream_read(fp, &h.time.flags, min_size);
+				if (read != min_size) {
+					return FAILURE;
+				}
+				if (h.time.flags & (1 << 0)) {
+					/* Modification time set */
+					entry->timestamp = PHAR_GET_32(h.time.time);
+				}
+
+				len -= header_size + 4;
+
+				/* Consume remaining bytes */
+				if (header_size != read) {
+					php_stream_seek(fp, header_size - read, SEEK_CUR);
+				}
+				continue;
+			}
+			/* Fallthrough to next if to skip header */
 		}
 
 		if (h.header.tag[0] != 'n' || h.header.tag[1] != 'u') {
@@ -147,7 +177,8 @@ static void phar_zip_u2d_time(time_t time, char *dtime, char *ddate) /* {{{ */
 	struct tm *tm, tmbuf;
 
 	tm = php_localtime_r(&time, &tmbuf);
-	if (tm->tm_year >= 1980) {
+	/* Note: tm_year is the year - 1900 */
+	if (tm->tm_year >= 80) {
 		cdate = ((tm->tm_year+1900-1980)<<9) + ((tm->tm_mon+1)<<5) + tm->tm_mday;
 		ctime = ((tm->tm_hour)<<11) + ((tm->tm_min)<<5) + ((tm->tm_sec)>>1);
 	} else {
@@ -385,8 +416,6 @@ foundit:
 		entry.timestamp = phar_zip_d2u_time(zipentry.timestamp, zipentry.datestamp);
 		entry.flags = PHAR_ENT_PERM_DEF_FILE;
 		entry.header_offset = PHAR_GET_32(zipentry.offset);
-		entry.offset = entry.offset_abs = PHAR_GET_32(zipentry.offset) + sizeof(phar_zip_file_header) + PHAR_GET_16(zipentry.filename_len) +
-			PHAR_GET_16(zipentry.extra_len);
 
 		if (PHAR_GET_16(zipentry.flags) & PHAR_ZIP_FLAG_ENCRYPTED) {
 			PHAR_ZIP_FAIL("Cannot process encrypted zip files");
@@ -416,6 +445,42 @@ foundit:
 			entry.is_dir = 0;
 		}
 
+		phar_zip_file_header local; /* Warning: only filled in when the entry is not a directory! */
+		if (!entry.is_dir) {
+			/* A file has a central directory entry, and a local file header. Both of these contain the filename
+			 * and the extra field data. However, at least the extra field data does not have to match between the two!
+			 * This happens for example for the "Extended Timestamp extra field" where the local header has 2 extra fields
+			 * in comparison to the central header. So we have to use the local header to find the right offset to the file
+			 * contents, otherwise we're reading some garbage bytes before reading the actual file contents. */
+			zend_off_t current_central_dir_pos = php_stream_tell(fp);
+
+			php_stream_seek(fp, entry.header_offset, SEEK_SET);
+			if (sizeof(local) != php_stream_read(fp, (char *) &local, sizeof(local))) {
+				pefree(entry.filename, entry.is_persistent);
+				PHAR_ZIP_FAIL("phar error: internal corruption (cannot read local file header)");
+			}
+			php_stream_seek(fp, current_central_dir_pos, SEEK_SET);
+
+			/* verify local header
+			 * Note: normally I'd check the crc32, and file sizes too here, but that breaks tests zip/bug48791.phpt & zip/odt.phpt,
+			 * suggesting that something may be wrong with those files or the assumption doesn't hold. Anyway, the other checks
+			 * _are_ performed for the alias file as was done in the past too. */
+			if (entry.filename_len != PHAR_GET_16(local.filename_len)) {
+				pefree(entry.filename, entry.is_persistent);
+				PHAR_ZIP_FAIL("phar error: internal corruption (local file header does not match central directory)");
+			}
+
+			entry.offset = entry.offset_abs = entry.header_offset
+											+ sizeof(phar_zip_file_header)
+											+ entry.filename_len
+											+ PHAR_GET_16(local.extra_len);
+		} else {
+			entry.offset = entry.offset_abs = entry.header_offset
+											+ sizeof(phar_zip_file_header)
+											+ entry.filename_len
+											+ PHAR_GET_16(zipentry.extra_len);
+		}
+
 		if (entry.filename_len == sizeof(".phar/signature.bin")-1 && !strncmp(entry.filename, ".phar/signature.bin", sizeof(".phar/signature.bin")-1)) {
 			size_t read;
 			php_stream *sigfile;
@@ -428,7 +493,6 @@ foundit:
 				PHAR_ZIP_FAIL("signatures larger than 64 KiB are not supported");
 			}
 
-			php_stream_tell(fp);
 			sigfile = php_stream_fopen_tmpfile();
 			if (!sigfile) {
 				PHAR_ZIP_FAIL("couldn't open temporary file");
@@ -444,7 +508,7 @@ foundit:
 			if (metadata) {
 				php_stream_write(sigfile, metadata, PHAR_GET_16(locator.comment_len));
 			}
-			php_stream_seek(fp, sizeof(phar_zip_file_header) + entry.header_offset + entry.filename_len + PHAR_GET_16(zipentry.extra_len), SEEK_SET);
+			php_stream_seek(fp, entry.offset, SEEK_SET);
 			sig = (char *) emalloc(entry.uncompressed_filesize);
 			read = php_stream_read(fp, sig, entry.uncompressed_filesize);
 			if (read != entry.uncompressed_filesize || read <= 8) {
@@ -562,28 +626,17 @@ foundit:
 
 		if (!actual_alias && entry.filename_len == sizeof(".phar/alias.txt")-1 && !strncmp(entry.filename, ".phar/alias.txt", sizeof(".phar/alias.txt")-1)) {
 			php_stream_filter *filter;
-			zend_off_t saveloc;
-			/* verify local file header */
-			phar_zip_file_header local;
 
 			/* archive alias found */
-			saveloc = php_stream_tell(fp);
-			php_stream_seek(fp, PHAR_GET_32(zipentry.offset), SEEK_SET);
-
-			if (sizeof(local) != php_stream_read(fp, (char *) &local, sizeof(local))) {
-				pefree(entry.filename, entry.is_persistent);
-				PHAR_ZIP_FAIL("phar error: internal corruption of zip-based phar (cannot read local file header for alias)");
-			}
 
 			/* verify local header */
-			if (entry.filename_len != PHAR_GET_16(local.filename_len) || entry.crc32 != PHAR_GET_32(local.crc32) || entry.uncompressed_filesize != PHAR_GET_32(local.uncompsize) || entry.compressed_filesize != PHAR_GET_32(local.compsize)) {
+			ZEND_ASSERT(!entry.is_dir);
+			if (entry.crc32 != PHAR_GET_32(local.crc32) || entry.uncompressed_filesize != PHAR_GET_32(local.uncompsize) || entry.compressed_filesize != PHAR_GET_32(local.compsize)) {
 				pefree(entry.filename, entry.is_persistent);
 				PHAR_ZIP_FAIL("phar error: internal corruption of zip-based phar (local header of alias does not match central directory)");
 			}
 
-			/* construct actual offset to file start - local extra_len can be different from central extra_len */
-			entry.offset = entry.offset_abs =
-				sizeof(local) + entry.header_offset + PHAR_GET_16(local.filename_len) + PHAR_GET_16(local.extra_len);
+			zend_off_t restore_pos = php_stream_tell(fp);
 			php_stream_seek(fp, entry.offset, SEEK_SET);
 			/* these next lines should be for php < 5.2.6 after 5.3 filters are fixed */
 			fp->writepos = 0;
@@ -679,7 +732,7 @@ foundit:
 			}
 
 			/* return to central directory parsing */
-			php_stream_seek(fp, saveloc, SEEK_SET);
+			php_stream_seek(fp, restore_pos, SEEK_SET);
 		}
 
 		phar_set_inode(&entry);
@@ -851,10 +904,10 @@ static int phar_zip_changed_apply_int(phar_entry_info *entry, void *arg) /* {{{ 
 	PHAR_SET_16(perms.size, sizeof(perms) - 4);
 	PHAR_SET_16(perms.perms, entry->flags & PHAR_ENT_PERM_MASK);
 	{
-		uint32_t crc = (uint32_t) ~0;
+		uint32_t crc = (uint32_t) php_crc32_bulk_init();
 		CRC32(crc, perms.perms[0]);
 		CRC32(crc, perms.perms[1]);
-		PHAR_SET_32(perms.crc32, ~crc);
+		PHAR_SET_32(perms.crc32, php_crc32_bulk_end(crc));
 	}
 
 	if (entry->flags & PHAR_ENT_COMPRESSED_GZ) {
@@ -882,7 +935,6 @@ static int phar_zip_changed_apply_int(phar_entry_info *entry, void *arg) /* {{{ 
 
 	/* do extra field for perms later */
 	if (entry->is_modified) {
-		uint32_t loc;
 		php_stream_filter *filter;
 		php_stream *efp;
 
@@ -913,13 +965,11 @@ static int phar_zip_changed_apply_int(phar_entry_info *entry, void *arg) /* {{{ 
 		}
 
 		efp = phar_get_efp(entry, 0);
-		newcrc32 = ~0;
+		newcrc32 = php_crc32_bulk_init();
 
-		for (loc = 0;loc < entry->uncompressed_filesize; ++loc) {
-			CRC32(newcrc32, php_stream_getc(efp));
-		}
+		php_crc32_stream_bulk_update(&newcrc32, efp, entry->uncompressed_filesize);
 
-		entry->crc32 = ~newcrc32;
+		entry->crc32 = php_crc32_bulk_end(newcrc32);
 		PHAR_SET_32(central.uncompsize, entry->uncompressed_filesize);
 		PHAR_SET_32(local.uncompsize, entry->uncompressed_filesize);
 
@@ -1205,7 +1255,6 @@ int phar_zip_flush(phar_archive_data *phar, char *user_stub, zend_long len, int 
 	char *pos;
 	static const char newstub[] = "<?php // zip-based phar archive stub file\n__HALT_COMPILER();";
 	char halt_stub[] = "__HALT_COMPILER();";
-	char *tmp;
 
 	php_stream *stubfile, *oldfile;
 	int free_user_stub, closeoldfile = 0;
@@ -1308,9 +1357,7 @@ int phar_zip_flush(phar_archive_data *phar, char *user_stub, zend_long len, int 
 			free_user_stub = 0;
 		}
 
-		tmp = estrndup(user_stub, len);
-		if ((pos = php_stristr(tmp, halt_stub, len, sizeof(halt_stub) - 1)) == NULL) {
-			efree(tmp);
+		if ((pos = php_stristr(user_stub, halt_stub, len, sizeof(halt_stub) - 1)) == NULL) {
 			if (error) {
 				spprintf(error, 0, "illegal stub for zip-based phar \"%s\"", phar->fname);
 			}
@@ -1319,8 +1366,6 @@ int phar_zip_flush(phar_archive_data *phar, char *user_stub, zend_long len, int 
 			}
 			return EOF;
 		}
-		pos = user_stub + (pos - tmp);
-		efree(tmp);
 
 		len = pos - user_stub + 18;
 		entry.fp = php_stream_fopen_tmpfile();
@@ -1423,7 +1468,7 @@ fperror:
 
 	memcpy(eocd.signature, "PK\5\6", 4);
 	if (!phar->is_data && !phar->sig_flags) {
-		phar->sig_flags = PHAR_SIG_SHA1;
+		phar->sig_flags = PHAR_SIG_SHA256;
 	}
 	if (phar->sig_flags) {
 		PHAR_SET_16(eocd.counthere, zend_hash_num_elements(&phar->manifest) + 1);

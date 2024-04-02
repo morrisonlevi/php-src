@@ -2,11 +2,13 @@
 Bug #47021 SoapClient (SoapClient stumbles over WSDL delivered with "Transfer-Encoding: chunked")
 --INI--
 soap.wsdl_cache_enabled=0
+--EXTENSIONS--
+soap
 --SKIPIF--
 <?php
-require 'skipif.inc';
 require __DIR__.'/../../standard/tests/http/server.inc';
 http_server_skipif();
+?>
 --FILE--
 <?php
 require __DIR__.'/../../standard/tests/http/server.inc';
@@ -55,7 +57,7 @@ $options = [
 
 class BugSoapClient extends SoapClient
 {
-    public function __doRequest($request, $location, $action, $version, $one_way = null)
+    public function __doRequest($request, $location, $action, $version, $one_way = null): ?string
     {
         $response = parent::__doRequest($request, $location, $action, $version, $one_way);
 

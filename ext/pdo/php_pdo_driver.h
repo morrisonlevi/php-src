@@ -5,7 +5,7 @@
   | This source file is subject to version 3.01 of the PHP license,      |
   | that is bundled with this package in the file LICENSE, and is        |
   | available through the world-wide-web at the following url:           |
-  | http://www.php.net/license/3_01.txt                                  |
+  | https://www.php.net/license/3_01.txt                                 |
   | If you did not receive a copy of the PHP license and are unable to   |
   | obtain it through the world-wide-web, please send a note to          |
   | license@php.net so we can mail you a copy immediately.               |
@@ -26,8 +26,6 @@ typedef struct _pdo_stmt_t		 pdo_stmt_t;
 typedef struct _pdo_row_t		 pdo_row_t;
 struct pdo_bound_param_data;
 
-PDO_API zend_string *php_pdo_int64_to_str(int64_t i64);
-
 #ifndef TRUE
 # define TRUE 1
 #endif
@@ -37,15 +35,16 @@ PDO_API zend_string *php_pdo_int64_to_str(int64_t i64);
 
 #define PDO_DRIVER_API	20170320
 
+/* Doctrine hardcodes these constants, avoid changing their values. */
 enum pdo_param_type {
-	PDO_PARAM_NULL,
-	PDO_PARAM_BOOL,
-	PDO_PARAM_INT,
-	PDO_PARAM_STR,
-	PDO_PARAM_LOB,
+	PDO_PARAM_NULL = 0,
+	PDO_PARAM_BOOL = 5,
+	PDO_PARAM_INT = 1,
+	PDO_PARAM_STR = 2,
+	PDO_PARAM_LOB = 3,
 
 	/* get_col: Not supported (yet?) */
-	PDO_PARAM_STMT, /* hierarchical result set */
+	PDO_PARAM_STMT = 4, /* hierarchical result set */
 
 	/* magic flag to denote a parameter as being input/output */
 	PDO_PARAM_INPUT_OUTPUT = 0x80000000,
@@ -654,6 +653,11 @@ PDO_API zend_result php_pdo_register_driver(const pdo_driver_t *driver);
 /* call this in MSHUTDOWN to unregister your PDO driver */
 PDO_API void php_pdo_unregister_driver(const pdo_driver_t *driver);
 
+/* Call this in MINIT to register the PDO driver specific class entry.
+ * Registering the driver specific class entry might fail and should be reported accordingly in MINIT.
+ * Unregistering the class entry is not necessary, since php_pdo_unregister_driver() takes care of it. */
+PDO_API zend_result php_pdo_register_driver_specific_ce(const pdo_driver_t *driver, zend_class_entry *ce);
+
 /* For the convenience of drivers, this function will parse a data source
  * string, of the form "name=value; name2=value2" and populate variables
  * according to the data you pass in and array of pdo_data_src_parser structures */
@@ -673,13 +677,17 @@ PDO_API zend_class_entry *php_pdo_get_exception(void);
 PDO_API int pdo_parse_params(pdo_stmt_t *stmt, zend_string *inquery, zend_string **outquery);
 
 PDO_API void pdo_raise_impl_error(pdo_dbh_t *dbh, pdo_stmt_t *stmt,
-	const char *sqlstate, const char *supp);
+	pdo_error_type sqlstate, const char *supp);
 
 PDO_API void php_pdo_dbh_addref(pdo_dbh_t *dbh);
 PDO_API void php_pdo_dbh_delref(pdo_dbh_t *dbh);
 
 PDO_API void php_pdo_free_statement(pdo_stmt_t *stmt);
 PDO_API void php_pdo_stmt_set_column_count(pdo_stmt_t *stmt, int new_count);
+
+/* Normalization for fetching long param for driver attributes */
+PDO_API bool pdo_get_long_param(zend_long *lval, zval *value);
+PDO_API bool pdo_get_bool_param(bool *bval, zval *value);
 
 PDO_API void pdo_throw_exception(unsigned int driver_errcode, char *driver_errmsg, pdo_error_type *pdo_error);
 #endif /* PHP_PDO_DRIVER_H */

@@ -1,9 +1,10 @@
 --TEST--
 Async signals in zend_call_function
+--EXTENSIONS--
+pcntl
 --SKIPIF--
 <?php
-if (!extension_loaded("pcntl")) print "skip";
-if (getenv("SKIP_SLOW_TESTS")) print "skip slow test";
+if (getenv("SKIP_SLOW_TESTS")) die("skip slow test");
 ?>
 --FILE--
 <?php

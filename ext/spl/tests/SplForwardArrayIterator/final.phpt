@@ -13,4 +13,4 @@ eval('class OopsIterator extends Spl\ForwardArrayIterator {}');
 --EXPECTF--
 Is final? yes
 
-Fatal error: Class OopsIterator may not inherit from final class (Spl\ForwardArrayIterator) in %s(%d) : eval()'d code on line %d
+Fatal error: Class OopsIterator cannot extend final class Spl\ForwardArrayIterator in %s(%d) : eval()'d code on line %d

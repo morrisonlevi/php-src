@@ -5,7 +5,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -29,8 +29,8 @@
 
 #include "ext/standard/info.h"
 #include "ext/standard/file.h"
+#include "Zend/zend_attributes.h"
 #include "Zend/zend_exceptions.h"
-#include "Zend/zend_interfaces.h"
 
 #include "php_ftp.h"
 #include "ftp.h"
@@ -83,7 +83,7 @@ static zend_object* ftp_object_create(zend_class_entry* ce) {
 }
 
 static zend_function *ftp_object_get_constructor(zend_object *zobj) {
-	zend_throw_error(NULL, "Cannot directly construct FTPConnection, use ftp_connect() or ftp_ssl_connect() instead");
+	zend_throw_error(NULL, "Cannot directly construct FTP\\Connection, use ftp_connect() or ftp_ssl_connect() instead");
 	return NULL;
 }
 
@@ -93,43 +93,23 @@ static void ftp_object_destroy(zend_object *zobj) {
 	if (obj->ftp) {
 		ftp_close(obj->ftp);
 	}
+
+	zend_object_std_dtor(zobj);
 }
 
 PHP_MINIT_FUNCTION(ftp)
 {
-#ifdef HAVE_FTP_SSL
-#if OPENSSL_VERSION_NUMBER < 0x10101000 && !defined(LIBRESSL_VERSION_NUMBER)
-	SSL_library_init();
-	OpenSSL_add_all_ciphers();
-	OpenSSL_add_all_digests();
-	OpenSSL_add_all_algorithms();
-
-	SSL_load_error_strings();
-#endif
-#endif
-
-	php_ftp_ce = register_class_FTPConnection();
+	php_ftp_ce = register_class_FTP_Connection();
 	php_ftp_ce->create_object = ftp_object_create;
-	php_ftp_ce->serialize = zend_class_serialize_deny;
-	php_ftp_ce->unserialize = zend_class_unserialize_deny;
 
 	memcpy(&ftp_object_handlers, &std_object_handlers, sizeof(zend_object_handlers));
 	ftp_object_handlers.offset = XtOffsetOf(php_ftp_object, std);
 	ftp_object_handlers.get_constructor = ftp_object_get_constructor;
-	ftp_object_handlers.dtor_obj = ftp_object_destroy;
+	ftp_object_handlers.free_obj = ftp_object_destroy;
 	ftp_object_handlers.clone_obj = NULL;
 
-	REGISTER_LONG_CONSTANT("FTP_ASCII",  FTPTYPE_ASCII, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("FTP_TEXT",   FTPTYPE_ASCII, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("FTP_BINARY", FTPTYPE_IMAGE, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("FTP_IMAGE",  FTPTYPE_IMAGE, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("FTP_AUTORESUME", PHP_FTP_AUTORESUME, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("FTP_TIMEOUT_SEC", PHP_FTP_OPT_TIMEOUT_SEC, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("FTP_AUTOSEEK", PHP_FTP_OPT_AUTOSEEK, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("FTP_USEPASVADDRESS", PHP_FTP_OPT_USEPASVADDRESS, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("FTP_FAILED", PHP_FTP_FAILED, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("FTP_FINISHED", PHP_FTP_FINISHED, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("FTP_MOREDATA", PHP_FTP_MOREDATA, CONST_PERSISTENT | CONST_CS);
+	register_ftp_symbols(module_number);
+
 	return SUCCESS;
 }
 
@@ -229,7 +209,7 @@ PHP_FUNCTION(ftp_ssl_connect)
 #define GET_FTPBUF(ftpbuf, zftp) \
 	ftpbuf = ftp_object_from_zend_object(Z_OBJ_P(zftp))->ftp; \
 	if (!ftpbuf) { \
-		zend_throw_exception(zend_ce_value_error, "FTPConnection is already closed", 0); \
+		zend_throw_exception(zend_ce_value_error, "FTP\\Connection is already closed", 0); \
 		RETURN_THROWS(); \
 	}
 
@@ -248,7 +228,9 @@ PHP_FUNCTION(ftp_login)
 
 	/* log in */
 	if (!ftp_login(ftp, user, user_len, pass, pass_len)) {
-		php_error_docref(NULL, E_WARNING, "%s", ftp->inbuf);
+		if (*ftp->inbuf) {
+			php_error_docref(NULL, E_WARNING, "%s", ftp->inbuf);
+		}
 		RETURN_FALSE;
 	}
 
@@ -269,7 +251,9 @@ PHP_FUNCTION(ftp_pwd)
 	GET_FTPBUF(ftp, z_ftp);
 
 	if (!(pwd = ftp_pwd(ftp))) {
-		php_error_docref(NULL, E_WARNING, "%s", ftp->inbuf);
+		if (*ftp->inbuf) {
+			php_error_docref(NULL, E_WARNING, "%s", ftp->inbuf);
+		}
 		RETURN_FALSE;
 	}
 
@@ -289,7 +273,9 @@ PHP_FUNCTION(ftp_cdup)
 	GET_FTPBUF(ftp, z_ftp);
 
 	if (!ftp_cdup(ftp)) {
-		php_error_docref(NULL, E_WARNING, "%s", ftp->inbuf);
+		if (*ftp->inbuf) {
+			php_error_docref(NULL, E_WARNING, "%s", ftp->inbuf);
+		}
 		RETURN_FALSE;
 	}
 
@@ -312,7 +298,9 @@ PHP_FUNCTION(ftp_chdir)
 
 	/* change directories */
 	if (!ftp_chdir(ftp, dir, dir_len)) {
-		php_error_docref(NULL, E_WARNING, "%s", ftp->inbuf);
+		if (*ftp->inbuf) {
+			php_error_docref(NULL, E_WARNING, "%s", ftp->inbuf);
+		}
 		RETURN_FALSE;
 	}
 
@@ -335,7 +323,9 @@ PHP_FUNCTION(ftp_exec)
 
 	/* execute serverside command */
 	if (!ftp_exec(ftp, cmd, cmd_len)) {
-		php_error_docref(NULL, E_WARNING, "%s", ftp->inbuf);
+		if (*ftp->inbuf) {
+			php_error_docref(NULL, E_WARNING, "%s", ftp->inbuf);
+		}
 		RETURN_FALSE;
 	}
 
@@ -377,7 +367,9 @@ PHP_FUNCTION(ftp_mkdir)
 
 	/* create directory */
 	if (NULL == (tmp = ftp_mkdir(ftp, dir, dir_len))) {
-		php_error_docref(NULL, E_WARNING, "%s", ftp->inbuf);
+		if (*ftp->inbuf) {
+			php_error_docref(NULL, E_WARNING, "%s", ftp->inbuf);
+		}
 		RETURN_FALSE;
 	}
 
@@ -400,7 +392,9 @@ PHP_FUNCTION(ftp_rmdir)
 
 	/* remove directorie */
 	if (!ftp_rmdir(ftp, dir, dir_len)) {
-		php_error_docref(NULL, E_WARNING, "%s", ftp->inbuf);
+		if (*ftp->inbuf) {
+			php_error_docref(NULL, E_WARNING, "%s", ftp->inbuf);
+		}
 		RETURN_FALSE;
 	}
 
@@ -423,7 +417,9 @@ PHP_FUNCTION(ftp_chmod)
 	GET_FTPBUF(ftp, z_ftp);
 
 	if (!ftp_chmod(ftp, mode, filename, filename_len)) {
-		php_error_docref(NULL, E_WARNING, "%s", ftp->inbuf);
+		if (*ftp->inbuf) {
+			php_error_docref(NULL, E_WARNING, "%s", ftp->inbuf);
+		}
 		RETURN_FALSE;
 	}
 
@@ -557,7 +553,9 @@ PHP_FUNCTION(ftp_systype)
 	GET_FTPBUF(ftp, z_ftp);
 
 	if (NULL == (syst = ftp_syst(ftp))) {
-		php_error_docref(NULL, E_WARNING, "%s", ftp->inbuf);
+		if (*ftp->inbuf) {
+			php_error_docref(NULL, E_WARNING, "%s", ftp->inbuf);
+		}
 		RETURN_FALSE;
 	}
 
@@ -599,7 +597,9 @@ PHP_FUNCTION(ftp_fget)
 	}
 
 	if (!ftp_get(ftp, stream, file, file_len, xtype, resumepos)) {
-		php_error_docref(NULL, E_WARNING, "%s", ftp->inbuf);
+		if (*ftp->inbuf) {
+			php_error_docref(NULL, E_WARNING, "%s", ftp->inbuf);
+		}
 		RETURN_FALSE;
 	}
 
@@ -645,7 +645,9 @@ PHP_FUNCTION(ftp_nb_fget)
 	ftp->closestream = 0; /* do not close */
 
 	if ((ret = ftp_nb_get(ftp, stream, file, file_len, xtype, resumepos)) == PHP_FTP_FAILED) {
-		php_error_docref(NULL, E_WARNING, "%s", ftp->inbuf);
+		if (*ftp->inbuf) {
+			php_error_docref(NULL, E_WARNING, "%s", ftp->inbuf);
+		}
 		RETURN_LONG(ret);
 	}
 
@@ -725,7 +727,9 @@ PHP_FUNCTION(ftp_get)
 	if (!ftp_get(ftp, outstream, remote, remote_len, xtype, resumepos)) {
 		php_stream_close(outstream);
 		VCWD_UNLINK(local);
-		php_error_docref(NULL, E_WARNING, "%s", ftp->inbuf);
+		if (*ftp->inbuf) {
+			php_error_docref(NULL, E_WARNING, "%s", ftp->inbuf);
+		}
 		RETURN_FALSE;
 	}
 
@@ -790,7 +794,9 @@ PHP_FUNCTION(ftp_nb_get)
 		php_stream_close(outstream);
 		ftp->stream = NULL;
 		VCWD_UNLINK(local);
-		php_error_docref(NULL, E_WARNING, "%s", ftp->inbuf);
+		if (*ftp->inbuf) {
+			php_error_docref(NULL, E_WARNING, "%s", ftp->inbuf);
+		}
 		RETURN_LONG(PHP_FTP_FAILED);
 	}
 
@@ -876,7 +882,9 @@ PHP_FUNCTION(ftp_fput)
 	}
 
 	if (!ftp_put(ftp, remote, remote_len, stream, xtype, startpos)) {
-		php_error_docref(NULL, E_WARNING, "%s", ftp->inbuf);
+		if (*ftp->inbuf) {
+			php_error_docref(NULL, E_WARNING, "%s", ftp->inbuf);
+		}
 		RETURN_FALSE;
 	}
 
@@ -926,7 +934,9 @@ PHP_FUNCTION(ftp_nb_fput)
 	ftp->closestream = 0; /* do not close */
 
 	if (((ret = ftp_nb_put(ftp, remote, remote_len, stream, xtype, startpos)) == PHP_FTP_FAILED)) {
-		php_error_docref(NULL, E_WARNING, "%s", ftp->inbuf);
+		if (*ftp->inbuf) {
+			php_error_docref(NULL, E_WARNING, "%s", ftp->inbuf);
+		}
 		RETURN_LONG(ret);
 	}
 
@@ -976,7 +986,9 @@ PHP_FUNCTION(ftp_put)
 
 	if (!ftp_put(ftp, remote, remote_len, instream, xtype, startpos)) {
 		php_stream_close(instream);
-		php_error_docref(NULL, E_WARNING, "%s", ftp->inbuf);
+		if (*ftp->inbuf) {
+			php_error_docref(NULL, E_WARNING, "%s", ftp->inbuf);
+		}
 		RETURN_FALSE;
 	}
 	php_stream_close(instream);
@@ -1008,7 +1020,9 @@ PHP_FUNCTION(ftp_append)
 
 	if (!ftp_append(ftp, remote, remote_len, instream, xtype)) {
 		php_stream_close(instream);
-		php_error_docref(NULL, E_WARNING, "%s", ftp->inbuf);
+		if (*ftp->inbuf) {
+			php_error_docref(NULL, E_WARNING, "%s", ftp->inbuf);
+		}
 		RETURN_FALSE;
 	}
 	php_stream_close(instream);
@@ -1126,7 +1140,9 @@ PHP_FUNCTION(ftp_rename)
 
 	/* rename the file */
 	if (!ftp_rename(ftp, src, src_len, dest, dest_len)) {
-		php_error_docref(NULL, E_WARNING, "%s", ftp->inbuf);
+		if (*ftp->inbuf) {
+			php_error_docref(NULL, E_WARNING, "%s", ftp->inbuf);
+		}
 		RETURN_FALSE;
 	}
 
@@ -1149,7 +1165,9 @@ PHP_FUNCTION(ftp_delete)
 
 	/* delete the file */
 	if (!ftp_delete(ftp, file, file_len)) {
-		php_error_docref(NULL, E_WARNING, "%s", ftp->inbuf);
+		if (*ftp->inbuf) {
+			php_error_docref(NULL, E_WARNING, "%s", ftp->inbuf);
+		}
 		RETURN_FALSE;
 	}
 
@@ -1172,7 +1190,9 @@ PHP_FUNCTION(ftp_site)
 
 	/* send the site command */
 	if (!ftp_site(ftp, cmd, cmd_len)) {
-		php_error_docref(NULL, E_WARNING, "%s", ftp->inbuf);
+		if (*ftp->inbuf) {
+			php_error_docref(NULL, E_WARNING, "%s", ftp->inbuf);
+		}
 		RETURN_FALSE;
 	}
 
@@ -1185,6 +1205,7 @@ PHP_FUNCTION(ftp_close)
 {
 	zval		*z_ftp;
 	php_ftp_object *obj;
+	bool success = true;
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS(), "O", &z_ftp, php_ftp_ce) == FAILURE) {
 		RETURN_THROWS();
@@ -1192,12 +1213,12 @@ PHP_FUNCTION(ftp_close)
 
 	obj = ftp_object_from_zend_object(Z_OBJ_P(z_ftp));
 	if (obj->ftp) {
-		ftp_quit(obj->ftp);
+		success = ftp_quit(obj->ftp);
 		ftp_close(obj->ftp);
 		obj->ftp = NULL;
 	}
 
-	RETURN_TRUE;
+	RETURN_BOOL(success);
 }
 /* }}} */
 
@@ -1216,7 +1237,7 @@ PHP_FUNCTION(ftp_set_option)
 	switch (option) {
 		case PHP_FTP_OPT_TIMEOUT_SEC:
 			if (Z_TYPE_P(z_value) != IS_LONG) {
-				zend_argument_type_error(3, "must be of type int for the FTP_TIMEOUT_SEC option, %s given", zend_zval_type_name(z_value));
+				zend_argument_type_error(3, "must be of type int for the FTP_TIMEOUT_SEC option, %s given", zend_zval_value_name(z_value));
 				RETURN_THROWS();
 			}
 			if (Z_LVAL_P(z_value) <= 0) {
@@ -1228,7 +1249,7 @@ PHP_FUNCTION(ftp_set_option)
 			break;
 		case PHP_FTP_OPT_AUTOSEEK:
 			if (Z_TYPE_P(z_value) != IS_TRUE && Z_TYPE_P(z_value) != IS_FALSE) {
-				zend_argument_type_error(3, "must be of type bool for the FTP_AUTOSEEK option, %s given", zend_zval_type_name(z_value));
+				zend_argument_type_error(3, "must be of type bool for the FTP_AUTOSEEK option, %s given", zend_zval_value_name(z_value));
 				RETURN_THROWS();
 			}
 			ftp->autoseek = Z_TYPE_P(z_value) == IS_TRUE ? 1 : 0;
@@ -1236,7 +1257,7 @@ PHP_FUNCTION(ftp_set_option)
 			break;
 		case PHP_FTP_OPT_USEPASVADDRESS:
 			if (Z_TYPE_P(z_value) != IS_TRUE && Z_TYPE_P(z_value) != IS_FALSE) {
-				zend_argument_type_error(3, "must be of type bool for the FTP_USEPASVADDRESS option, %s given", zend_zval_type_name(z_value));
+				zend_argument_type_error(3, "must be of type bool for the FTP_USEPASVADDRESS option, %s given", zend_zval_value_name(z_value));
 				RETURN_THROWS();
 			}
 			ftp->usepasvaddress = Z_TYPE_P(z_value) == IS_TRUE ? 1 : 0;

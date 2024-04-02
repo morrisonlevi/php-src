@@ -5,7 +5,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -26,7 +26,7 @@ extern zend_module_entry openssl_module_entry;
 #define PHP_OPENSSL_VERSION PHP_VERSION
 
 #include <openssl/opensslv.h>
-#if defined(LIBRESSL_VERSION_NUMBER)
+#ifdef LIBRESSL_VERSION_NUMBER
 /* LibreSSL version check */
 #if LIBRESSL_VERSION_NUMBER < 0x20700000L
 #define PHP_OPENSSL_API_VERSION 0x10001
@@ -35,10 +35,10 @@ extern zend_module_entry openssl_module_entry;
 #endif
 #else
 /* OpenSSL version check */
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-#define PHP_OPENSSL_API_VERSION 0x10002
-#else
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
 #define PHP_OPENSSL_API_VERSION 0x10100
+#else
+#define PHP_OPENSSL_API_VERSION 0x30000
 #endif
 #endif
 
@@ -78,6 +78,7 @@ struct php_openssl_errors {
 
 ZEND_BEGIN_MODULE_GLOBALS(openssl)
 	struct php_openssl_errors *errors;
+	struct php_openssl_errors *errors_mark;
 ZEND_END_MODULE_GLOBALS(openssl)
 
 #define OPENSSL_G(v) ZEND_MODULE_GLOBALS_ACCESSOR(openssl, v)
@@ -88,9 +89,40 @@ ZEND_TSRMLS_CACHE_EXTERN();
 
 php_stream_transport_factory_func php_openssl_ssl_socket_factory;
 
-void php_openssl_store_errors();
+void php_openssl_store_errors(void);
+
+/* openssl file path extra */
+bool php_openssl_check_path_ex(
+		const char *file_path, size_t file_path_len, char *real_path, uint32_t arg_num,
+		bool contains_file_protocol, bool is_from_array, const char *option_name);
+
+/* openssl file path check */
+static inline bool php_openssl_check_path(
+		const char *file_path, size_t file_path_len, char *real_path, uint32_t arg_num)
+{
+	return php_openssl_check_path_ex(
+			file_path, file_path_len, real_path, arg_num, false, false, NULL);
+}
+
+/* openssl file path extra check with zend string */
+static inline bool php_openssl_check_path_str_ex(
+		zend_string *file_path, char *real_path, uint32_t arg_num,
+		bool contains_file_protocol, bool is_from_array, const char *option_name)
+{
+	return php_openssl_check_path_ex(
+			ZSTR_VAL(file_path), ZSTR_LEN(file_path), real_path, arg_num, contains_file_protocol,
+			is_from_array, option_name);
+}
+
+/* openssl file path check with zend string */
+static inline bool php_openssl_check_path_str(
+		zend_string *file_path, char *real_path, uint32_t arg_num)
+{
+	return php_openssl_check_path_str_ex(file_path, real_path, arg_num, true, false, NULL);
+}
 
 PHP_OPENSSL_API zend_long php_openssl_cipher_iv_length(const char *method);
+PHP_OPENSSL_API zend_long php_openssl_cipher_key_length(const char *method);
 PHP_OPENSSL_API zend_string* php_openssl_random_pseudo_bytes(zend_long length);
 PHP_OPENSSL_API zend_string* php_openssl_encrypt(
 	const char *data, size_t data_len,

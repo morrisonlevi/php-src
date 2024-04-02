@@ -7,7 +7,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -58,7 +58,7 @@ void zend_accel_blacklist_init(zend_blacklist *blacklist)
 		zend_accel_blacklist_shutdown(blacklist);
 	}
 
-	blacklist->entries = (zend_blacklist_entry *) calloc(sizeof(zend_blacklist_entry), blacklist->size);
+	blacklist->entries = (zend_blacklist_entry *) calloc(blacklist->size, sizeof(zend_blacklist_entry));
 	if (!blacklist->entries) {
 		zend_accel_error_noreturn(ACCEL_LOG_FATAL, "Blacklist initialization: no memory\n");
 		return;
@@ -153,7 +153,7 @@ static void zend_accel_blacklist_update_regexp(zend_blacklist *blacklist)
 					case '}':
 					case '\\':
 						*p++ = '\\';
-						/* break missing intentionally */
+						ZEND_FALLTHROUGH;
 					default:
 						*p++ = *c++;
 				}
@@ -241,7 +241,7 @@ static void zend_accel_blacklist_loadone(zend_blacklist *blacklist, char *filena
 {
 	char buf[MAXPATHLEN + 1], real_path[MAXPATHLEN + 1], *blacklist_path = NULL;
 	FILE *fp;
-	int path_length, blacklist_path_length;
+	int path_length, blacklist_path_length = 0;
 
 	if ((fp = fopen(filename, "r")) == NULL) {
 		zend_accel_error(ACCEL_LOG_WARNING, "Cannot load blacklist file: %s\n", filename);
@@ -276,12 +276,12 @@ static void zend_accel_blacklist_loadone(zend_blacklist *blacklist, char *filena
 		}
 
 		/* strip \" */
-		if (pbuf[0] == '\"' && pbuf[path_length - 1]== '\"') {
+		if (path_length > 0 && pbuf[0] == '\"' && pbuf[path_length - 1]== '\"') {
 			*pbuf++ = 0;
 			path_length -= 2;
 		}
 
-		if (path_length == 0) {
+		if (path_length <= 0) {
 			continue;
 		}
 

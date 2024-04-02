@@ -1,15 +1,16 @@
 --TEST--
 Bug #79375: mysqli_store_result does not report error from lock wait timeout
+--EXTENSIONS--
+mysqli
 --SKIPIF--
 <?php
-require_once('skipif.inc');
-require_once('skipifconnectfailure.inc');
-if (!defined('MYSQLI_STORE_RESULT_COPY_DATA')) die('skip requires mysqlnd');
+if (getenv("SKIP_SLOW_TESTS")) die("skip slow test");
+require_once 'skipifconnectfailure.inc';
 ?>
 --FILE--
 <?php
 
-require_once("connect.inc");
+require_once 'connect.inc';
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 $mysqli = new my_mysqli($host, $user, $passwd, $db, $port, $socket);
 $mysqli2 = new my_mysqli($host, $user, $passwd, $db, $port, $socket);
@@ -141,7 +142,7 @@ $mysqli2->close();
 ?>
 --CLEAN--
 <?php
-    require_once("clean_table.inc");
+    require_once 'clean_table.inc';
 ?>
 --EXPECTF--
 Running query on first connection
@@ -167,6 +168,4 @@ Lock wait timeout exceeded; try restarting transaction
 Running query on first connection
 Got 1 for first connection
 Running query on second connection
-
-Warning: mysqli_result::fetch_row(): Error while reading a row in %s on line %d
-Got 0 for second connection
+Lock wait timeout exceeded; try restarting transaction

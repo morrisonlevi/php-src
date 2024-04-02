@@ -1,15 +1,14 @@
 --TEST--
 mysqli_num_fields()
+--EXTENSIONS--
+mysqli
 --SKIPIF--
 <?php
-require_once('skipif.inc');
-require_once('skipifconnectfailure.inc');
+require_once 'skipifconnectfailure.inc';
 ?>
 --FILE--
 <?php
-    require_once("connect.inc");
-
-    require('table.inc');
+    require 'table.inc';
 
     function func_test_mysqli_num_fields($link, $query, $expected, $offset, $test_free = false) {
 
@@ -43,7 +42,7 @@ require_once('skipifconnectfailure.inc');
 ?>
 --CLEAN--
 <?php
-    require_once("clean_table.inc");
+    require_once 'clean_table.inc';
 ?>
 --EXPECT--
 mysqli_result object is already closed

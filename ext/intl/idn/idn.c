@@ -5,7 +5,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -26,67 +26,9 @@
 #include <unicode/ustring.h>
 #include "ext/standard/php_string.h"
 
+#include "idn.h"
 #include "intl_error.h"
 #include "intl_convert.h"
-/* }}} */
-
-enum {
-	INTL_IDN_VARIANT_UTS46 = 1
-};
-
-/* {{{ grapheme_register_constants
- * Register API constants
- */
-void idn_register_constants( INIT_FUNC_ARGS )
-{
-	/* OPTIONS */
-
-	/* Option to prohibit processing of unassigned codepoints in the input and
-	   do not check if the input conforms to STD-3 ASCII rules. */
-	REGISTER_LONG_CONSTANT("IDNA_DEFAULT", UIDNA_DEFAULT, CONST_CS | CONST_PERSISTENT);
-
-	/* Option to allow processing of unassigned codepoints in the input */
-	REGISTER_LONG_CONSTANT("IDNA_ALLOW_UNASSIGNED", UIDNA_ALLOW_UNASSIGNED, CONST_CS | CONST_PERSISTENT);
-
-	/* Option to check if input conforms to STD-3 ASCII rules */
-	REGISTER_LONG_CONSTANT("IDNA_USE_STD3_RULES", UIDNA_USE_STD3_RULES, CONST_CS | CONST_PERSISTENT);
-
-	/* Option to check for whether the input conforms to the BiDi rules.
-	 * Ignored by the IDNA2003 implementation. (IDNA2003 always performs a BiDi check.) */
-	REGISTER_LONG_CONSTANT("IDNA_CHECK_BIDI", UIDNA_CHECK_BIDI, CONST_CS | CONST_PERSISTENT);
-
-	/* Option to check for whether the input conforms to the CONTEXTJ rules.
-	 * Ignored by the IDNA2003 implementation. (The CONTEXTJ check is new in IDNA2008.) */
-	REGISTER_LONG_CONSTANT("IDNA_CHECK_CONTEXTJ", UIDNA_CHECK_CONTEXTJ, CONST_CS | CONST_PERSISTENT);
-
-	/* Option for nontransitional processing in ToASCII().
-	 * By default, ToASCII() uses transitional processing.
-	 * Ignored by the IDNA2003 implementation. */
-	REGISTER_LONG_CONSTANT("IDNA_NONTRANSITIONAL_TO_ASCII", UIDNA_NONTRANSITIONAL_TO_ASCII, CONST_CS | CONST_PERSISTENT);
-
-	/* Option for nontransitional processing in ToUnicode().
-	 * By default, ToUnicode() uses transitional processing.
-	 * Ignored by the IDNA2003 implementation. */
-	REGISTER_LONG_CONSTANT("IDNA_NONTRANSITIONAL_TO_UNICODE", UIDNA_NONTRANSITIONAL_TO_UNICODE, CONST_CS | CONST_PERSISTENT);
-
-	/* VARIANTS */
-	REGISTER_LONG_CONSTANT("INTL_IDNA_VARIANT_UTS46", INTL_IDN_VARIANT_UTS46, CONST_CS | CONST_PERSISTENT);
-
-	/* PINFO ERROR CODES */
-	REGISTER_LONG_CONSTANT("IDNA_ERROR_EMPTY_LABEL", UIDNA_ERROR_EMPTY_LABEL, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("IDNA_ERROR_LABEL_TOO_LONG", UIDNA_ERROR_LABEL_TOO_LONG, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("IDNA_ERROR_DOMAIN_NAME_TOO_LONG", UIDNA_ERROR_DOMAIN_NAME_TOO_LONG, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("IDNA_ERROR_LEADING_HYPHEN", UIDNA_ERROR_LEADING_HYPHEN, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("IDNA_ERROR_TRAILING_HYPHEN", UIDNA_ERROR_TRAILING_HYPHEN, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("IDNA_ERROR_HYPHEN_3_4", UIDNA_ERROR_HYPHEN_3_4, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("IDNA_ERROR_LEADING_COMBINING_MARK", UIDNA_ERROR_LEADING_COMBINING_MARK, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("IDNA_ERROR_DISALLOWED", UIDNA_ERROR_DISALLOWED, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("IDNA_ERROR_PUNYCODE", UIDNA_ERROR_PUNYCODE, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("IDNA_ERROR_LABEL_HAS_DOT", UIDNA_ERROR_LABEL_HAS_DOT, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("IDNA_ERROR_INVALID_ACE_LABEL", UIDNA_ERROR_INVALID_ACE_LABEL, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("IDNA_ERROR_BIDI", UIDNA_ERROR_BIDI, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("IDNA_ERROR_CONTEXTJ", UIDNA_ERROR_CONTEXTJ, CONST_CS | CONST_PERSISTENT);
-}
 /* }}} */
 
 enum {
@@ -175,7 +117,7 @@ static void php_intl_idn_to_46(INTERNAL_FUNCTION_PARAMETERS,
 static void php_intl_idn_handoff(INTERNAL_FUNCTION_PARAMETERS, int mode)
 {
 	zend_string *domain;
-	zend_long option = 0,
+	zend_long option = UIDNA_DEFAULT,
 	variant = INTL_IDN_VARIANT_UTS46;
 	zval *idna_info = NULL;
 

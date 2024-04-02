@@ -7,7 +7,7 @@
   | This source file is subject to version 3.01 of the PHP license,      |
   | that is bundled with this package in the file LICENSE, and is        |
   | available through the world-wide-web at the following url:           |
-  | http://www.php.net/license/3_01.txt.                                 |
+  | https://www.php.net/license/3_01.txt                                 |
   | If you did not receive a copy of the PHP license and are unable to   |
   | obtain it through the world-wide-web, please send a note to          |
   | license@php.net so we can mail you a copy immediately.               |
@@ -200,13 +200,6 @@ static int phar_tar_process_metadata(phar_entry_info *entry, php_stream *fp) /* 
 }
 /* }}} */
 
-#ifndef HAVE_STRNLEN
-static size_t strnlen(const char *s, size_t maxlen) {
-        char *r = (char *)memchr(s, '\0', maxlen);
-        return r ? r-s : maxlen;
-}
-#endif
-
 int phar_parse_tarfile(php_stream* fp, char *fname, size_t fname_len, char *alias, size_t alias_len, phar_archive_data** pphar, int is_data, uint32_t compression, char **error) /* {{{ */
 {
 	char buf[512], *actual_alias = NULL, *p;
@@ -286,7 +279,7 @@ int phar_parse_tarfile(php_stream* fp, char *fname, size_t fname_len, char *alia
 			goto next;
 		}
 
-		if (((!old && hdr->prefix[0] == 0) || old) && strnlen(hdr->name, 100) == sizeof(".phar/signature.bin")-1 && !strncmp(hdr->name, ".phar/signature.bin", sizeof(".phar/signature.bin")-1)) {
+		if (((!old && hdr->prefix[0] == 0) || old) && zend_strnlen(hdr->name, 100) == sizeof(".phar/signature.bin")-1 && !strncmp(hdr->name, ".phar/signature.bin", sizeof(".phar/signature.bin")-1)) {
 			zend_off_t curloc;
 			size_t sig_len;
 
@@ -478,14 +471,15 @@ bail:
 			return FAILURE;
 		}
 
+		uint32_t entry_mode = phar_tar_number(hdr->mode, sizeof(hdr->mode));
 		entry.tar_type = ((old & (hdr->typeflag == '\0')) ? TAR_FILE : hdr->typeflag);
 		entry.offset = entry.offset_abs = pos; /* header_offset unused in tar */
 		entry.fp_type = PHAR_FP;
-		entry.flags = phar_tar_number(hdr->mode, sizeof(hdr->mode)) & PHAR_ENT_PERM_MASK;
+		entry.flags = entry_mode & PHAR_ENT_PERM_MASK;
 		entry.timestamp = phar_tar_number(hdr->mtime, sizeof(hdr->mtime));
 		entry.is_persistent = myphar->is_persistent;
 
-		if (old && entry.tar_type == TAR_FILE && S_ISDIR(entry.flags)) {
+		if (old && entry.tar_type == TAR_FILE && S_ISDIR(entry_mode)) {
 			entry.tar_type = TAR_DIR;
 		}
 
@@ -497,8 +491,8 @@ bail:
 
 		entry.link = NULL;
 		/* link field is null-terminated unless it has 100 non-null chars.
-		 * Thus we can not use strlen. */
-		linkname_len = strnlen(hdr->linkname, 100);
+		 * Thus we cannot use strlen. */
+		linkname_len = zend_strnlen(hdr->linkname, 100);
 		if (entry.tar_type == TAR_LINK) {
 			if (!zend_hash_str_exists(&myphar->manifest, hdr->linkname, linkname_len)) {
 				if (error) {
@@ -967,7 +961,7 @@ int phar_tar_flush(phar_archive_data *phar, char *user_stub, zend_long len, int 
 	int closeoldfile, free_user_stub;
 	size_t signature_length;
 	struct _phar_pass_tar_info pass;
-	char *buf, *signature, *tmp, sigbuf[8];
+	char *buf, *signature, sigbuf[8];
 	char halt_stub[] = "__HALT_COMPILER();";
 
 	entry.flags = PHAR_ENT_PERM_DEF_FILE;
@@ -1063,9 +1057,7 @@ int phar_tar_flush(phar_archive_data *phar, char *user_stub, zend_long len, int 
 			free_user_stub = 0;
 		}
 
-		tmp = estrndup(user_stub, len);
-		if ((pos = php_stristr(tmp, halt_stub, len, sizeof(halt_stub) - 1)) == NULL) {
-			efree(tmp);
+		if ((pos = php_stristr(user_stub, halt_stub, len, sizeof(halt_stub) - 1)) == NULL) {
 			if (error) {
 				spprintf(error, 0, "illegal stub for tar-based phar \"%s\"", phar->fname);
 			}
@@ -1074,8 +1066,6 @@ int phar_tar_flush(phar_archive_data *phar, char *user_stub, zend_long len, int 
 			}
 			return EOF;
 		}
-		pos = user_stub + (pos - tmp);
-		efree(tmp);
 
 		len = pos - user_stub + 18;
 		entry.fp = php_stream_fopen_tmpfile();
@@ -1243,13 +1233,15 @@ nostub:
 			return EOF;
 		}
 #ifdef WORDS_BIGENDIAN
-# define PHAR_SET_32(var, buffer) \
-	*(uint32_t *)(var) = (((((unsigned char*)&(buffer))[3]) << 24) \
-		| ((((unsigned char*)&(buffer))[2]) << 16) \
-		| ((((unsigned char*)&(buffer))[1]) << 8) \
-		| (((unsigned char*)&(buffer))[0]))
+# define PHAR_SET_32(destination, source) do { \
+        uint32_t swapped = (((((unsigned char*)&(source))[3]) << 24) \
+            | ((((unsigned char*)&(source))[2]) << 16) \
+            | ((((unsigned char*)&(source))[1]) << 8) \
+            | (((unsigned char*)&(source))[0])); \
+        memcpy(destination, &swapped, 4); \
+    } while (0);
 #else
-# define PHAR_SET_32(var, buffer) *(uint32_t *)(var) = (uint32_t) (buffer)
+# define PHAR_SET_32(destination, source) memcpy(destination, &source, 4)
 #endif
 		PHAR_SET_32(sigbuf, phar->sig_flags);
 		PHAR_SET_32(sigbuf + 4, signature_length);

@@ -1,17 +1,16 @@
 --TEST--
 mysqli_fetch_field()
+--EXTENSIONS--
+mysqli
 --SKIPIF--
 <?php
-require_once('skipif.inc');
-require_once('skipifconnectfailure.inc');
+require_once 'skipifconnectfailure.inc';
 ?>
 --FILE--
 <?php
-    require_once("connect.inc");
-
     // Note: no SQL type tests, internally the same function gets used as for mysqli_fetch_array() which does a lot of SQL type test
 
-    require('table.inc');
+    require 'table.inc';
 
     // Make sure that client, connection and result charsets are all the
     // same. Not sure whether this is strictly necessary.
@@ -74,7 +73,7 @@ require_once('skipifconnectfailure.inc');
 ?>
 --CLEAN--
 <?php
-    require_once("clean_table.inc");
+    require_once 'clean_table.inc';
 ?>
 --EXPECTF--
 object(stdClass)#%d (13) {

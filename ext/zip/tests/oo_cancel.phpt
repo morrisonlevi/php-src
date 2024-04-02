@@ -1,9 +1,10 @@
 --TEST--
 registerCancelCallback
+--EXTENSIONS--
+zip
 --SKIPIF--
 <?php
 /* $Id$ */
-if(!extension_loaded('zip')) die('skip');
 if (!method_exists('ZipArchive', 'registerCancelCallback')) die('skip libzip too old');
 ?>
 --INI--
@@ -11,7 +12,7 @@ date.timezone=UTC
 --FILE--
 <?php
 $dirname = dirname(__FILE__) . '/';
-$file = $dirname . '__tmp_oo_progress.zip';
+$file = $dirname . '__tmp_oo_cancel.zip';
 
 @unlink($file);
 

@@ -1,8 +1,10 @@
 --TEST--
 Bug #45161 (Reusing a curl handle leaks memory)
+--EXTENSIONS--
+curl
 --SKIPIF--
 <?php
-include 'skipif.inc';
+if (PHP_OS_FAMILY === 'Windows') die('skip This test is insanely slow on Windows');
 ?>
 --FILE--
 <?php

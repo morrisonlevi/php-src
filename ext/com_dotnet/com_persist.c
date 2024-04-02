@@ -5,7 +5,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -278,7 +278,7 @@ PHP_COM_DOTNET_API IStream *php_com_wrapper_export_stream(php_stream *stream)
 
 #define CPH_METHOD(fname)		PHP_METHOD(COMPersistHelper, fname)
 
-#define CPH_FETCH()				php_com_persist_helper *helper = (php_com_persist_helper*)Z_OBJ_P(getThis());
+#define CPH_FETCH()				php_com_persist_helper *helper = (php_com_persist_helper*)Z_OBJ_P(ZEND_THIS);
 
 #define CPH_NO_OBJ()			if (helper->unk == NULL) { php_com_throw_exception(E_INVALIDARG, "No COM object is associated with this helper instance"); RETURN_THROWS(); }
 
@@ -337,14 +337,9 @@ CPH_METHOD(GetCurFileName)
 		res = IPersistFile_GetCurFile(helper->ipf, &olename);
 
 		if (res == S_OK) {
-			size_t len;
-			char *str = php_com_olestring_to_string(olename,
-				   &len, helper->codepage);
-			RETVAL_STRINGL(str, len);
-			// TODO: avoid reallocarion???
-			efree(str);
+			zend_string *str = php_com_olestring_to_string(olename, helper->codepage);
 			CoTaskMemFree(olename);
-			return;
+			RETURN_STR(str);
 		} else if (res == S_FALSE) {
 			CoTaskMemFree(olename);
 			RETURN_FALSE;
@@ -714,26 +709,20 @@ static zend_object* helper_new(zend_class_entry *ce)
 	memset(helper, 0, sizeof(*helper));
 
 	zend_object_std_init(&helper->std, helper_ce);
-	helper->std.handlers = &helper_handlers;
 
 	return &helper->std;
 }
 
-int php_com_persist_minit(INIT_FUNC_ARGS)
+void php_com_persist_minit(INIT_FUNC_ARGS)
 {
-	zend_class_entry ce;
-
 	memcpy(&helper_handlers, &std_object_handlers, sizeof(helper_handlers));
 	helper_handlers.free_obj = helper_free_storage;
 	helper_handlers.clone_obj = helper_clone;
 
-	INIT_CLASS_ENTRY(ce, "COMPersistHelper", class_COMPersistHelper_methods);
-	ce.create_object = helper_new;
-	helper_ce = zend_register_internal_class(&ce);
-	helper_ce->ce_flags |= ZEND_ACC_FINAL;
+	helper_ce = register_class_COMPersistHelper();
+	helper_ce->create_object = helper_new;
+	helper_ce->default_object_handlers = &helper_handlers;
 
 	le_istream = zend_register_list_destructors_ex(istream_dtor,
 			NULL, "com_dotnet_istream_wrapper", module_number);
-
-	return SUCCESS;
 }

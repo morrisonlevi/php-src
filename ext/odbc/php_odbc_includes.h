@@ -5,7 +5,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -42,7 +42,6 @@
 # include <sql.h>
 #endif	/* end: #if defined(HAVE_SOLID) */
 #undef HAVE_SQL_EXTENDED_FETCH
-PHP_FUNCTION(solid_fetch_prev);
 #define SQLSMALLINT SWORD
 #define SQLUSMALLINT UWORD
 #ifndef SQL_SUCCEEDED
@@ -163,6 +162,13 @@ PHP_FUNCTION(solid_fetch_prev);
 #include <sqlext.h>
 #endif
 
+#ifdef PHP_WIN32
+#include <winsock2.h>
+
+#define ODBC_TYPE "Win32"
+#define PHP_ODBC_TYPE ODBC_TYPE
+
+#endif
 
 /* Common defines */
 
@@ -222,8 +228,8 @@ ZEND_BEGIN_MODULE_GLOBALS(odbc)
 	char *defDB;
 	char *defUser;
 	char *defPW;
-	zend_long allow_persistent;
-	zend_long check_persistent;
+	bool allow_persistent;
+	bool check_persistent;
 	zend_long max_persistent;
 	zend_long max_links;
 	zend_long num_persistent;

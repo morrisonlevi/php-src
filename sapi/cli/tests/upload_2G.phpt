@@ -36,10 +36,14 @@ if (getenv('TRAVIS')) {
     die("skip Fails intermittently on travis");
 }
 
+if (getenv('CIRRUS_CI')) die('skip Fails on Cirrus');
+
 if (getenv('SKIP_PERF_SENSITIVE')) {
     die("skip Test may be very slow if PHP is instrumented");
 }
 ?>
+--CONFLICTS--
+all
 --FILE--
 <?php
 
@@ -97,8 +101,10 @@ Content-type: text/html; charset=UTF-8
 
 array(1) {
   ["file1"]=>
-  array(5) {
+  array(6) {
     ["name"]=>
+    string(9) "file1.txt"
+    ["full_path"]=>
     string(9) "file1.txt"
     ["type"]=>
     string(10) "text/plain"

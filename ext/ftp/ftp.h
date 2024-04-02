@@ -5,7 +5,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -70,18 +70,19 @@ typedef struct ftpbuf
 	int			autoseek;	/* User configurable autoseek flag */
 	int			usepasvaddress;	/* Use the address returned by the pasv command */
 
-	int				nb;		/* "nonblocking" transfer in progress */
 	databuf_t		*data;	/* Data connection for "nonblocking" transfers */
 	php_stream		*stream; /* output stream for "nonblocking" transfers */
-	int				lastch;		/* last char of previous call */
-	int				direction;	/* recv = 0 / send = 1 */
-	int				closestream;/* close or not close stream */
+	bool			nb;		/* "nonblocking" transfer in progress */
+	char			lastch;		/* last char of previous call */
+	bool			direction;	/* recv = 0 / send = 1 */
+	bool			closestream;/* close or not close stream */
 #ifdef HAVE_FTP_SSL
-	int				use_ssl; /* enable(1) or disable(0) ssl */
-	int				use_ssl_for_data; /* en/disable ssl for the dataconnection */
-	int				old_ssl;	/* old mode = forced data encryption */
+	bool			use_ssl; /* enable(1) or disable(0) ssl */
+	bool			use_ssl_for_data; /* en/disable ssl for the dataconnection */
+	bool			old_ssl;	/* old mode = forced data encryption */
+	bool			ssl_active;		  /* ssl active on control conn */
 	SSL				*ssl_handle;      /* handle for control connection */
-	int				ssl_active;		  /* ssl active on control conn */
+	SSL_SESSION     *last_ssl_session; /* last negotiated session */
 #endif
 
 } ftpbuf_t;

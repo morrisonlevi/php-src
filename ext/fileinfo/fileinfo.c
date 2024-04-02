@@ -2,10 +2,10 @@
   +----------------------------------------------------------------------+
   | Copyright (c) The PHP Group                                          |
   +----------------------------------------------------------------------+
-  | This source file is subject to version 3.0 of the PHP license,       |
+  | This source file is subject to version 3.01 of the PHP license,      |
   | that is bundled with this package in the file LICENSE, and is        |
   | available through the world-wide-web at the following url:           |
-  | http://www.php.net/license/3_0.txt.                                  |
+  | https://www.php.net/license/3_01.txt                                 |
   | If you did not receive a copy of the PHP license and are unable to   |
   | obtain it through the world-wide-web, please send a note to          |
   | license@php.net so we can mail you a copy immediately.               |
@@ -19,7 +19,7 @@
 #endif
 #include "php.h"
 
-#include <magic.h>
+#include "libmagic/magic.h"
 /*
  * HOWMANY specifies the maximum offset libmagic will look at
  * this is currently hardcoded in the libmagic source but not exported
@@ -35,7 +35,6 @@
 #include "fileinfo_arginfo.h"
 #include "fopen_wrappers.h" /* needed for is_url */
 #include "Zend/zend_exceptions.h"
-#include "Zend/zend_interfaces.h"
 
 /* {{{ macros and type definitions */
 typedef struct _php_fileinfo {
@@ -90,7 +89,6 @@ PHP_FILEINFO_API zend_object *finfo_objects_new(zend_class_entry *class_type)
 
 	zend_object_std_init(&intern->zo, class_type);
 	object_properties_init(&intern->zo, class_type);
-	intern->zo.handlers = &finfo_object_handlers;
 
 	return &intern->zo;
 }
@@ -109,8 +107,7 @@ PHP_MINIT_FUNCTION(finfo)
 {
 	finfo_class_entry = register_class_finfo();
 	finfo_class_entry->create_object = finfo_objects_new;
-	finfo_class_entry->serialize = zend_class_serialize_deny;
-	finfo_class_entry->unserialize = zend_class_unserialize_deny;
+	finfo_class_entry->default_object_handlers = &finfo_object_handlers;
 
 	/* copy the standard object handlers to you handler table */
 	memcpy(&finfo_object_handlers, &std_object_handlers, sizeof(zend_object_handlers));
@@ -118,25 +115,7 @@ PHP_MINIT_FUNCTION(finfo)
 	finfo_object_handlers.free_obj = finfo_objects_free;
 	finfo_object_handlers.clone_obj = NULL;
 
-	REGISTER_LONG_CONSTANT("FILEINFO_NONE",			MAGIC_NONE, CONST_CS|CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("FILEINFO_SYMLINK",		MAGIC_SYMLINK, CONST_CS|CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("FILEINFO_MIME",			MAGIC_MIME, CONST_CS|CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("FILEINFO_MIME_TYPE",	MAGIC_MIME_TYPE, CONST_CS|CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("FILEINFO_MIME_ENCODING",MAGIC_MIME_ENCODING, CONST_CS|CONST_PERSISTENT);
-/*	REGISTER_LONG_CONSTANT("FILEINFO_COMPRESS",		MAGIC_COMPRESS, CONST_CS|CONST_PERSISTENT); disabled, as it does fork now */
-	REGISTER_LONG_CONSTANT("FILEINFO_DEVICES",		MAGIC_DEVICES, CONST_CS|CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("FILEINFO_CONTINUE",		MAGIC_CONTINUE, CONST_CS|CONST_PERSISTENT);
-#ifdef MAGIC_PRESERVE_ATIME
-	REGISTER_LONG_CONSTANT("FILEINFO_PRESERVE_ATIME",	MAGIC_PRESERVE_ATIME, CONST_CS|CONST_PERSISTENT);
-#endif
-#ifdef MAGIC_RAW
-	REGISTER_LONG_CONSTANT("FILEINFO_RAW",			MAGIC_RAW, CONST_CS|CONST_PERSISTENT);
-#endif
-#if 0
-	/* seems not usable yet. */
-	REGISTER_LONG_CONSTANT("FILEINFO_APPLE",		MAGIC_APPLE, CONST_CS|CONST_PERSISTENT);
-#endif
-	REGISTER_LONG_CONSTANT("FILEINFO_EXTENSION",	MAGIC_EXTENSION, CONST_CS|CONST_PERSISTENT);
+	register_fileinfo_symbols(module_number);
 
 	return SUCCESS;
 }
@@ -338,7 +317,7 @@ static void _php_finfo_get_type(INTERNAL_FUNCTION_PARAMETERS, int mode, int mime
 				break;
 
 			default:
-				zend_argument_type_error(2, "must be of type resource|string, %s given", zend_zval_type_name(what));
+				zend_argument_type_error(1, "must be of type resource|string, %s given", zend_zval_value_name(what));
 				RETURN_THROWS();
 		}
 

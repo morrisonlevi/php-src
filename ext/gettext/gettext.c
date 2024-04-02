@@ -5,7 +5,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -23,6 +23,7 @@
 #ifdef HAVE_LIBINTL
 
 #include <stdio.h>
+#include <locale.h>
 #include "ext/standard/info.h"
 #include "php_gettext.h"
 #include "gettext_arginfo.h"
@@ -53,11 +54,20 @@ ZEND_GET_MODULE(php_gettext)
 	if (UNEXPECTED(domain_len > PHP_GETTEXT_MAX_DOMAIN_LENGTH)) { \
 		zend_argument_value_error(_arg_num, "is too long"); \
 		RETURN_THROWS(); \
+	} else if (domain_len == 0) { \
+		zend_argument_value_error(_arg_num, "cannot be empty"); \
+		RETURN_THROWS(); \
 	}
 
 #define PHP_GETTEXT_LENGTH_CHECK(_arg_num, check_len) \
 	if (UNEXPECTED(check_len > PHP_GETTEXT_MAX_MSGID_LENGTH)) { \
 		zend_argument_value_error(_arg_num, "is too long"); \
+		RETURN_THROWS(); \
+	}
+
+#define PHP_DCGETTEXT_CATEGORY_CHECK(_arg_num, category) \
+	if (category == LC_ALL) { \
+		zend_argument_value_error(_arg_num, "cannot be LC_ALL"); \
 		RETURN_THROWS(); \
 	}
 
@@ -71,19 +81,19 @@ PHP_MINFO_FUNCTION(php_gettext)
 /* {{{ Set the textdomain to "domain". Returns the current domain */
 PHP_FUNCTION(textdomain)
 {
-	char *domain = NULL, *domain_name, *retval;
-	size_t domain_len = 0;
+	char *domain_name = NULL, *retval;
+	zend_string *domain = NULL;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "s!", &domain, &domain_len) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "S!", &domain) == FAILURE) {
 		RETURN_THROWS();
 	}
 
-	PHP_GETTEXT_DOMAIN_LENGTH_CHECK(1, domain_len)
+	if (domain != NULL) {
+		PHP_GETTEXT_DOMAIN_LENGTH_CHECK(1, ZSTR_LEN(domain))
+	}
 
-	if (domain != NULL && strcmp(domain, "") && strcmp(domain, "0")) {
-		domain_name = domain;
-	} else {
-		domain_name = NULL;
+	if (domain != NULL && !zend_string_equals_literal(domain, "0")) {
+		domain_name = ZSTR_VAL(domain);
 	}
 
 	retval = textdomain(domain_name);
@@ -149,6 +159,7 @@ PHP_FUNCTION(dcgettext)
 
 	PHP_GETTEXT_DOMAIN_LENGTH_CHECK(1, ZSTR_LEN(domain))
 	PHP_GETTEXT_LENGTH_CHECK(2, ZSTR_LEN(msgid))
+	PHP_DCGETTEXT_CATEGORY_CHECK(3, category)
 
 	msgstr = dcgettext(ZSTR_VAL(domain), ZSTR_VAL(msgid), category);
 
@@ -163,27 +174,23 @@ PHP_FUNCTION(dcgettext)
 /* {{{ Bind to the text domain domain_name, looking for translations in dir. Returns the current domain */
 PHP_FUNCTION(bindtextdomain)
 {
-	char *domain, *dir = NULL;
-	size_t domain_len, dir_len;
+	char *domain;
+	size_t domain_len;
+	zend_string *dir = NULL;
 	char *retval, dir_name[MAXPATHLEN];
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "ss!", &domain, &domain_len, &dir, &dir_len) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "sS!", &domain, &domain_len, &dir) == FAILURE) {
 		RETURN_THROWS();
 	}
 
 	PHP_GETTEXT_DOMAIN_LENGTH_CHECK(1, domain_len)
 
-	if (domain[0] == '\0') {
-		zend_argument_value_error(1, "cannot be empty");
-		RETURN_THROWS();
-	}
-
 	if (dir == NULL) {
 		RETURN_STRING(bindtextdomain(domain, NULL));
 	}
 
-	if (dir[0] != '\0' && strcmp(dir, "0")) {
-		if (!VCWD_REALPATH(dir, dir_name)) {
+	if (ZSTR_LEN(dir) != 0 && !zend_string_equals_literal(dir, "0")) {
+		if (!VCWD_REALPATH(ZSTR_VAL(dir), dir_name)) {
 			RETURN_FALSE;
 		}
 	} else if (!VCWD_GETCWD(dir_name, MAXPATHLEN)) {
@@ -262,6 +269,7 @@ PHP_FUNCTION(dcngettext)
 	PHP_GETTEXT_DOMAIN_LENGTH_CHECK(1, domain_len)
 	PHP_GETTEXT_LENGTH_CHECK(2, msgid1_len)
 	PHP_GETTEXT_LENGTH_CHECK(3, msgid2_len)
+	PHP_DCGETTEXT_CATEGORY_CHECK(5, category)
 
 	msgstr = dcngettext(domain, msgid1, msgid2, count, category);
 

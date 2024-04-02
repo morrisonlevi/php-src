@@ -7,7 +7,7 @@
   | This source file is subject to version 3.01 of the PHP license,      |
   | that is bundled with this package in the file LICENSE, and is        |
   | available through the world-wide-web at the following url:           |
-  | http://www.php.net/license/3_01.txt                                  |
+  | https://www.php.net/license/3_01.txt                                 |
   | If you did not receive a copy of the PHP license and are unable to   |
   | obtain it through the world-wide-web, please send a note to          |
   | license@php.net so we can mail you a copy immediately.               |
@@ -31,7 +31,7 @@ ini_set('pcre.backtrack_limit', 10000000);
 $API_params = array(
     'a' => array('zval**'), // array
     'A' => array('zval**'), // array or object
-    'b' => array('zend_bool*'), // boolean
+    'b' => array('bool*'), // boolean
     'd' => array('double*'), // double
     'f' => array('zend_fcall_info*', 'zend_fcall_info_cache*'), // function
     'h' => array('HashTable**'), // array as an HashTable*
@@ -51,7 +51,7 @@ $API_params = array(
 /** reports an error, according to its level */
 function error($str, $level = 0)
 {
-    global $current_file, $current_function, $line;
+    global $current_file, $current_function, $line, $error_reported;
 
     if ($level <= REPORT_LEVEL) {
         if (strpos($current_file,PHPDIR) === 0) {
@@ -60,6 +60,7 @@ function error($str, $level = 0)
             $filename = $current_file;
         }
         echo $filename , " [$line] $current_function : $str\n";
+        $error_reported = true;
     }
 }
 
@@ -238,7 +239,7 @@ function check_function($name, $txt, $offset)
                     // nullable arguments
                     case '!':
                         if (in_array($last_char, array('l', 'L', 'd', 'b'))) {
-                            check_param($params, ++$j, 'zend_bool*', $optional);
+                            check_param($params, ++$j, 'bool*', $optional);
                         }
                     break;
 
@@ -372,6 +373,9 @@ foreach($dirs as $dir) {
     }
 }
 
+$error_reported = false;
 foreach ($dirs as $dir) {
     recurse(realpath($dir));
 }
+
+exit($error_reported === false ? 0 : 2);

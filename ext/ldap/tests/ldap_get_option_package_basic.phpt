@@ -2,12 +2,12 @@
 ldap_get_option() - Basic test for getting the TLS package ldap option
 --CREDITS--
 Chad Sikorra <Chad.Sikorra@gmail.com>
---SKIPIF--
-<?php require_once('skipif.inc'); ?>
+--EXTENSIONS--
+ldap
 --FILE--
 <?php
 require "connect.inc";
-$link = ldap_connect($host, $port);
+$link = ldap_connect($uri);
 
 $result = ldap_get_option($link, LDAP_OPT_X_TLS_PACKAGE, $optionval);
 var_dump(in_array($optionval, ['GnuTLS', 'OpenSSL', 'MozNSS']));

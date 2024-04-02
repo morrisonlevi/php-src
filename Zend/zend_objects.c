@@ -31,10 +31,13 @@ static zend_always_inline void _zend_object_std_init(zend_object *object, zend_c
 	GC_SET_REFCOUNT(object, 1);
 	GC_TYPE_INFO(object) = GC_OBJECT;
 	object->ce = ce;
+	object->handlers = ce->default_object_handlers;
 	object->properties = NULL;
 	zend_objects_store_put(object);
 	if (UNEXPECTED(ce->ce_flags & ZEND_ACC_USE_GUARDS)) {
-		ZVAL_UNDEF(object->properties_table + object->ce->default_properties_count);
+		zval *guard_value = object->properties_table + object->ce->default_properties_count;
+		ZVAL_UNDEF(guard_value);
+		Z_GUARD_P(guard_value) = 0;
 	}
 }
 
@@ -46,6 +49,10 @@ ZEND_API void ZEND_FASTCALL zend_object_std_init(zend_object *object, zend_class
 ZEND_API void zend_object_std_dtor(zend_object *object)
 {
 	zval *p, *end;
+
+	if (UNEXPECTED(GC_FLAGS(object) & IS_OBJ_WEAKLY_REFERENCED)) {
+		zend_weakrefs_notify(object);
+	}
 
 	if (object->properties) {
 		if (EXPECTED(!(GC_FLAGS(object->properties) & IS_ARRAY_IMMUTABLE))) {
@@ -85,10 +92,6 @@ ZEND_API void zend_object_std_dtor(zend_object *object)
 			FREE_HASHTABLE(guards);
 		}
 	}
-
-	if (UNEXPECTED(GC_FLAGS(object) & IS_OBJ_WEAKLY_REFERENCED)) {
-		zend_weakrefs_notify(object);
-	}
 }
 
 ZEND_API void zend_objects_destroy_object(zend_object *object)
@@ -97,6 +100,7 @@ ZEND_API void zend_objects_destroy_object(zend_object *object)
 
 	if (destructor) {
 		zend_object *old_exception;
+		const zend_op *old_opline_before_exception;
 
 		if (destructor->op_array.fn_flags & (ZEND_ACC_PRIVATE|ZEND_ACC_PROTECTED)) {
 			if (destructor->op_array.fn_flags & ZEND_ACC_PRIVATE) {
@@ -155,7 +159,13 @@ ZEND_API void zend_objects_destroy_object(zend_object *object)
 			if (EG(exception) == object) {
 				zend_error_noreturn(E_CORE_ERROR, "Attempt to destruct pending exception");
 			} else {
+				if (EG(current_execute_data)
+				 && EG(current_execute_data)->func
+				 && ZEND_USER_CODE(EG(current_execute_data)->func->common.type)) {
+					zend_rethrow_exception(EG(current_execute_data));
+				}
 				old_exception = EG(exception);
+				old_opline_before_exception = EG(opline_before_exception);
 				EG(exception) = NULL;
 			}
 		}
@@ -163,6 +173,7 @@ ZEND_API void zend_objects_destroy_object(zend_object *object)
 		zend_call_known_instance_method_with_0_params(destructor, object, NULL);
 
 		if (old_exception) {
+			EG(opline_before_exception) = old_opline_before_exception;
 			if (EG(exception)) {
 				zend_exception_set_previous(EG(exception), old_exception);
 			} else {
@@ -178,12 +189,13 @@ ZEND_API zend_object* ZEND_FASTCALL zend_objects_new(zend_class_entry *ce)
 	zend_object *object = emalloc(sizeof(zend_object) + zend_object_properties_size(ce));
 
 	_zend_object_std_init(object, ce);
-	object->handlers = &std_object_handlers;
 	return object;
 }
 
 ZEND_API void ZEND_FASTCALL zend_objects_clone_members(zend_object *new_object, zend_object *old_object)
 {
+	bool has_clone_method = old_object->ce->clone != NULL;
+
 	if (old_object->ce->default_properties_count) {
 		zval *src = old_object->properties_table;
 		zval *dst = new_object->properties_table;
@@ -193,6 +205,11 @@ ZEND_API void ZEND_FASTCALL zend_objects_clone_members(zend_object *new_object, 
 			i_zval_ptr_dtor(dst);
 			ZVAL_COPY_VALUE_PROP(dst, src);
 			zval_add_ref(dst);
+			if (has_clone_method) {
+				/* Unconditionally add the IS_PROP_REINITABLE flag to avoid a potential cache miss of property_info */
+				Z_PROP_FLAG_P(dst) |= IS_PROP_REINITABLE;
+			}
+
 			if (UNEXPECTED(Z_ISREF_P(dst)) &&
 					(ZEND_DEBUG || ZEND_REF_HAS_TYPE_SOURCES(Z_REF_P(dst)))) {
 				zend_property_info *prop_info = zend_get_property_info_for_slot(new_object, dst);
@@ -203,7 +220,7 @@ ZEND_API void ZEND_FASTCALL zend_objects_clone_members(zend_object *new_object, 
 			src++;
 			dst++;
 		} while (src != end);
-	} else if (old_object->properties && !old_object->ce->clone) {
+	} else if (old_object->properties && !has_clone_method) {
 		/* fast copy */
 		if (EXPECTED(old_object->handlers == &std_object_handlers)) {
 			if (EXPECTED(!(GC_FLAGS(old_object->properties) & IS_ARRAY_IMMUTABLE))) {
@@ -230,12 +247,16 @@ ZEND_API void ZEND_FASTCALL zend_objects_clone_members(zend_object *new_object, 
 		HT_FLAGS(new_object->properties) |=
 			HT_FLAGS(old_object->properties) & HASH_FLAG_HAS_EMPTY_IND;
 
-		ZEND_HASH_FOREACH_KEY_VAL(old_object->properties, num_key, key, prop) {
+		ZEND_HASH_MAP_FOREACH_KEY_VAL(old_object->properties, num_key, key, prop) {
 			if (Z_TYPE_P(prop) == IS_INDIRECT) {
 				ZVAL_INDIRECT(&new_prop, new_object->properties_table + (Z_INDIRECT_P(prop) - old_object->properties_table));
 			} else {
 				ZVAL_COPY_VALUE(&new_prop, prop);
 				zval_add_ref(&new_prop);
+			}
+			if (has_clone_method) {
+				/* Unconditionally add the IS_PROP_REINITABLE flag to avoid a potential cache miss of property_info */
+				Z_PROP_FLAG_P(&new_prop) |= IS_PROP_REINITABLE;
 			}
 			if (EXPECTED(key)) {
 				_zend_hash_append(new_object->properties, key, &new_prop);
@@ -245,9 +266,18 @@ ZEND_API void ZEND_FASTCALL zend_objects_clone_members(zend_object *new_object, 
 		} ZEND_HASH_FOREACH_END();
 	}
 
-	if (old_object->ce->clone) {
+	if (has_clone_method) {
 		GC_ADDREF(new_object);
 		zend_call_known_instance_method_with_0_params(new_object->ce->clone, new_object, NULL);
+
+		if (ZEND_CLASS_HAS_READONLY_PROPS(new_object->ce)) {
+			for (uint32_t i = 0; i < new_object->ce->default_properties_count; i++) {
+				zval* prop = OBJ_PROP_NUM(new_object, i);
+				/* Unconditionally remove the IS_PROP_REINITABLE flag to avoid a potential cache miss of property_info */
+				Z_PROP_FLAG_P(prop) &= ~IS_PROP_REINITABLE;
+			}
+		}
+
 		OBJ_RELEASE(new_object);
 	}
 }

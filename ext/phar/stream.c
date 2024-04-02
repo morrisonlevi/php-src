@@ -7,7 +7,7 @@
   | This source file is subject to version 3.01 of the PHP license,      |
   | that is bundled with this package in the file LICENSE, and is        |
   | available through the world-wide-web at the following url:           |
-  | http://www.php.net/license/3_01.txt.                                 |
+  | https://www.php.net/license/3_01.txt                                 |
   | If you did not receive a copy of the PHP license and are unable to   |
   | obtain it through the world-wide-web, please send a note to          |
   | license@php.net so we can mail you a copy immediately.               |
@@ -84,7 +84,7 @@ php_url* phar_parse_url(php_stream_wrapper *wrapper, const char *filename, const
 		return NULL;
 	}
 	resource = ecalloc(1, sizeof(php_url));
-	resource->scheme = zend_string_init("phar", 4, 0);
+	resource->scheme = ZSTR_INIT_LITERAL("phar", 0);
 	resource->host = zend_string_init(arch, arch_len, 0);
 	efree(arch);
 	resource->path = zend_string_init(entry, entry_len, 0);
@@ -254,6 +254,17 @@ static php_stream * phar_wrapper_open_url(php_stream_wrapper *wrapper, const cha
 				php_url_free(resource);
 				goto phar_stub;
 			} else {
+				php_stream *stream = phar_get_pharfp(phar);
+				if (stream == NULL) {
+					if (UNEXPECTED(FAILURE == phar_open_archive_fp(phar))) {
+						php_stream_wrapper_log_error(wrapper, options, "phar error: could not reopen phar \"%s\"", ZSTR_VAL(resource->host));
+						efree(internal_file);
+						php_url_free(resource);
+						return NULL;
+					}
+					stream = phar_get_pharfp(phar);
+				}
+
 				phar_entry_info *entry;
 
 				entry = (phar_entry_info *) ecalloc(1, sizeof(phar_entry_info));
@@ -266,7 +277,7 @@ static php_stream * phar_wrapper_open_url(php_stream_wrapper *wrapper, const cha
 				entry->is_crc_checked = 1;
 
 				idata = (phar_entry_data *) ecalloc(1, sizeof(phar_entry_data));
-				idata->fp = phar_get_pharfp(phar);
+				idata->fp = stream;
 				idata->phar = phar;
 				idata->internal_file = entry;
 				if (!phar->is_persistent) {
@@ -613,7 +624,7 @@ static int phar_wrapper_stat(php_stream_wrapper *wrapper, const char *url, int f
 	if (HT_IS_INITIALIZED(&phar->mounted_dirs) && zend_hash_num_elements(&phar->mounted_dirs)) {
 		zend_string *str_key;
 
-		ZEND_HASH_FOREACH_STR_KEY(&phar->mounted_dirs, str_key) {
+		ZEND_HASH_MAP_FOREACH_STR_KEY(&phar->mounted_dirs, str_key) {
 			if (ZSTR_LEN(str_key) >= internal_file_len || strncmp(ZSTR_VAL(str_key), internal_file, ZSTR_LEN(str_key))) {
 				continue;
 			} else {
@@ -847,8 +858,9 @@ static int phar_wrapper_rename(php_stream_wrapper *wrapper, const char *url_from
 		entry->link = entry->tmp = NULL;
 		source = entry;
 
-		/* add to the manifest, and then store the pointer to the new guy in entry */
-		entry = zend_hash_str_add_mem(&(phar->manifest), ZSTR_VAL(resource_to->path)+1, ZSTR_LEN(resource_to->path)-1, (void **)&new, sizeof(phar_entry_info));
+		/* add to the manifest, and then store the pointer to the new guy in entry
+		 * if it already exists, we overwrite the destination like what copy('phar://...', 'phar://...') does. */
+		entry = zend_hash_str_update_mem(&(phar->manifest), ZSTR_VAL(resource_to->path)+1, ZSTR_LEN(resource_to->path)-1, (void **)&new, sizeof(phar_entry_info));
 
 		entry->filename = estrndup(ZSTR_VAL(resource_to->path)+1, ZSTR_LEN(resource_to->path)-1);
 		if (FAILURE == phar_copy_entry_fp(source, entry, &error)) {
@@ -883,7 +895,7 @@ static int phar_wrapper_rename(php_stream_wrapper *wrapper, const char *url_from
 		uint32_t from_len = ZSTR_LEN(resource_from->path) - 1;
 		uint32_t to_len = ZSTR_LEN(resource_to->path) - 1;
 
-		ZEND_HASH_FOREACH_BUCKET(&phar->manifest, b) {
+		ZEND_HASH_MAP_FOREACH_BUCKET(&phar->manifest, b) {
 			str_key = b->key;
 			entry = Z_PTR(b->val);
 			if (!entry->is_deleted &&
@@ -910,10 +922,9 @@ static int phar_wrapper_rename(php_stream_wrapper *wrapper, const char *url_from
 		} ZEND_HASH_FOREACH_END();
 		zend_hash_rehash(&phar->manifest);
 
-		ZEND_HASH_FOREACH_BUCKET(&phar->virtual_dirs, b) {
+		ZEND_HASH_MAP_FOREACH_BUCKET(&phar->virtual_dirs, b) {
 			str_key = b->key;
-			if (ZSTR_LEN(str_key) >= from_len &&
-				memcmp(ZSTR_VAL(str_key), ZSTR_VAL(resource_from->path)+1, from_len) == 0 &&
+			if (zend_string_starts_with_cstr(str_key, ZSTR_VAL(resource_from->path)+1, from_len) &&
 				(ZSTR_LEN(str_key) == from_len || IS_SLASH(ZSTR_VAL(str_key)[from_len]))) {
 
 				new_str_key = zend_string_alloc(ZSTR_LEN(str_key) + to_len - from_len, 0);
@@ -928,10 +939,9 @@ static int phar_wrapper_rename(php_stream_wrapper *wrapper, const char *url_from
 		} ZEND_HASH_FOREACH_END();
 		zend_hash_rehash(&phar->virtual_dirs);
 
-		ZEND_HASH_FOREACH_BUCKET(&phar->mounted_dirs, b) {
+		ZEND_HASH_MAP_FOREACH_BUCKET(&phar->mounted_dirs, b) {
 			str_key = b->key;
-			if (ZSTR_LEN(str_key) >= from_len &&
-				memcmp(ZSTR_VAL(str_key), ZSTR_VAL(resource_from->path)+1, from_len) == 0 &&
+			if (zend_string_starts_with_cstr(str_key, ZSTR_VAL(resource_from->path)+1, from_len) &&
 				(ZSTR_LEN(str_key) == from_len || IS_SLASH(ZSTR_VAL(str_key)[from_len]))) {
 
 				new_str_key = zend_string_alloc(ZSTR_LEN(str_key) + to_len - from_len, 0);

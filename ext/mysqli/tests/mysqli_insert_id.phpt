@@ -1,15 +1,14 @@
 --TEST--
 mysqli_insert_id()
+--EXTENSIONS--
+mysqli
 --SKIPIF--
 <?php
-require_once('skipif.inc');
-require_once('skipifconnectfailure.inc');
+require_once 'skipifconnectfailure.inc';
 ?>
 --FILE--
 <?php
-    require_once("connect.inc");
-
-    require('table.inc');
+    require 'table.inc';
 
     if (0 !== ($tmp = mysqli_insert_id($link)))
         printf("[003] Expecting int/0, got %s/%s\n", gettype($tmp), $tmp);
@@ -126,7 +125,7 @@ require_once('skipifconnectfailure.inc');
 ?>
 --CLEAN--
 <?php
-    require_once("clean_table.inc");
+    require_once 'clean_table.inc';
 ?>
 --EXPECT--
 mysqli object is already closed

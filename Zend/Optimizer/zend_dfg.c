@@ -7,7 +7,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -16,7 +16,6 @@
    +----------------------------------------------------------------------+
 */
 
-#include "php.h"
 #include "zend_compile.h"
 #include "zend_dfg.h"
 
@@ -123,6 +122,7 @@ add_op1_def:
 			}
 			break;
 		case ZEND_ASSIGN_STATIC_PROP_OP:
+		case ZEND_FRAMELESS_ICALL_3:
 			next = opline + 1;
 			if (next->op1_type & (IS_CV|IS_VAR|IS_TMP_VAR)) {
 				var_num = EX_VAR_TO_NUM(next->op1.var);
@@ -151,6 +151,7 @@ add_op1_def:
 		case ZEND_POST_DEC:
 		case ZEND_BIND_GLOBAL:
 		case ZEND_BIND_STATIC:
+		case ZEND_BIND_INIT_STATIC_OR_JMP:
 		case ZEND_SEND_VAR_NO_REF:
 		case ZEND_SEND_VAR_NO_REF_EX:
 		case ZEND_SEND_VAR_EX:
@@ -195,7 +196,7 @@ add_op1_def:
 			if (!zend_bitset_in(def, var_num)) {
 				zend_bitset_incl(use, var_num);
 			}
-			/* break missing intentionally */
+			ZEND_FALLTHROUGH;
 		case ZEND_INIT_ARRAY:
 			if (((build_flags & ZEND_SSA_RC_INFERENCE)
 						|| (opline->extended_value & ZEND_ARRAY_ELEMENT_REF))
@@ -248,7 +249,7 @@ ZEND_API void zend_dfg_add_use_def_op(const zend_op_array *op_array, const zend_
 }
 /* }}} */
 
-int zend_build_dfg(const zend_op_array *op_array, const zend_cfg *cfg, zend_dfg *dfg, uint32_t build_flags) /* {{{ */
+void zend_build_dfg(const zend_op_array *op_array, const zend_cfg *cfg, zend_dfg *dfg, uint32_t build_flags) /* {{{ */
 {
 	int set_size;
 	zend_basic_block *blocks = cfg->blocks;
@@ -327,7 +328,5 @@ int zend_build_dfg(const zend_op_array *op_array, const zend_cfg *cfg, zend_dfg 
 
 		free_alloca(worklist, use_heap);
 	}
-
-	return SUCCESS;
 }
 /* }}} */

@@ -1,8 +1,12 @@
 --TEST--
 Bug #52070 (imagedashedline() - dashed line sometimes is not visible)
+--EXTENSIONS--
+gd
 --SKIPIF--
 <?php
-if (!extension_loaded('gd')) die('skip gd extension not available');
+if (!(imagetypes() & IMG_PNG)) {
+    die("skip No PNG support");
+}
 ?>
 --FILE--
 <?php

@@ -5,7 +5,7 @@
   | This source file is subject to version 3.01 of the PHP license,      |
   | that is bundled with this package in the file LICENSE, and is        |
   | available through the world-wide-web at the following url:           |
-  | http://www.php.net/license/3_01.txt                                  |
+  | https://www.php.net/license/3_01.txt                                 |
   | If you did not receive a copy of the PHP license and are unable to   |
   | obtain it through the world-wide-web, please send a note to          |
   | license@php.net so we can mail you a copy immediately.               |
@@ -64,6 +64,9 @@ static encodePtr create_encoder(sdlPtr sdl, sdlTypePtr cur_type, const xmlChar *
 		if (enc->details.type_str) {
 			efree(enc->details.type_str);
 		}
+		if (enc->details.clark_notation) {
+			zend_string_release_ex(enc->details.clark_notation, 0);
+		}
 	} else {
 		enc_ptr = NULL;
 		enc = emalloc(sizeof(encode));
@@ -73,6 +76,9 @@ static encodePtr create_encoder(sdlPtr sdl, sdlTypePtr cur_type, const xmlChar *
 	enc->details.ns = estrdup((char*)ns);
 	enc->details.type_str = estrdup((char*)type);
 	enc->details.sdl_type = cur_type;
+	if (enc->details.ns != NULL){
+		enc->details.clark_notation = zend_strpprintf(0, "{%s}%s", enc->details.ns, enc->details.type_str);
+	}
 	enc->to_xml = sdl_guess_convert_xml;
 	enc->to_zval = sdl_guess_convert_zval;
 
@@ -335,6 +341,9 @@ static int schema_simpleType(sdlPtr sdl, xmlAttrPtr tns, xmlNodePtr simpleType, 
 		memset(cur_type->encode, 0, sizeof(encode));
 		cur_type->encode->details.ns = estrdup(newType->namens);
 		cur_type->encode->details.type_str = estrdup(newType->name);
+		if (cur_type->encode->details.ns) {
+			cur_type->encode->details.clark_notation = zend_strpprintf(0, "{%s}%s", cur_type->encode->details.ns, cur_type->encode->details.type_str);
+		}
 		cur_type->encode->details.sdl_type = ptr;
 		cur_type->encode->to_xml = sdl_guess_convert_xml;
 		cur_type->encode->to_zval = sdl_guess_convert_zval;
@@ -1390,6 +1399,9 @@ static int schema_complexType(sdlPtr sdl, xmlAttrPtr tns, xmlNodePtr compType, s
 		memset(cur_type->encode, 0, sizeof(encode));
 		cur_type->encode->details.ns = estrdup(newType->namens);
 		cur_type->encode->details.type_str = estrdup(newType->name);
+		if (cur_type->encode->details.ns) {
+			cur_type->encode->details.clark_notation = zend_strpprintf(0, "{%s}%s", cur_type->encode->details.ns, cur_type->encode->details.type_str);
+		}
 		cur_type->encode->details.sdl_type = ptr;
 		cur_type->encode->to_xml = sdl_guess_convert_xml;
 		cur_type->encode->to_zval = sdl_guess_convert_zval;
@@ -1886,8 +1898,8 @@ static int schema_attribute(sdlPtr sdl, xmlAttrPtr tns, xmlNodePtr attrType, sdl
 		attr = attr->next;
 	}
 	if (newAttr->form == XSD_FORM_DEFAULT) {
- 		xmlNodePtr parent = attrType->parent;
- 		while (parent) {
+		xmlNodePtr parent = attrType->parent;
+		while (parent) {
 			if (node_is_equal_ex(parent, "schema", SCHEMA_NAMESPACE)) {
 				xmlAttrPtr def;
 				def = get_attribute(parent->properties, "attributeFormDefault");
@@ -1899,7 +1911,7 @@ static int schema_attribute(sdlPtr sdl, xmlAttrPtr tns, xmlNodePtr attrType, sdl
 				break;
 			}
 			parent = parent->parent;
-  	}
+		}
 		if (parent == NULL) {
 			newAttr->form = XSD_FORM_UNQUALIFIED;
 		}
@@ -2207,6 +2219,7 @@ static void schema_content_model_fixup(sdlCtx *ctx, sdlContentModelPtr model)
 				model->max_occurs = 1;
 			}
 		}
+		ZEND_FALLTHROUGH;
 		case XSD_CONTENT_SEQUENCE:
 		case XSD_CONTENT_ALL: {
 			sdlContentModelPtr tmp;
@@ -2260,17 +2273,23 @@ static void schema_type_fixup(sdlCtx *ctx, sdlTypePtr type)
 		schema_content_model_fixup(ctx, type->model);
 	}
 	if (type->attributes) {
-		zend_string *str_key;
-		zend_ulong index;
+		HashPosition pos;
+		zend_hash_internal_pointer_reset_ex(type->attributes, &pos);
 
-		ZEND_HASH_FOREACH_KEY_PTR(type->attributes, index, str_key, attr) {
-			if (str_key) {
+		while ((attr = zend_hash_get_current_data_ptr_ex(type->attributes, &pos)) != NULL) {
+			zend_string *str_key;
+			zend_ulong index;
+
+			if (zend_hash_get_current_key_ex(type->attributes, &str_key, &index, &pos) == HASH_KEY_IS_STRING) {
 				schema_attribute_fixup(ctx, attr);
+				zend_result result = zend_hash_move_forward_ex(type->attributes, &pos);
+				ZEND_ASSERT(result == SUCCESS);
 			} else {
 				schema_attributegroup_fixup(ctx, attr, type->attributes);
-				zend_hash_index_del(type->attributes, index);
+				zend_result result = zend_hash_index_del(type->attributes, index);
+				ZEND_ASSERT(result == SUCCESS);
 			}
-		} ZEND_HASH_FOREACH_END();
+		}
 	}
 }
 
@@ -2286,17 +2305,17 @@ void schema_pass2(sdlCtx *ctx)
 		} ZEND_HASH_FOREACH_END();
 	}
 	if (ctx->attributeGroups) {
-		ZEND_HASH_FOREACH_PTR(ctx->attributeGroups, type) {
+		ZEND_HASH_MAP_FOREACH_PTR(ctx->attributeGroups, type) {
 			schema_type_fixup(ctx, type);
 		} ZEND_HASH_FOREACH_END();
 	}
 	if (sdl->elements) {
-		ZEND_HASH_FOREACH_PTR(sdl->elements, type) {
+		ZEND_HASH_MAP_FOREACH_PTR(sdl->elements, type) {
 			schema_type_fixup(ctx, type);
 		} ZEND_HASH_FOREACH_END();
 	}
 	if (sdl->groups) {
-		ZEND_HASH_FOREACH_PTR(sdl->groups, type) {
+		ZEND_HASH_MAP_FOREACH_PTR(sdl->groups, type) {
 			schema_type_fixup(ctx, type);
 		} ZEND_HASH_FOREACH_END();
 	}

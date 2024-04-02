@@ -10,7 +10,6 @@ if test "$PHP_INTL" != "no"; then
   PHP_NEW_EXTENSION(intl, php_intl.c \
     intl_error.c \
     intl_convert.c \
-    collator/collator.c \
     collator/collator_class.c \
     collator/collator_sort.c \
     collator/collator_convert.c \
@@ -22,14 +21,12 @@ if test "$PHP_INTL" != "no"; then
     collator/collator_error.c \
     common/common_error.c \
     converter/converter.c \
-    formatter/formatter.c \
     formatter/formatter_main.c \
     formatter/formatter_class.c \
     formatter/formatter_attr.c \
     formatter/formatter_data.c \
     formatter/formatter_format.c \
     formatter/formatter_parse.c \
-    normalizer/normalizer.c \
     normalizer/normalizer_class.c \
     normalizer/normalizer_normalize.c \
     locale/locale.c \
@@ -52,13 +49,11 @@ if test "$PHP_INTL" != "no"; then
     resourcebundle/resourcebundle.c \
     resourcebundle/resourcebundle_class.c \
     resourcebundle/resourcebundle_iterator.c \
-    transliterator/transliterator.c \
     transliterator/transliterator_class.c \
     transliterator/transliterator_methods.c \
     uchar/uchar.c \
     idn/idn.c \
     spoofchecker/spoofchecker_class.c \
-    spoofchecker/spoofchecker.c\
     spoofchecker/spoofchecker_create.c\
     spoofchecker/spoofchecker_main.c, $ext_shared,,$INTL_COMMON_FLAGS,cxx)
 
@@ -69,6 +64,8 @@ if test "$PHP_INTL" != "no"; then
     dateformat/dateformat_create.cpp \
     dateformat/dateformat_attrcpp.cpp \
     dateformat/dateformat_helpers.cpp \
+    dateformat/datepatterngenerator_class.cpp \
+    dateformat/datepatterngenerator_methods.cpp \
     msgformat/msgformat_helpers.cpp \
     timezone/timezone_class.cpp \
     timezone/timezone_methods.cpp \
@@ -83,8 +80,20 @@ if test "$PHP_INTL" != "no"; then
     breakiterator/codepointiterator_methods.cpp"
 
   PHP_REQUIRE_CXX()
-  PHP_CXX_COMPILE_STDCXX(11, mandatory, PHP_INTL_STDCXX)
+
+  AC_MSG_CHECKING([if intl requires -std=gnu++17])
+  AS_IF([test "$PKG_CONFIG icu-uc --atleast-version=74"],[
+    AC_MSG_RESULT([yes])
+    PHP_CXX_COMPILE_STDCXX(17, mandatory, PHP_INTL_STDCXX)
+  ],[
+    AC_MSG_RESULT([no])
+    PHP_CXX_COMPILE_STDCXX(11, mandatory, PHP_INTL_STDCXX)
+  ])
+
   PHP_INTL_CXX_FLAGS="$INTL_COMMON_FLAGS $PHP_INTL_STDCXX $ICU_CXXFLAGS"
+  case $host_alias in
+  *cygwin*) PHP_INTL_CXX_FLAGS="$PHP_INTL_CXX_FLAGS -D_POSIX_C_SOURCE=200809L"
+  esac
   if test "$ext_shared" = "no"; then
     PHP_ADD_SOURCES(PHP_EXT_DIR(intl), $PHP_INTL_CXX_SOURCES, $PHP_INTL_CXX_FLAGS)
   else

@@ -5,7 +5,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -23,7 +23,6 @@
 #include "ext/standard/info.h"
 #include "ext/standard/php_string.h"
 #include "php_posix.h"
-#include "posix_arginfo.h"
 
 #ifdef HAVE_POSIX
 
@@ -40,12 +39,13 @@
 #include <errno.h>
 #include <grp.h>
 #include <pwd.h>
-#ifdef HAVE_SYS_MKDEV_H
+#ifdef MAJOR_IN_MKDEV
 # include <sys/mkdev.h>
-#endif
-#ifdef HAVE_SYS_SYSMACROS_H
+#elif defined(MAJOR_IN_SYSMACROS)
 # include <sys/sysmacros.h>
 #endif
+
+#include "posix_arginfo.h"
 
 ZEND_DECLARE_MODULE_GLOBALS(posix)
 static PHP_MINFO_FUNCTION(posix);
@@ -71,82 +71,8 @@ static PHP_GINIT_FUNCTION(posix) /* {{{ */
 /* {{{ PHP_MINIT_FUNCTION(posix) */
 static PHP_MINIT_FUNCTION(posix)
 {
-	REGISTER_LONG_CONSTANT("POSIX_F_OK", F_OK, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("POSIX_X_OK", X_OK, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("POSIX_W_OK", W_OK, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("POSIX_R_OK", R_OK, CONST_CS | CONST_PERSISTENT);
-#ifdef S_IFREG
-	REGISTER_LONG_CONSTANT("POSIX_S_IFREG", S_IFREG, CONST_CS | CONST_PERSISTENT);
-#endif
-#ifdef S_IFCHR
-	REGISTER_LONG_CONSTANT("POSIX_S_IFCHR", S_IFCHR, CONST_CS | CONST_PERSISTENT);
-#endif
-#ifdef S_IFBLK
-	REGISTER_LONG_CONSTANT("POSIX_S_IFBLK", S_IFBLK, CONST_CS | CONST_PERSISTENT);
-#endif
-#ifdef S_IFIFO
-	REGISTER_LONG_CONSTANT("POSIX_S_IFIFO", S_IFIFO, CONST_CS | CONST_PERSISTENT);
-#endif
-#ifdef S_IFSOCK
-	REGISTER_LONG_CONSTANT("POSIX_S_IFSOCK", S_IFSOCK, CONST_CS | CONST_PERSISTENT);
-#endif
-#ifdef RLIMIT_AS
-	REGISTER_LONG_CONSTANT("POSIX_RLIMIT_AS", RLIMIT_AS, CONST_CS | CONST_PERSISTENT);
-#endif
-#ifdef RLIMIT_CORE
-	REGISTER_LONG_CONSTANT("POSIX_RLIMIT_CORE", RLIMIT_CORE, CONST_CS | CONST_PERSISTENT);
-#endif
-#ifdef RLIMIT_CPU
-	REGISTER_LONG_CONSTANT("POSIX_RLIMIT_CPU", RLIMIT_CPU, CONST_CS | CONST_PERSISTENT);
-#endif
-#ifdef RLIMIT_DATA
-	REGISTER_LONG_CONSTANT("POSIX_RLIMIT_DATA", RLIMIT_DATA, CONST_CS | CONST_PERSISTENT);
-#endif
-#ifdef RLIMIT_FSIZE
-	REGISTER_LONG_CONSTANT("POSIX_RLIMIT_FSIZE", RLIMIT_FSIZE, CONST_CS | CONST_PERSISTENT);
-#endif
-#ifdef RLIMIT_LOCKS
-	REGISTER_LONG_CONSTANT("POSIX_RLIMIT_LOCKS", RLIMIT_LOCKS, CONST_CS | CONST_PERSISTENT);
-#endif
-#ifdef RLIMIT_MEMLOCK
-	REGISTER_LONG_CONSTANT("POSIX_RLIMIT_MEMLOCK", RLIMIT_MEMLOCK, CONST_CS | CONST_PERSISTENT);
-#endif
-#ifdef RLIMIT_MSGQUEUE
-	REGISTER_LONG_CONSTANT("POSIX_RLIMIT_MSGQUEUE", RLIMIT_MSGQUEUE, CONST_CS | CONST_PERSISTENT);
-#endif
-#ifdef RLIMIT_NICE
-	REGISTER_LONG_CONSTANT("POSIX_RLIMIT_NICE", RLIMIT_NICE, CONST_CS | CONST_PERSISTENT);
-#endif
-#ifdef RLIMIT_NOFILE
-	REGISTER_LONG_CONSTANT("POSIX_RLIMIT_NOFILE", RLIMIT_NOFILE, CONST_CS | CONST_PERSISTENT);
-#endif
-#ifdef RLIMIT_NPROC
-	REGISTER_LONG_CONSTANT("POSIX_RLIMIT_NPROC", RLIMIT_NPROC, CONST_CS | CONST_PERSISTENT);
-#endif
-#ifdef RLIMIT_RSS
-	REGISTER_LONG_CONSTANT("POSIX_RLIMIT_RSS", RLIMIT_RSS, CONST_CS | CONST_PERSISTENT);
-#endif
-#ifdef RLIMIT_RTPRIO
-	REGISTER_LONG_CONSTANT("POSIX_RLIMIT_RTPRIO", RLIMIT_RTPRIO, CONST_CS | CONST_PERSISTENT);
-#endif
-#ifdef RLIMIT_RTTIME
-	REGISTER_LONG_CONSTANT("POSIX_RLIMIT_RTTIME", RLIMIT_RTTIME, CONST_CS | CONST_PERSISTENT);
-#endif
-#ifdef RLIMIT_SIGPENDING
-	REGISTER_LONG_CONSTANT("POSIX_RLIMIT_SIGPENDING", RLIMIT_SIGPENDING, CONST_CS | CONST_PERSISTENT);
-#endif
-#ifdef RLIMIT_STACK
-	REGISTER_LONG_CONSTANT("POSIX_RLIMIT_STACK", RLIMIT_STACK, CONST_CS | CONST_PERSISTENT);
-#endif
-#ifdef RLIMIT_KQUEUES
-	REGISTER_LONG_CONSTANT("POSIX_RLIMIT_KQUEUES", RLIMIT_KQUEUES, CONST_CS | CONST_PERSISTENT);
-#endif
-#ifdef RLIMIT_NPTS
-	REGISTER_LONG_CONSTANT("POSIX_RLIMIT_NPTS", RLIMIT_NPTS, CONST_CS | CONST_PERSISTENT);
-#endif
-#ifdef HAVE_SETRLIMIT
-	REGISTER_LONG_CONSTANT("POSIX_RLIMIT_INFINITY", RLIM_INFINITY, CONST_CS | CONST_PERSISTENT);
-#endif
+	register_posix_symbols(module_number);
+
 	return SUCCESS;
 }
 /* }}} */
@@ -206,7 +132,7 @@ PHP_FUNCTION(posix_kill)
 	if (kill(pid, sig) < 0) {
 		POSIX_G(last_error) = errno;
 		RETURN_FALSE;
-  	}
+	}
 
 	RETURN_TRUE;
 }
@@ -290,14 +216,23 @@ PHP_FUNCTION(posix_setegid)
 #ifdef HAVE_GETGROUPS
 PHP_FUNCTION(posix_getgroups)
 {
-	gid_t  gidlist[NGROUPS_MAX];
+	gid_t *gidlist;
 	int    result;
 	int    i;
 
 	ZEND_PARSE_PARAMETERS_NONE();
 
-	if ((result = getgroups(NGROUPS_MAX, gidlist)) < 0) {
+	/* MacOS may return more than NGROUPS_MAX groups.
+	 * Fetch the actual number of groups and create an appropriate allocation. */
+	if ((result = getgroups(0, NULL)) < 0) {
 		POSIX_G(last_error) = errno;
+		RETURN_FALSE;
+	}
+
+	gidlist = emalloc(sizeof(gid_t) * result);
+	if ((result = getgroups(result, gidlist)) < 0) {
+		POSIX_G(last_error) = errno;
+		efree(gidlist);
 		RETURN_FALSE;
 	}
 
@@ -306,6 +241,7 @@ PHP_FUNCTION(posix_getgroups)
 	for (i=0; i<result; i++) {
 		add_next_index_long(return_value, gidlist[i]);
 	}
+	efree(gidlist);
 }
 #endif
 /* }}} */
@@ -421,7 +357,7 @@ PHP_FUNCTION(posix_uname)
 	add_assoc_string(return_value, "version",  u.version);
 	add_assoc_string(return_value, "machine",  u.machine);
 
-#if defined(_GNU_SOURCE) && !defined(DARWIN) && defined(HAVE_UTSNAME_DOMAINNAME)
+#if defined(_GNU_SOURCE) && defined(HAVE_STRUCT_UTSNAME_DOMAINNAME)
 	add_assoc_string(return_value, "domainname", u.domainname);
 #endif
 }
@@ -480,7 +416,7 @@ PHP_FUNCTION(posix_ctermid)
 /* }}} */
 
 /* Checks if the provides resource is a stream and if it provides a file descriptor */
-static int php_posix_stream_get_fd(zval *zfp, int *fd) /* {{{ */
+static int php_posix_stream_get_fd(zval *zfp, zend_long *fd) /* {{{ */
 {
 	php_stream *stream;
 
@@ -489,10 +425,15 @@ static int php_posix_stream_get_fd(zval *zfp, int *fd) /* {{{ */
 	if (stream == NULL) {
 		return 0;
 	}
-	if (php_stream_can_cast(stream, PHP_STREAM_AS_FD_FOR_SELECT) == SUCCESS) {
-		php_stream_cast(stream, PHP_STREAM_AS_FD_FOR_SELECT, (void*)fd, 0);
-	} else if (php_stream_can_cast(stream, PHP_STREAM_AS_FD) == SUCCESS) {
-		php_stream_cast(stream, PHP_STREAM_AS_FD, (void*)fd, 0);
+
+	/* get the fd.
+	 * NB: Most other code will NOT use the PHP_STREAM_CAST_INTERNAL flag when casting.
+	 * It is only used here so that the buffered data warning is not displayed.
+	 */
+	if (php_stream_can_cast(stream, PHP_STREAM_AS_FD_FOR_SELECT | PHP_STREAM_CAST_INTERNAL) == SUCCESS) {
+		php_stream_cast(stream, PHP_STREAM_AS_FD_FOR_SELECT | PHP_STREAM_CAST_INTERNAL, (void*)fd, 0);
+	} else if (php_stream_can_cast(stream, PHP_STREAM_AS_FD | PHP_STREAM_CAST_INTERNAL) == SUCCESS) {
+		php_stream_cast(stream, PHP_STREAM_AS_FD | PHP_STREAM_CAST_INTERNAL, (void*)fd, 0);
 	} else {
 		php_error_docref(NULL, E_WARNING, "Could not use stream of type '%s'",
 				stream->ops->label);
@@ -507,7 +448,7 @@ PHP_FUNCTION(posix_ttyname)
 {
 	zval *z_fd;
 	char *p;
-	int fd;
+	zend_long fd = 0;
 #if defined(ZTS) && defined(HAVE_TTYNAME_R) && defined(_SC_TTY_NAME_MAX)
 	zend_long buflen;
 #endif
@@ -516,14 +457,21 @@ PHP_FUNCTION(posix_ttyname)
 		Z_PARAM_ZVAL(z_fd)
 	ZEND_PARSE_PARAMETERS_END();
 
-	switch (Z_TYPE_P(z_fd)) {
-		case IS_RESOURCE:
-			if (!php_posix_stream_get_fd(z_fd, &fd)) {
-				RETURN_FALSE;
-			}
-			break;
-		default:
+	if (Z_TYPE_P(z_fd) == IS_RESOURCE) {
+		if (!php_posix_stream_get_fd(z_fd, &fd)) {
+			RETURN_FALSE;
+		}
+	} else {
+		if (!zend_parse_arg_long(z_fd, &fd, /* is_null */ NULL, /* check_null */ false, /* arg_num */ 1)) {
+			php_error_docref(NULL, E_WARNING, "Argument #1 ($file_descriptor) must be of type int|resource, %s given",
+				zend_zval_value_name(z_fd));
 			fd = zval_get_long(z_fd);
+		}
+		/* fd must fit in an int and be positive */
+		if (fd < 0 || fd > INT_MAX) {
+			php_error_docref(NULL, E_WARNING, "Argument #1 ($file_descriptor) must be between 0 and %d", INT_MAX);
+			RETURN_FALSE;
+		}
 	}
 #if defined(ZTS) && defined(HAVE_TTYNAME_R) && defined(_SC_TTY_NAME_MAX)
 	buflen = sysconf(_SC_TTY_NAME_MAX);
@@ -537,15 +485,15 @@ PHP_FUNCTION(posix_ttyname)
 		efree(p);
 		RETURN_FALSE;
 	}
-	RETURN_STRING(p);
+	RETVAL_STRING(p);
 	efree(p);
 #else
 	if (NULL == (p = ttyname(fd))) {
 		POSIX_G(last_error) = errno;
 		RETURN_FALSE;
 	}
-#endif
 	RETURN_STRING(p);
+#endif
 }
 /* }}} */
 
@@ -553,22 +501,28 @@ PHP_FUNCTION(posix_ttyname)
 PHP_FUNCTION(posix_isatty)
 {
 	zval *z_fd;
-	int fd;
+	zend_long fd = 0;
 
 	ZEND_PARSE_PARAMETERS_START(1, 1)
 		Z_PARAM_ZVAL(z_fd)
 	ZEND_PARSE_PARAMETERS_END();
 
-	switch (Z_TYPE_P(z_fd)) {
-		case IS_RESOURCE:
-			if (!php_posix_stream_get_fd(z_fd, &fd)) {
-				RETURN_FALSE;
-			}
-			break;
-		default:
-			fd = zval_get_long(z_fd);
+	if (Z_TYPE_P(z_fd) == IS_RESOURCE) {
+		if (!php_posix_stream_get_fd(z_fd, &fd)) {
+			RETURN_FALSE;
+		}
+	} else {
+		if (!zend_parse_arg_long(z_fd, &fd, /* is_null */ NULL, /* check_null */ false, /* arg_num */ 1)) {
+			php_error_docref(NULL, E_WARNING, "Argument #1 ($file_descriptor) must be of type int|resource, %s given",
+				zend_zval_value_name(z_fd));
+			RETURN_FALSE;
+		}
 	}
 
+	/* A valid file descriptor must fit in an int and be positive */
+	if (fd < 0 || fd > INT_MAX) {
+		RETURN_FALSE;
+	}
 	if (isatty(fd)) {
 		RETURN_TRUE;
 	} else {
@@ -578,8 +532,8 @@ PHP_FUNCTION(posix_isatty)
 /* }}} */
 
 /*
-	POSIX.1, 4.8.1 sysconf() - TODO
-	POSIX.1, 5.7.1 pathconf(), fpathconf() - TODO
+	POSIX.1, 4.8.1 sysconf()
+	POSIX.1, 5.7.1 pathconf(), fpathconf()
 
 	POSIX.1, 5.1.2 opendir(), readdir(), rewinddir(), closedir()
 	POSIX.1, 5.2.1 chdir()
@@ -665,7 +619,7 @@ PHP_FUNCTION(posix_mknod)
 			zend_argument_value_error(3, "cannot be 0 for the POSIX_S_IFCHR and POSIX_S_IFBLK modes");
 			RETURN_THROWS();
 		} else {
-#if defined(HAVE_MAKEDEV) || defined(makedev)
+#ifdef HAVE_MAKEDEV
 			php_dev = makedev(major, minor);
 #else
 			php_error_docref(NULL, E_WARNING, "Cannot create a block or character device, creating a normal file instead");
@@ -763,6 +717,44 @@ PHP_FUNCTION(posix_access)
 
 	RETURN_TRUE;
 }
+
+#ifdef HAVE_EACCESS
+PHP_FUNCTION(posix_eaccess)
+{
+	zend_long mode = 0;
+	size_t filename_len, ret;
+	char *filename, *path;
+
+	ZEND_PARSE_PARAMETERS_START(1, 2)
+		Z_PARAM_PATH(filename, filename_len)
+		Z_PARAM_OPTIONAL
+		Z_PARAM_LONG(mode)
+	ZEND_PARSE_PARAMETERS_END();
+
+	path = expand_filepath(filename, NULL);
+	if (!path) {
+		zend_argument_value_error(1, "cannot be empty");
+		RETURN_THROWS();
+	}
+
+	if (php_check_open_basedir_ex(path, 0)) {
+		efree(path);
+		POSIX_G(last_error) = EPERM;
+		RETURN_FALSE;
+	}
+
+	ret = eaccess(path, mode);
+	efree(path);
+
+	if (ret) {
+		POSIX_G(last_error) = errno;
+		RETURN_FALSE;
+	}
+
+	RETURN_TRUE;
+}
+#endif
+
 /* }}} */
 
 /*
@@ -1119,15 +1111,42 @@ static const struct limitlist {
 PHP_FUNCTION(posix_getrlimit)
 {
 	const struct limitlist *l = NULL;
+	zend_long res;
+	bool res_is_null = true;
 
-	ZEND_PARSE_PARAMETERS_NONE();
+	ZEND_PARSE_PARAMETERS_START(0, 1)
+		Z_PARAM_OPTIONAL
+		Z_PARAM_LONG_OR_NULL(res, res_is_null)
+	ZEND_PARSE_PARAMETERS_END();
 
-	array_init(return_value);
+	if (res_is_null) {
+		array_init(return_value);
 
-	for (l=limits; l->name; l++) {
-		if (posix_addlimit(l->limit, l->name, return_value) == FAILURE) {
-			zend_array_destroy(Z_ARR_P(return_value));
+		for (l=limits; l->name; l++) {
+			if (posix_addlimit(l->limit, l->name, return_value) == FAILURE) {
+				zend_array_destroy(Z_ARR_P(return_value));
+				RETURN_FALSE;
+			}
+		}
+	} else {
+		struct rlimit rl;
+		int result = getrlimit(res, &rl);
+		if (result < 0) {
+			POSIX_G(last_error) = errno;
 			RETURN_FALSE;
+		}
+
+		array_init(return_value);
+		if (rl.rlim_cur == RLIM_INFINITY) {
+			add_next_index_stringl(return_value, UNLIMITED_STRING, sizeof(UNLIMITED_STRING)-1);
+		} else {
+			add_next_index_long(return_value, rl.rlim_cur);
+		}
+
+		if (rl.rlim_max == RLIM_INFINITY) {
+			add_next_index_stringl(return_value, UNLIMITED_STRING, sizeof(UNLIMITED_STRING)-1);
+		} else {
+			add_next_index_long(return_value, rl.rlim_max);
 		}
 	}
 }
@@ -1207,4 +1226,80 @@ PHP_FUNCTION(posix_initgroups)
 	RETURN_BOOL(!initgroups((const char *)name, basegid));
 }
 /* }}} */
+#endif
+
+PHP_FUNCTION(posix_sysconf)
+{
+	zend_long conf_id;
+
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_LONG(conf_id)
+	ZEND_PARSE_PARAMETERS_END();
+
+	RETURN_LONG(sysconf(conf_id));
+}
+
+#ifdef HAVE_PATHCONF
+PHP_FUNCTION(posix_pathconf)
+{
+	zend_long name, ret;
+	char *path;
+	size_t path_len;
+
+	ZEND_PARSE_PARAMETERS_START(2, 2)
+		Z_PARAM_PATH(path, path_len)
+		Z_PARAM_LONG(name);
+	ZEND_PARSE_PARAMETERS_END();
+
+	if (path_len == 0) {
+		zend_argument_value_error(1, "cannot be empty");
+		RETURN_THROWS();
+	} else if (php_check_open_basedir(path)) {
+		php_error_docref(NULL, E_WARNING, "Invalid path supplied: %s", path);
+		RETURN_FALSE;
+	}
+
+	ret = pathconf(path, name);
+
+	if (ret < 0 && errno != 0) {
+		POSIX_G(last_error) = errno;
+		RETURN_FALSE;
+	}
+
+	RETURN_LONG(ret);
+}
+#endif
+
+#ifdef HAVE_FPATHCONF
+PHP_FUNCTION(posix_fpathconf)
+{
+	zend_long name, ret, fd = 0;
+	zval *z_fd;
+
+	ZEND_PARSE_PARAMETERS_START(2, 2)
+		Z_PARAM_ZVAL(z_fd)
+		Z_PARAM_LONG(name);
+	ZEND_PARSE_PARAMETERS_END();
+
+	if (Z_TYPE_P(z_fd) == IS_RESOURCE) {
+		if (!php_posix_stream_get_fd(z_fd, &fd)) {
+			RETURN_FALSE;
+		}
+	} else {
+		if (!zend_parse_arg_long(z_fd, &fd, /* is_null */ NULL, /* check_null */ false, /* arg_num */ 1)) {
+			zend_argument_type_error(1, "must be of type int|resource, %s given",
+				zend_zval_value_name(z_fd));
+			RETURN_THROWS();
+		}
+	}
+
+	ret = fpathconf(fd, name);
+
+	if (ret < 0 && errno != 0) {
+		POSIX_G(last_error) = errno;
+		RETURN_FALSE;
+	}
+
+	RETURN_LONG(ret);
+}
 #endif

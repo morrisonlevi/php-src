@@ -7,7 +7,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -23,7 +23,6 @@
  * - remove NOPs
  */
 
-#include "php.h"
 #include "Optimizer/zend_optimizer.h"
 #include "Optimizer/zend_optimizer_internal.h"
 #include "zend_API.h"
@@ -89,17 +88,6 @@ void zend_optimizer_nop_removal(zend_op_array *op_array, zend_optimizer_ctx *ctx
 				op_array->try_catch_array[j].finally_op -= shiftlist[op_array->try_catch_array[j].finally_op];
 				op_array->try_catch_array[j].finally_end -= shiftlist[op_array->try_catch_array[j].finally_end];
 			}
-		}
-
-		/* update early binding list */
-		if (op_array->fn_flags & ZEND_ACC_EARLY_BINDING) {
-			uint32_t *opline_num = &ctx->script->first_early_binding_opline;
-
-			ZEND_ASSERT(op_array == &ctx->script->main_op_array);
-			do {
-				*opline_num -= shiftlist[*opline_num];
-				opline_num = &op_array->opcodes[*opline_num].result.opline_num;
-			} while (*opline_num != (uint32_t)-1);
 		}
 	}
 	free_alloca(shiftlist, use_heap);

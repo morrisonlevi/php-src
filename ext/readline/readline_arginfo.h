@@ -1,5 +1,5 @@
 /* This is a generated file, edit the .stub.php file instead.
- * Stub hash: 226b138a99e3e32aea90cbb5c44446ac7c16db71 */
+ * Stub hash: 64d630be9ea75d584a4a999dd4d4c6bc769f5aca */
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_readline, 0, 0, MAY_BE_STRING|MAY_BE_FALSE)
 	ZEND_ARG_TYPE_INFO_WITH_DEFAULT_VALUE(0, prompt, IS_STRING, 1, "null")
@@ -58,7 +58,6 @@ ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_readline_on_new_line, 0, 0, IS_V
 ZEND_END_ARG_INFO()
 #endif
 
-
 ZEND_FUNCTION(readline);
 ZEND_FUNCTION(readline_info);
 ZEND_FUNCTION(readline_add_history);
@@ -84,7 +83,6 @@ ZEND_FUNCTION(readline_redisplay);
 #if HAVE_RL_CALLBACK_READ_CHAR && HAVE_RL_ON_NEW_LINE
 ZEND_FUNCTION(readline_on_new_line);
 #endif
-
 
 static const zend_function_entry ext_functions[] = {
 	ZEND_FE(readline, arginfo_readline)
@@ -114,3 +112,8 @@ static const zend_function_entry ext_functions[] = {
 #endif
 	ZEND_FE_END
 };
+
+static void register_readline_symbols(int module_number)
+{
+	REGISTER_STRING_CONSTANT("READLINE_LIB", READLINE_LIB, CONST_PERSISTENT);
+}

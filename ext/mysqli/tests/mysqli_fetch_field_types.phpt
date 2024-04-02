@@ -1,13 +1,14 @@
 --TEST--
 mysqli_fetch_field() - data types/field->type
+--EXTENSIONS--
+mysqli
 --SKIPIF--
 <?php
-require_once('skipif.inc');
-require_once('skipifconnectfailure.inc');
+require_once 'skipifconnectfailure.inc';
 ?>
 --FILE--
 <?php
-    require('table.inc');
+    require 'table.inc';
 
     function mysqli_field_datatypes($link, $sql_type, $php_value, $php_type, $datatypes, $default_charset="latin1") {
         if (!mysqli_query($link, "DROP TABLE IF EXISTS test")) {
@@ -109,7 +110,7 @@ require_once('skipifconnectfailure.inc');
 ?>
 --CLEAN--
 <?php
-    require_once("clean_table.inc");
+    require_once 'clean_table.inc';
 ?>
 --EXPECT--
 done!

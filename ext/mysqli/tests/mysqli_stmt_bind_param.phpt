@@ -1,9 +1,10 @@
 --TEST--
 mysqli_stmt_bind_param()
+--EXTENSIONS--
+mysqli
 --SKIPIF--
 <?php
-require_once('skipif.inc');
-require_once('skipifconnectfailure.inc');
+require_once 'skipifconnectfailure.inc';
 ?>
 --FILE--
 <?php
@@ -16,9 +17,7 @@ require_once('skipifconnectfailure.inc');
     in this file and we test mysqli_stmt_bind_result() in the other
     test -- therefore the "duplicate" makes some sense to me.
     */
-    require_once("connect.inc");
-
-    require('table.inc');
+    require 'table.inc';
 
     $stmt = mysqli_stmt_init($link);
     if (!mysqli_stmt_prepare($stmt, "INSERT INTO test(id, label) VALUES (?, ?)"))
@@ -349,7 +348,7 @@ require_once('skipifconnectfailure.inc');
         printf("[2002] [%d] %s\n", mysqli_stmt_errno($stmt), mysqli_stmt_error($stmt));
 
     mysqli_stmt_close($stmt);
-    include("table.inc");
+    include 'table.inc';
 
     if (!$stmt = mysqli_stmt_init($link))
         printf("[2003] [%d] %s\n", mysqli_errno($link), mysqli_error($link));
@@ -410,7 +409,7 @@ require_once('skipifconnectfailure.inc');
 ?>
 --CLEAN--
 <?php
-    require_once("clean_table.inc");
+    require_once 'clean_table.inc';
 ?>
 --EXPECT--
 The number of variables must match the number of parameters in the prepared statement

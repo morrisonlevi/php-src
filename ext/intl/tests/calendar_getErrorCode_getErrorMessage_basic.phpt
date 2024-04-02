@@ -2,16 +2,14 @@
 IntlCalendar::getErrorCode(), ::getErrorMessage() basic test
 --INI--
 date.timezone=Atlantic/Azores
---SKIPIF--
-<?php
-if (!extension_loaded('intl'))
-    die('skip intl extension not enabled');
+--EXTENSIONS--
+intl
 --FILE--
 <?php
 ini_set("intl.error_level", E_WARNING);
 ini_set("intl.default_locale", "nl");
 
-$intlcal = new IntlGregorianCalendar(2012, 1, 29);
+$intlcal = IntlGregorianCalendar::createFromDate(2012, 1, 29);
 var_dump(
         $intlcal->getErrorCode(),
         intlcal_get_error_code($intlcal),

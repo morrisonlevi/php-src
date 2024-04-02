@@ -1,18 +1,21 @@
 --TEST--
 PDO::ATTR_STATEMENT_CLASS
+--EXTENSIONS--
+pdo_mysql
 --SKIPIF--
 <?php
-require_once(__DIR__ . DIRECTORY_SEPARATOR . 'skipif.inc');
-require_once(__DIR__ . DIRECTORY_SEPARATOR . 'mysql_pdo_test.inc');
+require_once __DIR__ . '/inc/mysql_pdo_test.inc';
 MySQLPDOTest::skip();
-$db = MySQLPDOTest::factory();
 ?>
 --FILE--
 <?php
-    require_once(__DIR__ . DIRECTORY_SEPARATOR . 'mysql_pdo_test.inc');
+    require_once __DIR__ . '/inc/mysql_pdo_test.inc';
     $db = MySQLPDOTest::factory();
     $db->setAttribute(PDO::ATTR_STRINGIFY_FETCHES, true);
-    MySQLPDOTest::createTestTable($db);
+
+    $table = 'pdo_mysql_attr_statement_class';
+
+    MySQLPDOTest::createTestTable($table, $db);
 
     $default =  $db->getAttribute(PDO::ATTR_STATEMENT_CLASS);
     var_dump($default);
@@ -93,23 +96,23 @@ $db = MySQLPDOTest::factory();
         printf("[008] Expecting boolean/true got %s\n", var_export($tmp, true));
 
     var_dump($db->getAttribute(PDO::ATTR_STATEMENT_CLASS));
-    $stmt = $db->query('SELECT id, label FROM test ORDER BY id ASC LIMIT 2');
+    $stmt = $db->query("SELECT id, label FROM {$table} ORDER BY id ASC LIMIT 2");
 
     class mystatement5 extends mystatement4 {
-        public function fetchAll($fetch_style = 1, ...$fetch_args) {
-            return "no data :)";
+        public function fetchAll($fetch_style = 1, ...$fetch_args): array {
+            return [];
         }
     }
 
     if (true !== ($tmp = $db->setAttribute(PDO::ATTR_STATEMENT_CLASS, array('mystatement5', array('mystatement5')))))
         printf("[009] Expecting boolean/true got %s\n", var_export($tmp, true));
-    $stmt = $db->query('SELECT id, label FROM test ORDER BY id ASC LIMIT 2');
+    $stmt = $db->query("SELECT id, label FROM {$table} ORDER BY id ASC LIMIT 2");
     var_dump($stmt->fetchAll());
 
     if (true !== ($tmp = $db->setAttribute(PDO::ATTR_STATEMENT_CLASS, array('PDOStatement'))))
         printf("[010] Expecting boolean/true got %s\n", var_export($tmp, true));
 
-    $stmt = $db->query('SELECT id, label FROM test ORDER BY id ASC LIMIT 1');
+    $stmt = $db->query("SELECT id, label FROM {$table} ORDER BY id ASC LIMIT 1");
     var_dump($stmt->fetchAll());
 
     // Yes, this is a fatal error and I want it to fail.
@@ -117,11 +120,16 @@ $db = MySQLPDOTest::factory();
     }
     try {
         $db->setAttribute(PDO::ATTR_STATEMENT_CLASS, ['mystatement6', ['mystatement6']]);
-        $stmt = $db->query('SELECT id, label FROM test ORDER BY id ASC LIMIT 1');
+        $stmt = $db->query("SELECT id, label FROM {$table} ORDER BY id ASC LIMIT 1");
     } catch (\Error $e) {
         echo get_class($e), ': ', $e->getMessage(), \PHP_EOL;
     }
-
+?>
+--CLEAN--
+<?php
+require_once __DIR__ . '/inc/mysql_pdo_test.inc';
+$db = MySQLPDOTest::factory();
+$db->query('DROP TABLE IF EXISTS pdo_mysql_attr_statement_class');
 ?>
 --EXPECT--
 array(1) {
@@ -146,7 +154,8 @@ mystatement4
 string(6) "param1"
 mystatement5
 string(12) "mystatement5"
-string(10) "no data :)"
+array(0) {
+}
 array(1) {
   [0]=>
   array(4) {

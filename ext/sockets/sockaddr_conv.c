@@ -9,9 +9,9 @@
 #include <arpa/inet.h>
 #endif
 
-extern int php_string_to_if_index(const char *val, unsigned *out);
+extern zend_result php_string_to_if_index(const char *val, unsigned *out);
 
-#if HAVE_IPV6
+#ifdef HAVE_IPV6
 /* Sets addr by hostname, or by ip in string form (AF_INET6) */
 int php_set_inet6_addr(struct sockaddr_in6 *sin6, char *string, php_socket *php_sock) /* {{{ */
 {
@@ -29,7 +29,7 @@ int php_set_inet6_addr(struct sockaddr_in6 *sin6, char *string, php_socket *php_
 
 		memset(&hints, 0, sizeof(struct addrinfo));
 		hints.ai_family = AF_INET6;
-#if HAVE_AI_V4MAPPED
+#ifdef AI_V4MAPPED
 		hints.ai_flags = AI_V4MAPPED | AI_ADDRCONFIG;
 #else
 		hints.ai_flags = AI_ADDRCONFIG;
@@ -60,10 +60,12 @@ int php_set_inet6_addr(struct sockaddr_in6 *sin6, char *string, php_socket *php_
 
 	}
 
-	if (scope++) {
+	if (scope) {
 		zend_long lval = 0;
 		double dval = 0;
 		unsigned scope_id = 0;
+
+		scope++;
 
 		if (IS_LONG == is_numeric_string(scope, strlen(scope), &lval, &dval, 0)) {
 			if (lval > 0 && (zend_ulong)lval <= UINT_MAX) {
@@ -87,7 +89,7 @@ int php_set_inet_addr(struct sockaddr_in *sin, char *string, php_socket *php_soc
 	struct in_addr tmp;
 	struct hostent *host_entry;
 
-	if (inet_aton(string, &tmp)) {
+	if (inet_pton(AF_INET, string, &tmp)) {
 		sin->sin_addr.s_addr = tmp.s_addr;
 	} else {
 		if (strlen(string) > MAXFQDNLEN || ! (host_entry = php_network_gethostbyname(string))) {
@@ -123,7 +125,7 @@ int php_set_inet46_addr(php_sockaddr_storage *ss, socklen_t *ss_len, char *strin
 			return 1;
 		}
 	}
-#if HAVE_IPV6
+#ifdef HAVE_IPV6
 	else if (php_sock->type == AF_INET6) {
 		struct sockaddr_in6 t = {0};
 		if (php_set_inet6_addr(&t, string, php_sock)) {

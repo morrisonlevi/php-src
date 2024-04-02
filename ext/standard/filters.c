@@ -5,7 +5,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -297,8 +297,7 @@ static php_conv_err_t php_conv_base64_encode_flush(php_conv_base64_encode *inst,
 				if (ocnt < inst->lbchars_len) {
 					return PHP_CONV_ERR_TOO_BIG;
 				}
-				memcpy(pd, inst->lbchars, inst->lbchars_len);
-				pd += inst->lbchars_len;
+				pd = zend_mempcpy(pd, inst->lbchars, inst->lbchars_len);
 				ocnt -= inst->lbchars_len;
 				line_ccnt = inst->line_len;
 			}
@@ -352,8 +351,7 @@ static php_conv_err_t php_conv_base64_encode_convert(php_conv_base64_encode *ins
 					if (ocnt < inst->lbchars_len) {
 						return PHP_CONV_ERR_TOO_BIG;
 					}
-					memcpy(pd, inst->lbchars, inst->lbchars_len);
-					pd += inst->lbchars_len;
+					pd = zend_mempcpy(pd, inst->lbchars, inst->lbchars_len);
 					ocnt -= inst->lbchars_len;
 					line_ccnt = inst->line_len;
 				}
@@ -379,8 +377,7 @@ static php_conv_err_t php_conv_base64_encode_convert(php_conv_base64_encode *ins
 					if (ocnt < inst->lbchars_len) {
 						return PHP_CONV_ERR_TOO_BIG;
 					}
-					memcpy(pd, inst->lbchars, inst->lbchars_len);
-					pd += inst->lbchars_len;
+					pd = zend_mempcpy(pd, inst->lbchars, inst->lbchars_len);
 					ocnt -= inst->lbchars_len;
 					line_ccnt = inst->line_len;
 				}
@@ -407,8 +404,7 @@ static php_conv_err_t php_conv_base64_encode_convert(php_conv_base64_encode *ins
 				err = PHP_CONV_ERR_TOO_BIG;
 				goto out;
 			}
-			memcpy(pd, inst->lbchars, inst->lbchars_len);
-			pd += inst->lbchars_len;
+			pd = zend_mempcpy(pd, inst->lbchars, inst->lbchars_len);
 			ocnt -= inst->lbchars_len;
 			line_ccnt = inst->line_len;
 		}
@@ -721,8 +717,7 @@ static php_conv_err_t php_conv_qprint_encode_convert(php_conv_qprint_encode *ins
 				ocnt--;
 				line_ccnt--;
 
-				memcpy(pd, inst->lbchars, inst->lbchars_len);
-				pd += inst->lbchars_len;
+				pd = zend_mempcpy(pd, inst->lbchars, inst->lbchars_len);
 				ocnt -= inst->lbchars_len;
 				line_ccnt = inst->line_len;
 			} else {
@@ -778,8 +773,7 @@ static php_conv_err_t php_conv_qprint_encode_convert(php_conv_qprint_encode *ins
 				ocnt--;
 				line_ccnt--;
 
-				memcpy(pd, inst->lbchars, inst->lbchars_len);
-				pd += inst->lbchars_len;
+				pd = zend_mempcpy(pd, inst->lbchars, inst->lbchars_len);
 				ocnt -= inst->lbchars_len;
 				line_ccnt = inst->line_len;
 			}
@@ -801,8 +795,7 @@ static php_conv_err_t php_conv_qprint_encode_convert(php_conv_qprint_encode *ins
 				ocnt--;
 				line_ccnt--;
 
-				memcpy(pd, inst->lbchars, inst->lbchars_len);
-				pd += inst->lbchars_len;
+				pd = zend_mempcpy(pd, inst->lbchars, inst->lbchars_len);
 				ocnt -= inst->lbchars_len;
 				line_ccnt = inst->line_len;
 			}
@@ -939,7 +932,7 @@ static php_conv_err_t php_conv_qprint_decode_convert(php_conv_qprint_decode *ins
 					ps++, icnt--;
 					break;
 				} else if (!inst->lbchars && lb_cnt == 0 && *ps == '\n') {
-					/* auto-detect line endings, looks like unix-lineendings, not to spec, but it is seem in the wild, a lot */
+					/* auto-detect line endings, looks like unix-lineendings, not to spec, but it is seen in the wild, a lot */
 					lb_cnt = lb_ptr = 0;
 					scan_stat = 0;
 					ps++, icnt--;
@@ -951,7 +944,7 @@ static php_conv_err_t php_conv_qprint_decode_convert(php_conv_qprint_decode *ins
 					ps++, icnt--;
 					break;
 				}
-			} /* break is missing intentionally */
+			} ZEND_FALLTHROUGH;
 
 			case 2: {
 				if (icnt == 0) {
@@ -968,7 +961,7 @@ static php_conv_err_t php_conv_qprint_decode_convert(php_conv_qprint_decode *ins
 				if (scan_stat != 3) {
 					break;
 				}
-			} /* break is missing intentionally */
+			} ZEND_FALLTHROUGH;
 
 			case 3: {
 				if (ocnt < 1) {
@@ -1187,15 +1180,13 @@ static php_conv *php_conv_open(int conv_mode, const HashTable *options, int pers
 			}
 			retval = pemalloc(sizeof(php_conv_base64_encode), persistent);
 			if (lbchars != NULL) {
-				if (php_conv_base64_encode_ctor((php_conv_base64_encode *)retval, line_len, lbchars, lbchars_len, 1, persistent)) {
-					if (lbchars != NULL) {
-						pefree(lbchars, 0);
-					}
+				if (php_conv_base64_encode_ctor((php_conv_base64_encode *)retval, line_len, lbchars, lbchars_len, 1, persistent) != PHP_CONV_ERR_SUCCESS) {
+					pefree(lbchars, 0);
 					goto out_failure;
 				}
 				pefree(lbchars, 0);
 			} else {
-				if (php_conv_base64_encode_ctor((php_conv_base64_encode *)retval, 0, NULL, 0, 0, persistent)) {
+				if (php_conv_base64_encode_ctor((php_conv_base64_encode *)retval, 0, NULL, 0, 0, persistent) != PHP_CONV_ERR_SUCCESS) {
 					goto out_failure;
 				}
 			}
@@ -1239,13 +1230,13 @@ static php_conv *php_conv_open(int conv_mode, const HashTable *options, int pers
 			}
 			retval = pemalloc(sizeof(php_conv_qprint_encode), persistent);
 			if (lbchars != NULL) {
-				if (php_conv_qprint_encode_ctor((php_conv_qprint_encode *)retval, line_len, lbchars, lbchars_len, 1, opts, persistent)) {
+				if (php_conv_qprint_encode_ctor((php_conv_qprint_encode *)retval, line_len, lbchars, lbchars_len, 1, opts, persistent) != PHP_CONV_ERR_SUCCESS) {
 					pefree(lbchars, 0);
 					goto out_failure;
 				}
 				pefree(lbchars, 0);
 			} else {
-				if (php_conv_qprint_encode_ctor((php_conv_qprint_encode *)retval, 0, NULL, 0, 0, opts, persistent)) {
+				if (php_conv_qprint_encode_ctor((php_conv_qprint_encode *)retval, 0, NULL, 0, 0, opts, persistent) != PHP_CONV_ERR_SUCCESS) {
 					goto out_failure;
 				}
 			}
@@ -1262,13 +1253,13 @@ static php_conv *php_conv_open(int conv_mode, const HashTable *options, int pers
 
 			retval = pemalloc(sizeof(php_conv_qprint_decode), persistent);
 			if (lbchars != NULL) {
-				if (php_conv_qprint_decode_ctor((php_conv_qprint_decode *)retval, lbchars, lbchars_len, 1, persistent)) {
+				if (php_conv_qprint_decode_ctor((php_conv_qprint_decode *)retval, lbchars, lbchars_len, 1, persistent) != PHP_CONV_ERR_SUCCESS) {
 					pefree(lbchars, 0);
 					goto out_failure;
 				}
 				pefree(lbchars, 0);
 			} else {
-				if (php_conv_qprint_decode_ctor((php_conv_qprint_decode *)retval, NULL, 0, 0, persistent)) {
+				if (php_conv_qprint_decode_ctor((php_conv_qprint_decode *)retval, NULL, 0, 0, persistent) != PHP_CONV_ERR_SUCCESS) {
 					goto out_failure;
 				}
 			}
@@ -1301,20 +1292,13 @@ static int php_convert_filter_ctor(php_convert_filter *inst,
 	inst->stub_len = 0;
 
 	if ((inst->cd = php_conv_open(conv_mode, conv_opts, persistent)) == NULL) {
-		goto out_failure;
+		if (inst->filtername != NULL) {
+			pefree(inst->filtername, persistent);
+		}
+		return FAILURE;
 	}
 
 	return SUCCESS;
-
-out_failure:
-	if (inst->cd != NULL) {
-		php_conv_dtor(inst->cd);
-		pefree(inst->cd, persistent);
-	}
-	if (inst->filtername != NULL) {
-		pefree(inst->filtername, persistent);
-	}
-	return FAILURE;
 }
 
 static void php_convert_filter_dtor(php_convert_filter *inst)
@@ -1763,6 +1747,8 @@ static size_t php_dechunk(char *buf, size_t len, php_chunked_filter_data *data)
 				if (p == end) {
 					return out_len;
 				}
+				/* TODO: Check if Intentional? */
+				ZEND_FALLTHROUGH;
 			case CHUNK_SIZE_CR:
 				if (*p == '\r') {
 					p++;
@@ -1771,6 +1757,8 @@ static size_t php_dechunk(char *buf, size_t len, php_chunked_filter_data *data)
 						return out_len;
 					}
 				}
+				/* TODO: Check if Intentional? */
+				ZEND_FALLTHROUGH;
 			case CHUNK_SIZE_LF:
 				if (*p == '\n') {
 					p++;
@@ -1786,6 +1774,8 @@ static size_t php_dechunk(char *buf, size_t len, php_chunked_filter_data *data)
 					data->state = CHUNK_ERROR;
 					continue;
 				}
+				/* TODO: Check if Intentional? */
+				ZEND_FALLTHROUGH;
 			case CHUNK_BODY:
 				if ((size_t) (end - p) >= data->chunk_size) {
 					if (p != out) {
@@ -1807,6 +1797,8 @@ static size_t php_dechunk(char *buf, size_t len, php_chunked_filter_data *data)
 					out_len += end - p;
 					return out_len;
 				}
+				/* TODO: Check if Intentional? */
+				ZEND_FALLTHROUGH;
 			case CHUNK_BODY_CR:
 				if (*p == '\r') {
 					p++;
@@ -1815,6 +1807,8 @@ static size_t php_dechunk(char *buf, size_t len, php_chunked_filter_data *data)
 						return out_len;
 					}
 				}
+				/* TODO: Check if Intentional? */
+				ZEND_FALLTHROUGH;
 			case CHUNK_BODY_LF:
 				if (*p == '\n') {
 					p++;

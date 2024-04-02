@@ -5,7 +5,7 @@
   | This source file is subject to version 3.01 of the PHP license,      |
   | that is bundled with this package in the file LICENSE, and is        |
   | available through the world-wide-web at the following url:           |
-  | http://www.php.net/license/3_01.txt                                  |
+  | https://www.php.net/license/3_01.txt                                 |
   | If you did not receive a copy of the PHP license and are unable to   |
   | obtain it through the world-wide-web, please send a note to          |
   | license@php.net so we can mail you a copy immediately.               |
@@ -63,6 +63,7 @@ static int pdo_sqlite_stmt_execute(pdo_stmt_t *stmt)
 
 		case SQLITE_ERROR:
 			sqlite3_reset(S->stmt);
+			ZEND_FALLTHROUGH;
 		case SQLITE_MISUSE:
 		case SQLITE_BUSY:
 		default:
@@ -225,6 +226,7 @@ static int pdo_sqlite_stmt_fetch(pdo_stmt_t *stmt,
 
 		case SQLITE_ERROR:
 			sqlite3_reset(S->stmt);
+			ZEND_FALLTHROUGH;
 		default:
 			pdo_sqlite_error_stmt(stmt);
 			return 0;
@@ -317,24 +319,26 @@ static int pdo_sqlite_stmt_col_meta(pdo_stmt_t *stmt, zend_long colno, zval *ret
 
 	switch (sqlite3_column_type(S->stmt, colno)) {
 		case SQLITE_NULL:
-			add_assoc_string(return_value, "native_type", "null");
+			add_assoc_str(return_value, "native_type", ZSTR_KNOWN(ZEND_STR_NULL_LOWERCASE));
 			add_assoc_long(return_value, "pdo_type", PDO_PARAM_NULL);
 			break;
 
 		case SQLITE_FLOAT:
-			add_assoc_string(return_value, "native_type", "double");
+			add_assoc_str(return_value, "native_type", ZSTR_KNOWN(ZEND_STR_DOUBLE));
 			add_assoc_long(return_value, "pdo_type", PDO_PARAM_STR);
 			break;
 
 		case SQLITE_BLOB:
 			add_next_index_string(&flags, "blob");
+			/* TODO Check this is correct */
+			ZEND_FALLTHROUGH;
 		case SQLITE_TEXT:
-			add_assoc_string(return_value, "native_type", "string");
+			add_assoc_str(return_value, "native_type", ZSTR_KNOWN(ZEND_STR_STRING));
 			add_assoc_long(return_value, "pdo_type", PDO_PARAM_STR);
 			break;
 
 		case SQLITE_INTEGER:
-			add_assoc_string(return_value, "native_type", "integer");
+			add_assoc_str(return_value, "native_type", ZSTR_KNOWN(ZEND_STR_INTEGER));
 			add_assoc_long(return_value, "pdo_type", PDO_PARAM_INT);
 			break;
 	}

@@ -2,10 +2,10 @@
   +----------------------------------------------------------------------+
   | Copyright (c) The PHP Group                                          |
   +----------------------------------------------------------------------+
-  | This source file is subject to version 3.0 of the PHP license,       |
+  | This source file is subject to version 3.01 of the PHP license,      |
   | that is bundled with this package in the file LICENSE, and is        |
   | available through the world-wide-web at the following url:           |
-  | http://www.php.net/license/3_0.txt.                                  |
+  | https://www.php.net/license/3_01.txt                                 |
   | If you did not receive a copy of the PHP license and are unable to   |
   | obtain it through the world-wide-web, please send a note to          |
   | license@php.net so we can mail you a copy immediately.               |
@@ -23,6 +23,8 @@
 #include "ext/standard/info.h"
 #include "pdo/php_pdo.h"
 #include "pdo/php_pdo_driver.h"
+/* this file actually lives in main/ */
+#include "php_odbc_utils.h"
 #include "php_pdo_odbc.h"
 #include "php_pdo_odbc_int.h"
 #include "zend_exceptions.h"
@@ -196,14 +198,14 @@ static bool odbc_handle_preparer(pdo_dbh_t *dbh, zend_string *sql, pdo_stmt_t *s
 
 	if (rc != SQL_SUCCESS) {
 		pdo_odbc_stmt_error("SQLPrepare");
-        if (rc != SQL_SUCCESS_WITH_INFO) {
-            /* clone error information into the db handle */
-            strcpy(H->einfo.last_err_msg, S->einfo.last_err_msg);
-            H->einfo.file = S->einfo.file;
-            H->einfo.line = S->einfo.line;
-            H->einfo.what = S->einfo.what;
-            strcpy(dbh->error_code, stmt->error_code);
-        }
+		if (rc != SQL_SUCCESS_WITH_INFO) {
+			/* clone error information into the db handle */
+			strcpy(H->einfo.last_err_msg, S->einfo.last_err_msg);
+			H->einfo.file = S->einfo.file;
+			H->einfo.line = S->einfo.line;
+			H->einfo.what = S->einfo.what;
+			strcpy(dbh->error_code, stmt->error_code);
+		}
 	}
 
 	if (rc != SQL_SUCCESS && rc != SQL_SUCCESS_WITH_INFO) {
@@ -220,7 +222,7 @@ static zend_long odbc_handle_doer(pdo_dbh_t *dbh, const zend_string *sql)
 	PDO_ODBC_HSTMT	stmt;
 
 	rc = SQLAllocHandle(SQL_HANDLE_STMT, H->dbc, &stmt);
-	if (rc != SQL_SUCCESS) {
+	if (rc != SQL_SUCCESS && rc != SQL_SUCCESS_WITH_INFO) {
 		pdo_odbc_drv_error("SQLAllocHandle: STMT");
 		return -1;
 	}
@@ -333,9 +335,38 @@ static bool odbc_handle_rollback(pdo_dbh_t *dbh)
 static bool odbc_handle_set_attr(pdo_dbh_t *dbh, zend_long attr, zval *val)
 {
 	pdo_odbc_db_handle *H = (pdo_odbc_db_handle *)dbh->driver_data;
+	bool bval;
+
 	switch (attr) {
 		case PDO_ODBC_ATTR_ASSUME_UTF8:
-			H->assume_utf8 = zval_is_true(val);
+			if (!pdo_get_bool_param(&bval, val)) {
+				return false;
+			}
+			H->assume_utf8 = bval;
+			return true;
+		case PDO_ATTR_AUTOCOMMIT:
+			if (!pdo_get_bool_param(&bval, val)) {
+				return false;
+			}
+			if (dbh->in_txn) {
+				pdo_raise_impl_error(dbh, NULL, "HY000", "Cannot change autocommit mode while a transaction is already open");
+				return false;
+			}
+			if (dbh->auto_commit ^ bval) {
+				dbh->auto_commit = bval;
+				RETCODE rc = SQLSetConnectAttr(
+					H->dbc,
+					SQL_ATTR_AUTOCOMMIT,
+					dbh->auto_commit ? (SQLPOINTER) SQL_AUTOCOMMIT_ON : (SQLPOINTER) SQL_AUTOCOMMIT_OFF,
+					SQL_IS_INTEGER
+				);
+				if (rc != SQL_SUCCESS) {
+					pdo_odbc_drv_error(
+						dbh->auto_commit ? "SQLSetConnectAttr AUTOCOMMIT = ON" : "SQLSetConnectAttr AUTOCOMMIT = OFF"
+					);
+					return false;
+				}
+			}
 			return true;
 		default:
 			strcpy(H->einfo.last_err_msg, "Unknown Attribute");
@@ -343,6 +374,21 @@ static bool odbc_handle_set_attr(pdo_dbh_t *dbh, zend_long attr, zval *val)
 			strcpy(H->einfo.last_state, "IM001");
 			return false;
 	}
+}
+
+static int pdo_odbc_get_info_string(pdo_dbh_t *dbh, SQLUSMALLINT type, zval *val)
+{
+	RETCODE rc;
+	SQLSMALLINT out_len;
+	char buf[256];
+	pdo_odbc_db_handle *H = (pdo_odbc_db_handle *)dbh->driver_data;
+	rc = SQLGetInfo(H->dbc, type, (SQLPOINTER)buf, sizeof(buf), &out_len);
+	/* returning -1 is treated as an error, not as unsupported */
+	if (rc != SQL_SUCCESS && rc != SQL_SUCCESS_WITH_INFO) {
+		return -1;
+	}
+	ZVAL_STRINGL(val, buf, out_len);
+	return 1;
 }
 
 static int odbc_handle_get_attr(pdo_dbh_t *dbh, zend_long attr, zval *val)
@@ -354,17 +400,49 @@ static int odbc_handle_get_attr(pdo_dbh_t *dbh, zend_long attr, zval *val)
 			return 1;
 
 		case PDO_ATTR_SERVER_VERSION:
+			return pdo_odbc_get_info_string(dbh, SQL_DBMS_VER, val);
+		case PDO_ATTR_SERVER_INFO:
+			return pdo_odbc_get_info_string(dbh, SQL_DBMS_NAME, val);
 		case PDO_ATTR_PREFETCH:
 		case PDO_ATTR_TIMEOUT:
-		case PDO_ATTR_SERVER_INFO:
 		case PDO_ATTR_CONNECTION_STATUS:
 			break;
 		case PDO_ODBC_ATTR_ASSUME_UTF8:
-			ZVAL_BOOL(val, H->assume_utf8 ? 1 : 0);
+			ZVAL_BOOL(val, H->assume_utf8);
 			return 1;
-
+		case PDO_ATTR_AUTOCOMMIT:
+			ZVAL_BOOL(val, dbh->auto_commit);
+			return 1;
 	}
 	return 0;
+}
+
+static zend_result odbc_handle_check_liveness(pdo_dbh_t *dbh)
+{
+	RETCODE ret;
+	UCHAR d_name[32];
+	SQLSMALLINT len;
+	SQLUINTEGER dead = SQL_CD_FALSE;
+	pdo_odbc_db_handle *H = (pdo_odbc_db_handle *)dbh->driver_data;
+
+	ret = SQLGetConnectAttr(H->dbc, SQL_ATTR_CONNECTION_DEAD, &dead, 0, NULL);
+	if (ret == SQL_SUCCESS && dead == SQL_CD_TRUE) {
+		/* Bail early here, since we know it's gone */
+		return FAILURE;
+	}
+	/*
+	 * If the driver doesn't support SQL_ATTR_CONNECTION_DEAD, or if
+	 * it returns false (which could be a false positive), fall back
+	 * to using SQL_DATA_SOURCE_READ_ONLY, which isn't semantically
+	 * correct, but works with many drivers.
+	 */
+	ret = SQLGetInfo(H->dbc, SQL_DATA_SOURCE_READ_ONLY, d_name,
+		sizeof(d_name), &len);
+
+	if (ret != SQL_SUCCESS || len == 0) {
+		return FAILURE;
+	}
+	return SUCCESS;
 }
 
 static const struct pdo_dbh_methods odbc_methods = {
@@ -379,7 +457,7 @@ static const struct pdo_dbh_methods odbc_methods = {
 	NULL,	/* last id */
 	pdo_odbc_fetch_error_func,
 	odbc_handle_get_attr,	/* get attr */
-	NULL, /* check_liveness */
+	odbc_handle_check_liveness, /* check_liveness */
 	NULL, /* get_driver_methods */
 	NULL, /* request_shutdown */
 	NULL, /* in transaction, use PDO's internal tracking mechanism */
@@ -397,7 +475,12 @@ static int pdo_odbc_handle_factory(pdo_dbh_t *dbh, zval *driver_options) /* {{{ 
 
 	dbh->driver_data = H;
 
-	SQLAllocHandle(SQL_HANDLE_ENV, SQL_NULL_HANDLE, &H->env);
+	rc = SQLAllocHandle(SQL_HANDLE_ENV, SQL_NULL_HANDLE, &H->env);
+	if (rc != SQL_SUCCESS && rc != SQL_SUCCESS_WITH_INFO) {
+		pdo_odbc_drv_error("SQLAllocHandle: ENV");
+		goto fail;
+	}
+
 	rc = SQLSetEnvAttr(H->env, SQL_ATTR_ODBC_VERSION, (void*)SQL_OV_ODBC3, 0);
 
 	if (rc != SQL_SUCCESS && rc != SQL_SUCCESS_WITH_INFO) {
@@ -417,7 +500,7 @@ static int pdo_odbc_handle_factory(pdo_dbh_t *dbh, zval *driver_options) /* {{{ 
 
 	rc = SQLAllocHandle(SQL_HANDLE_DBC, H->env, &H->dbc);
 	if (rc != SQL_SUCCESS && rc != SQL_SUCCESS_WITH_INFO) {
-		pdo_odbc_drv_error("SQLAllocHandle (DBC)");
+		pdo_odbc_drv_error("SQLAllocHandle: DBC");
 		goto fail;
 	}
 
@@ -436,19 +519,81 @@ static int pdo_odbc_handle_factory(pdo_dbh_t *dbh, zval *driver_options) /* {{{ 
 		goto fail;
 	}
 
-	if (strchr(dbh->data_source, ';')) {
+	/* a connection string may have = but not ; - i.e. "DSN=PHP" */
+	if (strchr(dbh->data_source, '=')) {
 		SQLCHAR dsnbuf[1024];
 		SQLSMALLINT dsnbuflen;
 
 		use_direct = 1;
 
-		/* Force UID and PWD to be set in the DSN */
-		if (dbh->username && *dbh->username && !strstr(dbh->data_source, "uid")
-				&& !strstr(dbh->data_source, "UID")) {
-			char *dsn;
-			spprintf(&dsn, 0, "%s;UID=%s;PWD=%s", dbh->data_source, dbh->username, dbh->password);
+		size_t db_len = strlen(dbh->data_source);
+		bool use_uid_arg = dbh->username != NULL && !php_memnistr(dbh->data_source, "uid=", strlen("uid="), dbh->data_source + db_len);
+		bool use_pwd_arg = dbh->password != NULL && !php_memnistr(dbh->data_source, "pwd=", strlen("pwd="), dbh->data_source + db_len);
+
+		if (use_uid_arg || use_pwd_arg) {
+			char *db = (char*) emalloc(db_len + 1);
+			strcpy(db, dbh->data_source);
+			char *db_end = db + db_len;
+			db_end--;
+			if ((unsigned char)*(db_end) == ';') {
+				*db_end = '\0';
+			}
+
+			char *uid = NULL, *pwd = NULL, *dsn = NULL;
+			bool should_quote_uid, should_quote_pwd;
+			size_t new_dsn_size;
+
+			if (use_uid_arg) {
+				should_quote_uid = !php_odbc_connstr_is_quoted(dbh->username) && php_odbc_connstr_should_quote(dbh->username);
+				if (should_quote_uid) {
+					size_t estimated_length = php_odbc_connstr_estimate_quote_length(dbh->username);
+					uid = emalloc(estimated_length);
+					php_odbc_connstr_quote(uid, dbh->username, estimated_length);
+				} else {
+					uid = dbh->username;
+				}
+
+				if (!use_pwd_arg) {
+					new_dsn_size = strlen(db) + strlen(uid) + strlen(";UID=;") + 1;
+					dsn = pemalloc(new_dsn_size, dbh->is_persistent);
+					snprintf(dsn, new_dsn_size, "%s;UID=%s;", db, uid);
+				}
+			}
+
+			if (use_pwd_arg) {
+				should_quote_pwd = !php_odbc_connstr_is_quoted(dbh->password) && php_odbc_connstr_should_quote(dbh->password);
+				if (should_quote_pwd) {
+					size_t estimated_length = php_odbc_connstr_estimate_quote_length(dbh->password);
+					pwd = emalloc(estimated_length);
+					php_odbc_connstr_quote(pwd, dbh->password, estimated_length);
+				} else {
+					pwd = dbh->password;
+				}
+
+				if (!use_uid_arg) {
+					new_dsn_size = strlen(db) + strlen(pwd) + strlen(";PWD=;") + 1;
+					dsn = pemalloc(new_dsn_size, dbh->is_persistent);
+					snprintf(dsn, new_dsn_size, "%s;PWD=%s;", db, pwd);
+				}
+			}
+
+			if (use_uid_arg && use_pwd_arg) {
+				new_dsn_size = strlen(db)
+					+ strlen(uid) + strlen(pwd)
+					+ strlen(";UID=;PWD=;") + 1;
+				dsn = pemalloc(new_dsn_size, dbh->is_persistent);
+				snprintf(dsn, new_dsn_size, "%s;UID=%s;PWD=%s;", db, uid, pwd);
+			}
+
 			pefree((char*)dbh->data_source, dbh->is_persistent);
 			dbh->data_source = dsn;
+			if (uid && should_quote_uid) {
+				efree(uid);
+			}
+			if (pwd && should_quote_pwd) {
+				efree(pwd);
+			}
+			efree(db);
 		}
 
 		rc = SQLDriverConnect(H->dbc, NULL, (SQLCHAR *) dbh->data_source, strlen(dbh->data_source),

@@ -5,7 +5,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -43,15 +43,16 @@ typedef enum
   IMAGE_FILETYPE_XBM,
   IMAGE_FILETYPE_ICO,
   IMAGE_FILETYPE_WEBP,
-/* WHEN EXTENDING: PLEASE ALSO REGISTER IN image.c:PHP_MINIT_FUNCTION(imagetypes) */
+  IMAGE_FILETYPE_AVIF,
+/* WHEN EXTENDING: PLEASE ALSO REGISTER IN basic_function.stub.php */
   IMAGE_FILETYPE_COUNT
 } image_filetype;
 /* }}} */
 
-PHP_MINIT_FUNCTION(imagetypes);
-
 PHPAPI int php_getimagetype(php_stream *stream, const char *input, char *filetype);
 
 PHPAPI char * php_image_type_to_mime_type(int image_type);
+
+PHPAPI bool php_is_image_avif(php_stream *stream);
 
 #endif /* PHP_IMAGE_H */

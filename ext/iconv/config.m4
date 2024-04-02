@@ -30,7 +30,8 @@ if test "$PHP_ICONV" != "no"; then
       AC_MSG_CHECKING([if using GNU libiconv])
       AC_RUN_IFELSE([AC_LANG_SOURCE([[
 #include <iconv.h>
-int main() {
+#include <stdio.h>
+int main(void) {
   printf("%d", _libiconv_version);
   return 0;
 }
@@ -71,7 +72,6 @@ int main() {
         ;;
 
       bsd [)]
-        AC_DEFINE([HAVE_BSD_ICONV],1,[Konstantin Chuguev's iconv implementation])
         AC_DEFINE([PHP_ICONV_IMPL],["BSD iconv"],[Which iconv implementation to use])
         ;;
 
@@ -90,7 +90,7 @@ int main() {
 #include <iconv.h>
 #include <errno.h>
 
-int main() {
+int main(void) {
   iconv_t cd;
   cd = iconv_open( "*blahblah*", "*blahblahblah*" );
   if (cd == (iconv_t)(-1)) {
@@ -117,7 +117,7 @@ int main() {
 #include <iconv.h>
 #include <stdlib.h>
 
-int main() {
+int main(void) {
   iconv_t cd = iconv_open( "UTF-8//IGNORE", "UTF-8" );
   if(cd == (iconv_t)-1) {
     return 1;
@@ -148,7 +148,7 @@ int main() {
 
     PHP_NEW_EXTENSION(iconv, iconv.c, $ext_shared,, [-DZEND_ENABLE_STATIC_TSRMLS_CACHE=1])
     PHP_SUBST(ICONV_SHARED_LIBADD)
-    PHP_INSTALL_HEADERS([ext/iconv/])
+    PHP_INSTALL_HEADERS([ext/iconv], [php_iconv.h])
   else
     AC_MSG_ERROR(Please reinstall the iconv library.)
   fi

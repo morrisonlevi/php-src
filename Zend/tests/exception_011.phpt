@@ -1,8 +1,7 @@
 --TEST--
 Test exception doesn't cause RSHUTDOWN bypass, variation 0
 --INI--
-assert.bail=1
-assert.exception=1
+zend.assertions=1
 --FILE--
 <?php
 

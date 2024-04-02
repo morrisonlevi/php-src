@@ -1,7 +1,7 @@
 --TEST--
 numfmt creation failures
---SKIPIF--
-<?php if( !extension_loaded( 'intl' ) ) print 'skip'; ?>
+--EXTENSIONS--
+intl
 --FILE--
 <?php
 
@@ -107,10 +107,26 @@ ArgumentCountError: NumberFormatter::create() expects at least 2 arguments, 0 gi
 Error: NumberFormatter object is already constructed in %s on line %d
 'U_ZERO_ERROR'
 
-IntlException: Constructor failed in %s on line %d
-'numfmt_create: number formatter creation failed: U_UNSUPPORTED_ERROR'
-'numfmt_create: number formatter creation failed: U_UNSUPPORTED_ERROR'
-'numfmt_create: number formatter creation failed: U_UNSUPPORTED_ERROR'
+Deprecated: NumberFormatter::__construct(): Passing null to parameter #1 ($locale) of type string is deprecated in %s on line %d
+
+Deprecated: NumberFormatter::__construct(): Passing null to parameter #2 ($style) of type int is deprecated in %s on line %d
+
+Deprecated: NumberFormatter::create(): Passing null to parameter #1 ($locale) of type string is deprecated in %s on line %d
+
+Deprecated: NumberFormatter::create(): Passing null to parameter #2 ($style) of type int is deprecated in %s on line %d
+
+Deprecated: numfmt_create(): Passing null to parameter #1 ($locale) of type string is deprecated in %s on line %d
+
+Deprecated: numfmt_create(): Passing null to parameter #2 ($style) of type int is deprecated in %s on line %d
+
+ValueError: NumberFormatter::__construct(): Argument #1 ($locale) "%s" is invalid in %s on line %d
+'U_ZERO_ERROR'
+
+ValueError: NumberFormatter::create(): Argument #1 ($locale) "%s" is invalid in %s on line %d
+'U_ZERO_ERROR'
+
+ValueError: numfmt_create(): Argument #1 ($locale) "%s" is invalid in %s on line %d
+'U_ZERO_ERROR'
 
 TypeError: NumberFormatter::__construct(): Argument #1 ($locale) must be of type string, array given in %s on line %d
 'U_ZERO_ERROR'

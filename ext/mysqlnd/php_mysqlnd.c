@@ -5,7 +5,7 @@
   | This source file is subject to version 3.01 of the PHP license,      |
   | that is bundled with this package in the file LICENSE, and is        |
   | available through the world-wide-web at the following url:           |
-  | http://www.php.net/license/3_01.txt                                  |
+  | https://www.php.net/license/3_01.txt                                 |
   | If you did not receive a copy of the PHP license and are unable to   |
   | obtain it through the world-wide-web, please send a note to          |
   | license@php.net so we can mail you a copy immediately.               |
@@ -15,6 +15,9 @@
   +----------------------------------------------------------------------+
 */
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 #include "php.h"
 #include "mysqlnd.h"
 #include "mysqlnd_priv.h"
@@ -31,7 +34,7 @@ mysqlnd_minfo_print_hash(zval *values)
 	zval *values_entry;
 	zend_string	*string_key;
 
-	ZEND_HASH_FOREACH_STR_KEY_VAL(Z_ARRVAL_P(values), string_key, values_entry) {
+	ZEND_HASH_MAP_FOREACH_STR_KEY_VAL(Z_ARRVAL_P(values), string_key, values_entry) {
 		convert_to_string(values_entry);
 		php_info_print_table_row(2, ZSTR_VAL(string_key), Z_STRVAL_P(values_entry));
 	} ZEND_HASH_FOREACH_END();
@@ -63,7 +66,7 @@ mysqlnd_minfo_dump_api_plugins(smart_str * buffer)
 	HashTable *ht = mysqlnd_reverse_api_get_api_list();
 	MYSQLND_REVERSE_API *ext;
 
-	ZEND_HASH_FOREACH_PTR(ht, ext) {
+	ZEND_HASH_MAP_FOREACH_PTR(ht, ext) {
 		if (buffer->s) {
 			smart_str_appendc(buffer, ',');
 		}
@@ -79,7 +82,7 @@ PHP_MINFO_FUNCTION(mysqlnd)
 	char buf[32];
 
 	php_info_print_table_start();
-	php_info_print_table_header(2, "mysqlnd", "enabled");
+	php_info_print_table_row(2, "mysqlnd", "enabled");
 	php_info_print_table_row(2, "Version", mysqlnd_get_client_info());
 	php_info_print_table_row(2, "Compression",
 #ifdef MYSQLND_COMPRESSION_ENABLED
@@ -157,9 +160,7 @@ static PHP_GINIT_FUNCTION(mysqlnd)
 /* {{{ PHP_INI_MH */
 static PHP_INI_MH(OnUpdateNetCmdBufferSize)
 {
-	zend_long long_value;
-
-	ZEND_ATOL(long_value, ZSTR_VAL(new_value));
+	zend_long long_value = ZEND_ATOL(ZSTR_VAL(new_value));
 	if (long_value < MYSQLND_NET_CMD_BUFFER_MIN_SIZE) {
 		return FAILURE;
 	}

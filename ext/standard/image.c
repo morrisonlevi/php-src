@@ -5,7 +5,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -17,17 +17,18 @@
 
 #include "php.h"
 #include <stdio.h>
-#if HAVE_FCNTL_H
+#ifdef HAVE_FCNTL_H
 #include <fcntl.h>
 #endif
 #include "fopen_wrappers.h"
 #include "ext/standard/fsock.h"
-#if HAVE_UNISTD_H
+#include "libavifinfo/avifinfo.h"
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
 #include "php_image.h"
 
-#if HAVE_ZLIB && !defined(COMPILE_DL_ZLIB)
+#if defined(HAVE_ZLIB) && !defined(COMPILE_DL_ZLIB)
 #include "zlib.h"
 #endif
 
@@ -62,37 +63,6 @@ struct gfxinfo {
 	unsigned int bits;
 	unsigned int channels;
 };
-
-/* {{{ PHP_MINIT_FUNCTION(imagetypes)
- * Register IMAGETYPE_<xxx> constants used by GetImageSize(), image_type_to_mime_type, ext/exif */
-PHP_MINIT_FUNCTION(imagetypes)
-{
-	REGISTER_LONG_CONSTANT("IMAGETYPE_GIF",     IMAGE_FILETYPE_GIF,     CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("IMAGETYPE_JPEG",    IMAGE_FILETYPE_JPEG,    CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("IMAGETYPE_PNG",     IMAGE_FILETYPE_PNG,     CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("IMAGETYPE_SWF",     IMAGE_FILETYPE_SWF,     CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("IMAGETYPE_PSD",     IMAGE_FILETYPE_PSD,     CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("IMAGETYPE_BMP",     IMAGE_FILETYPE_BMP,     CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("IMAGETYPE_TIFF_II", IMAGE_FILETYPE_TIFF_II, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("IMAGETYPE_TIFF_MM", IMAGE_FILETYPE_TIFF_MM, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("IMAGETYPE_JPC",     IMAGE_FILETYPE_JPC,     CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("IMAGETYPE_JP2",     IMAGE_FILETYPE_JP2,     CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("IMAGETYPE_JPX",     IMAGE_FILETYPE_JPX,     CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("IMAGETYPE_JB2",     IMAGE_FILETYPE_JB2,     CONST_CS | CONST_PERSISTENT);
-#if HAVE_ZLIB && !defined(COMPILE_DL_ZLIB)
-	REGISTER_LONG_CONSTANT("IMAGETYPE_SWC",     IMAGE_FILETYPE_SWC,     CONST_CS | CONST_PERSISTENT);
-#endif
-	REGISTER_LONG_CONSTANT("IMAGETYPE_IFF",     IMAGE_FILETYPE_IFF,     CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("IMAGETYPE_WBMP",    IMAGE_FILETYPE_WBMP,    CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("IMAGETYPE_JPEG2000",IMAGE_FILETYPE_JPC,     CONST_CS | CONST_PERSISTENT); /* keep alias */
-	REGISTER_LONG_CONSTANT("IMAGETYPE_XBM",     IMAGE_FILETYPE_XBM,     CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("IMAGETYPE_ICO",     IMAGE_FILETYPE_ICO,     CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("IMAGETYPE_WEBP",	IMAGE_FILETYPE_WEBP,	CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("IMAGETYPE_UNKNOWN", IMAGE_FILETYPE_UNKNOWN, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("IMAGETYPE_COUNT",   IMAGE_FILETYPE_COUNT,   CONST_CS | CONST_PERSISTENT);
-	return SUCCESS;
-}
-/* }}} */
 
 /* {{{ php_handle_gif
  * routine to handle GIF files. If only everything were that easy... ;} */
@@ -186,7 +156,7 @@ static unsigned long int php_swf_get_bits (unsigned char* buffer, unsigned int p
 }
 /* }}} */
 
-#if HAVE_ZLIB && !defined(COMPILE_DL_ZLIB)
+#if defined(HAVE_ZLIB) && !defined(COMPILE_DL_ZLIB)
 /* {{{ php_handle_swc */
 static struct gfxinfo *php_handle_swc(php_stream * stream)
 {
@@ -424,6 +394,20 @@ static int php_skip_variable(php_stream * stream)
 }
 /* }}} */
 
+static size_t php_read_stream_all_chunks(php_stream *stream, char *buffer, size_t length)
+{
+	size_t read_total = 0;
+	do {
+		ssize_t read_now = php_stream_read(stream, buffer, length - read_total);
+		read_total += read_now;
+		if (read_now < stream->chunk_size && read_total != length) {
+			return 0;
+		}
+	} while (read_total < length);
+
+	return read_total;
+}
+
 /* {{{ php_read_APP */
 static int php_read_APP(php_stream * stream, unsigned int marker, zval *info)
 {
@@ -440,7 +424,7 @@ static int php_read_APP(php_stream * stream, unsigned int marker, zval *info)
 
 	buffer = emalloc(length);
 
-	if (php_stream_read(stream, buffer, (size_t) length) != length) {
+	if (php_read_stream_all_chunks(stream, buffer, length) != length) {
 		efree(buffer);
 		return 0;
 	}
@@ -617,7 +601,7 @@ static struct gfxinfo *php_handle_jpc(php_stream * stream)
 	result->width = php_read4(stream); /* Xsiz */
 	result->height = php_read4(stream); /* Ysiz */
 
-#if MBO_0
+#ifdef MBO_0
 	php_read4(stream); /* XOsiz */
 	php_read4(stream); /* YOsiz */
 	php_read4(stream); /* XTsiz */
@@ -953,10 +937,10 @@ static int php_get_wbmp(php_stream *stream, struct gfxinfo **result, int check)
 			return 0;
 		}
 		width = (width << 7) | (i & 0x7f);
-        /* maximum valid width for wbmp (although 127 may be a more accurate one) */
-        if (width > 2048) {
-            return 0;
-        }
+		/* maximum valid width for wbmp (although 127 may be a more accurate one) */
+		if (width > 2048) {
+			return 0;
+		}
 	} while (i & 0x80);
 
 	/* get height */
@@ -966,10 +950,10 @@ static int php_get_wbmp(php_stream *stream, struct gfxinfo **result, int check)
 			return 0;
 		}
 		height = (height << 7) | (i & 0x7f);
-        /* maximum valid height for wbmp (although 127 may be a more accurate one) */
-        if (height > 2048) {
-            return 0;
-        }
+		/* maximum valid height for wbmp (although 127 may be a more accurate one) */
+		if (height > 2048) {
+			return 0;
+		}
 	} while (i & 0x80);
 
 	if (!height || !width) {
@@ -1002,11 +986,11 @@ static struct gfxinfo *php_handle_wbmp(php_stream * stream)
 /* {{{ php_get_xbm */
 static int php_get_xbm(php_stream *stream, struct gfxinfo **result)
 {
-    char *fline;
-    char *iname;
-    char *type;
-    int value;
-    unsigned int width = 0, height = 0;
+	char *fline;
+	char *iname;
+	char *type;
+	int value;
+	unsigned int width = 0, height = 0;
 
 	if (result) {
 		*result = NULL;
@@ -1098,6 +1082,12 @@ static struct gfxinfo *php_handle_ico(php_stream * stream)
 		num_icons--;
 	}
 
+	if (0 == result->width)
+		result->width = 256;
+
+	if (0 == result->height)
+		result->height = 256;
+
 	return result;
 }
 /* }}} */
@@ -1148,6 +1138,80 @@ static struct gfxinfo *php_handle_webp(php_stream * stream)
 }
 /* }}} */
 
+/* {{{ User struct and stream read/skip implementations for libavifinfo API */
+struct php_avif_stream {
+	php_stream* stream;
+	uint8_t buffer[AVIFINFO_MAX_NUM_READ_BYTES];
+};
+
+static const uint8_t* php_avif_stream_read(void* stream, size_t num_bytes) {
+	struct php_avif_stream* avif_stream = (struct php_avif_stream*)stream;
+
+	if (avif_stream == NULL || avif_stream->stream == NULL) {
+		return NULL;
+	}
+	if (php_stream_read(avif_stream->stream, (char*)avif_stream->buffer, num_bytes) != num_bytes) {
+		avif_stream->stream = NULL; /* fail further calls */
+		return NULL;
+	}
+	return avif_stream->buffer;
+}
+
+static void php_avif_stream_skip(void* stream, size_t num_bytes) {
+	struct php_avif_stream* avif_stream = (struct php_avif_stream*)stream;
+
+	if (avif_stream == NULL || avif_stream->stream == NULL) {
+		return;
+	}
+	if (php_stream_seek(avif_stream->stream, num_bytes, SEEK_CUR)) {
+		avif_stream->stream = NULL; /* fail further calls */
+	}
+}
+/* }}} */
+
+/* {{{ php_handle_avif
+ * Parse AVIF features
+ *
+ * The stream must be positioned at the beginning of a box, so it does not
+ * matter whether the "ftyp" box was already read by php_is_image_avif() or not.
+ * It will read bytes from the stream until features are found or the file is
+ * declared as invalid. Around 450 bytes are usually enough.
+ * Transforms such as mirror and rotation are not applied on width and height.
+ */
+static struct gfxinfo *php_handle_avif(php_stream * stream) {
+	struct gfxinfo* result = NULL;
+	AvifInfoFeatures features;
+	struct php_avif_stream avif_stream;
+	avif_stream.stream = stream;
+
+	if (AvifInfoGetFeaturesStream(&avif_stream, php_avif_stream_read, php_avif_stream_skip, &features) == kAvifInfoOk) {
+		result = (struct gfxinfo*)ecalloc(1, sizeof(struct gfxinfo));
+		result->width = features.width;
+		result->height = features.height;
+		result->bits = features.bit_depth;
+		result->channels = features.num_channels;
+	}
+	return result;
+}
+/* }}} */
+
+/* {{{ php_is_image_avif
+ * Detect whether an image is of type AVIF
+ *
+ * Only the first "ftyp" box is read.
+ * For a valid file, 12 bytes are usually read, but more might be necessary.
+ */
+bool php_is_image_avif(php_stream* stream) {
+	struct php_avif_stream avif_stream;
+	avif_stream.stream = stream;
+
+	if (AvifInfoIdentifyStream(&avif_stream, php_avif_stream_read, php_avif_stream_skip) == kAvifInfoOk) {
+		return 1;
+	}
+	return 0;
+}
+/* }}} */
+
 /* {{{ php_image_type_to_mime_type
  * Convert internal image_type to mime type */
 PHPAPI char * php_image_type_to_mime_type(int image_type)
@@ -1183,6 +1247,8 @@ PHPAPI char * php_image_type_to_mime_type(int image_type)
 			return "image/vnd.microsoft.icon";
 		case IMAGE_FILETYPE_WEBP:
 			return "image/webp";
+		case IMAGE_FILETYPE_AVIF:
+			return "image/avif";
 		default:
 		case IMAGE_FILETYPE_UNKNOWN:
 			return "application/octet-stream"; /* suppose binary format */
@@ -1265,6 +1331,9 @@ PHP_FUNCTION(image_type_to_extension)
 		case IMAGE_FILETYPE_WEBP:
 			imgext = ".webp";
 			break;
+		case IMAGE_FILETYPE_AVIF:
+			imgext = ".avif";
+			break;
 	}
 
 	if (imgext) {
@@ -1277,10 +1346,10 @@ PHP_FUNCTION(image_type_to_extension)
 
 /* {{{ php_imagetype
    detect filetype from first bytes */
-PHPAPI int php_getimagetype(php_stream * stream, const char *input, char *filetype)
+PHPAPI int php_getimagetype(php_stream *stream, const char *input, char *filetype)
 {
 	char tmp[12];
-    int twelve_bytes_read;
+	int twelve_bytes_read;
 
 	if ( !filetype) filetype = tmp;
 	if((php_stream_read(stream, filetype, 3)) != 3) {
@@ -1341,25 +1410,32 @@ PHPAPI int php_getimagetype(php_stream * stream, const char *input, char *filety
 		return IMAGE_FILETYPE_ICO;
 	}
 
-    /* WBMP may be smaller than 12 bytes, so delay error */
+	/* WBMP may be smaller than 12 bytes, so delay error */
 	twelve_bytes_read = (php_stream_read(stream, filetype+4, 8) == 8);
 
 /* BYTES READ: 12 */
-   	if (twelve_bytes_read && !memcmp(filetype, php_sig_jp2, 12)) {
+	if (twelve_bytes_read && !memcmp(filetype, php_sig_jp2, 12)) {
 		return IMAGE_FILETYPE_JP2;
+	}
+
+	if (!php_stream_rewind(stream) && php_is_image_avif(stream)) {
+		return IMAGE_FILETYPE_AVIF;
 	}
 
 /* AFTER ALL ABOVE FAILED */
 	if (php_get_wbmp(stream, NULL, 1)) {
 		return IMAGE_FILETYPE_WBMP;
 	}
-    if (!twelve_bytes_read) {
+
+	if (!twelve_bytes_read) {
 		php_error_docref(NULL, E_NOTICE, "Error reading from %s!", input);
 		return IMAGE_FILETYPE_UNKNOWN;
-    }
+	}
+
 	if (php_get_xbm(stream, NULL)) {
 		return IMAGE_FILETYPE_XBM;
 	}
+
 	return IMAGE_FILETYPE_UNKNOWN;
 }
 /* }}} */
@@ -1392,7 +1468,7 @@ static void php_getimagesize_from_stream(php_stream *stream, char *input, zval *
 			result = php_handle_swf(stream);
 			break;
 		case IMAGE_FILETYPE_SWC:
-#if HAVE_ZLIB && !defined(COMPILE_DL_ZLIB)
+#if defined(HAVE_ZLIB) && !defined(COMPILE_DL_ZLIB)
 			result = php_handle_swc(stream);
 #else
 			php_error_docref(NULL, E_NOTICE, "The image is a compressed SWF file, but you do not have a static version of the zlib extension enabled");
@@ -1430,6 +1506,9 @@ static void php_getimagesize_from_stream(php_stream *stream, char *input, zval *
 			break;
 		case IMAGE_FILETYPE_WEBP:
 			result = php_handle_webp(stream);
+			break;
+		case IMAGE_FILETYPE_AVIF:
+			result = php_handle_avif(stream);
 			break;
 		default:
 		case IMAGE_FILETYPE_UNKNOWN:

@@ -1,5 +1,7 @@
 --TEST--
 odbc_free_result(): Basic test
+--EXTENSIONS--
+odbc
 --SKIPIF--
 <?php include 'skipif.inc'; ?>
 --FILE--
@@ -9,15 +11,11 @@ include 'config.inc';
 
 $conn = odbc_connect($dsn, $user, $pass);
 
-odbc_exec($conn, 'CREATE DATABASE odbcTEST');
+odbc_exec($conn, 'CREATE TABLE free_result (TEST INT NOT NULL)');
 
-odbc_exec($conn, 'CREATE TABLE FOO (TEST INT NOT NULL)');
-odbc_exec($conn, 'ALTER TABLE FOO ADD PRIMARY KEY (TEST)');
+odbc_exec($conn, 'INSERT INTO free_result VALUES (1), (2)');
 
-odbc_exec($conn, 'INSERT INTO FOO VALUES (1)');
-odbc_exec($conn, 'INSERT INTO FOO VALUES (2)');
-
-$res = odbc_exec($conn, 'SELECT * FROM FOO');
+$res = odbc_exec($conn, 'SELECT * FROM free_result');
 
 var_dump(odbc_fetch_row($res));
 var_dump(odbc_result($res, 'test'));
@@ -37,11 +35,12 @@ try {
 } catch (TypeError $e) {
     echo $e->getMessage(), "\n";
 }
-
-odbc_exec($conn, 'DROP TABLE FOO');
-
-odbc_exec($conn, 'DROP DATABASE odbcTEST');
-
+?>
+--CLEAN--
+<?php
+require 'config.inc';
+$conn = odbc_connect($dsn, $user, $pass);
+odbc_exec($conn, 'DROP TABLE free_result');
 ?>
 --EXPECT--
 bool(true)

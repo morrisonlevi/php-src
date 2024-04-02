@@ -1,5 +1,5 @@
 /* This is a generated file, edit the .stub.php file instead.
- * Stub hash: 6a16fed65c0e488e65c43e7df3bd1744e9349cc7 */
+ * Stub hash: f28dafc2a279f5421cd0d0e668fde0032e996ebc */
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_bcadd, 0, 2, IS_STRING, 0)
 	ZEND_ARG_TYPE_INFO(0, num1, IS_STRING, 0)
@@ -43,7 +43,6 @@ ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_bcscale, 0, 0, IS_LONG, 0)
 	ZEND_ARG_TYPE_INFO_WITH_DEFAULT_VALUE(0, scale, IS_LONG, 1, "null")
 ZEND_END_ARG_INFO()
 
-
 ZEND_FUNCTION(bcadd);
 ZEND_FUNCTION(bcsub);
 ZEND_FUNCTION(bcmul);
@@ -54,7 +53,6 @@ ZEND_FUNCTION(bcpow);
 ZEND_FUNCTION(bcsqrt);
 ZEND_FUNCTION(bccomp);
 ZEND_FUNCTION(bcscale);
-
 
 static const zend_function_entry ext_functions[] = {
 	ZEND_FE(bcadd, arginfo_bcadd)
@@ -69,4 +67,3 @@ static const zend_function_entry ext_functions[] = {
 	ZEND_FE(bcscale, arginfo_bcscale)
 	ZEND_FE_END
 };
-

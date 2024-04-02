@@ -8,7 +8,7 @@
   | This source file is subject to version 3.01 of the PHP license,      |
   | that is bundled with this package in the file LICENSE, and is        |
   | available through the world-wide-web at the following url:           |
-  | http://www.php.net/license/3_01.txt.                                 |
+  | https://www.php.net/license/3_01.txt                                 |
   | If you did not receive a copy of the PHP license and are unable to   |
   | obtain it through the world-wide-web, please send a note to          |
   | license@php.net so we can mail you a copy immediately.               |
@@ -34,7 +34,7 @@
 #include <openssl/ssl.h>
 #include <openssl/pkcs12.h>
 #else
-static int phar_call_openssl_signverify(int is_sign, php_stream *fp, zend_off_t end, char *key, size_t key_len, char **signature, size_t *signature_len);
+static int phar_call_openssl_signverify(int is_sign, php_stream *fp, zend_off_t end, char *key, size_t key_len, char **signature, size_t *signature_len, php_uint32 sig_type);
 #endif
 
 /* for links to relative location, prepend cwd of the entry */
@@ -239,11 +239,11 @@ int phar_mount_entry(phar_archive_data *phar, char *filename, size_t filename_le
 }
 /* }}} */
 
-zend_string *phar_find_in_include_path(char *filename, size_t filename_len, phar_archive_data **pphar) /* {{{ */
+zend_string *phar_find_in_include_path(zend_string *filename, phar_archive_data **pphar) /* {{{ */
 {
 	zend_string *ret;
-	char *path, *fname, *arch, *entry, *test;
-	size_t arch_len, entry_len, fname_len;
+	char *path, *arch, *entry, *test;
+	size_t arch_len, entry_len;
 	phar_archive_data *phar;
 
 	if (pphar) {
@@ -253,39 +253,49 @@ zend_string *phar_find_in_include_path(char *filename, size_t filename_len, phar
 	}
 
 	if (!zend_is_executing() || !PHAR_G(cwd)) {
-		return phar_save_resolve_path(filename, filename_len);
+		return NULL;
 	}
 
-	fname = (char*)zend_get_executed_filename();
-	fname_len = strlen(fname);
+	zend_string *fname = zend_get_executed_filename_ex();
+	if (!fname) {
+		return NULL;
+	}
 
-	if (PHAR_G(last_phar) && !memcmp(fname, "phar://", 7) && fname_len - 7 >= PHAR_G(last_phar_name_len) && !memcmp(fname + 7, PHAR_G(last_phar_name), PHAR_G(last_phar_name_len))) {
+	bool is_file_a_phar_wrapper = zend_string_starts_with_literal_ci(fname, "phar://");
+	size_t length_phar_protocol = strlen("phar://");
+
+	if (
+		PHAR_G(last_phar)
+		&& is_file_a_phar_wrapper
+		&& ZSTR_LEN(fname) - length_phar_protocol >= PHAR_G(last_phar_name_len)
+		&& !memcmp(ZSTR_VAL(fname) + length_phar_protocol, PHAR_G(last_phar_name), PHAR_G(last_phar_name_len))
+	) {
 		arch = estrndup(PHAR_G(last_phar_name), PHAR_G(last_phar_name_len));
 		arch_len = PHAR_G(last_phar_name_len);
 		phar = PHAR_G(last_phar);
 		goto splitted;
 	}
 
-	if (fname_len < 7 || memcmp(fname, "phar://", 7) || SUCCESS != phar_split_fname(fname, strlen(fname), &arch, &arch_len, &entry, &entry_len, 1, 0)) {
-		return phar_save_resolve_path(filename, filename_len);
+	if (!is_file_a_phar_wrapper || SUCCESS != phar_split_fname(ZSTR_VAL(fname), ZSTR_LEN(fname), &arch, &arch_len, &entry, &entry_len, 1, 0)) {
+		return NULL;
 	}
 
 	efree(entry);
 
-	if (*filename == '.') {
+	if (*ZSTR_VAL(filename) == '.') {
 		size_t try_len;
 
 		if (FAILURE == phar_get_archive(&phar, arch, arch_len, NULL, 0, NULL)) {
 			efree(arch);
-			return phar_save_resolve_path(filename, filename_len);
+			return NULL;
 		}
 splitted:
 		if (pphar) {
 			*pphar = phar;
 		}
 
-		try_len = filename_len;
-		test = phar_fix_filepath(estrndup(filename, filename_len), &try_len, 1);
+		try_len = ZSTR_LEN(filename);
+		test = phar_fix_filepath(estrndup(ZSTR_VAL(filename), ZSTR_LEN(filename)), &try_len, 1);
 
 		if (*test == '/') {
 			if (zend_hash_str_exists(&(phar->manifest), test + 1, try_len - 1)) {
@@ -307,10 +317,10 @@ splitted:
 
 	spprintf(&path, MAXPATHLEN + 1 + strlen(PG(include_path)), "phar://%s/%s%c%s", arch, PHAR_G(cwd), DEFAULT_DIR_SEPARATOR, PG(include_path));
 	efree(arch);
-	ret = php_resolve_path(filename, filename_len, path);
+	ret = php_resolve_path(ZSTR_VAL(filename), ZSTR_LEN(filename), path);
 	efree(path);
 
-	if (ret && ZSTR_LEN(ret) > 8 && !strncmp(ZSTR_VAL(ret), "phar://", 7)) {
+	if (ret && zend_string_starts_with_literal_ci(ret, "phar://")) {
 		/* found phar:// */
 		if (SUCCESS != phar_split_fname(ZSTR_VAL(ret), ZSTR_LEN(ret), &arch, &arch_len, &entry, &entry_len, 1, 0)) {
 			return ret;
@@ -1247,7 +1257,7 @@ phar_entry_info *phar_get_entry_info_dir(phar_archive_data *phar, char *path, si
 	}
 
 	if (is_dir) {
-		if (!path_len || path_len == 1) {
+		if (path_len <= 1) {
 			return NULL;
 		}
 		path_len--;
@@ -1290,7 +1300,7 @@ phar_entry_info *phar_get_entry_info_dir(phar_archive_data *phar, char *path, si
 	if (HT_IS_INITIALIZED(&phar->mounted_dirs) && zend_hash_num_elements(&phar->mounted_dirs)) {
 		zend_string *str_key;
 
-		ZEND_HASH_FOREACH_STR_KEY(&phar->mounted_dirs, str_key) {
+		ZEND_HASH_MAP_FOREACH_STR_KEY(&phar->mounted_dirs, str_key) {
 			if (ZSTR_LEN(str_key) >= path_len || strncmp(ZSTR_VAL(str_key), path, ZSTR_LEN(str_key))) {
 				continue;
 			} else {
@@ -1381,15 +1391,19 @@ static int phar_hex_str(const char *digest, size_t digest_len, char **signature)
 /* }}} */
 
 #ifndef PHAR_HAVE_OPENSSL
-static int phar_call_openssl_signverify(int is_sign, php_stream *fp, zend_off_t end, char *key, size_t key_len, char **signature, size_t *signature_len) /* {{{ */
+static int phar_call_openssl_signverify(int is_sign, php_stream *fp, zend_off_t end, char *key, size_t key_len, char **signature, size_t *signature_len, php_uint32 sig_type) /* {{{ */
 {
 	zend_fcall_info fci;
 	zend_fcall_info_cache fcc;
-	zval retval, zp[3], openssl;
+	zval retval, zp[4], openssl;
 	zend_string *str;
 
 	ZVAL_STRINGL(&openssl, is_sign ? "openssl_sign" : "openssl_verify", is_sign ? sizeof("openssl_sign")-1 : sizeof("openssl_verify")-1);
-	ZVAL_STRINGL(&zp[1], *signature, *signature_len);
+	if (*signature_len) {
+		ZVAL_STRINGL(&zp[1], *signature, *signature_len);
+	} else {
+		ZVAL_EMPTY_STRING(&zp[1]);
+	}
 	ZVAL_STRINGL(&zp[2], key, key_len);
 	php_stream_rewind(fp);
 	str = php_stream_copy_to_mem(fp, (size_t) end, 0);
@@ -1397,6 +1411,14 @@ static int phar_call_openssl_signverify(int is_sign, php_stream *fp, zend_off_t 
 		ZVAL_STR(&zp[0], str);
 	} else {
 		ZVAL_EMPTY_STRING(&zp[0]);
+	}
+	if (sig_type == PHAR_SIG_OPENSSL_SHA512) {
+		ZVAL_LONG(&zp[3], 9); /* value from openssl.c #define OPENSSL_ALGO_SHA512 9 */
+	} else if (sig_type == PHAR_SIG_OPENSSL_SHA256) {
+		ZVAL_LONG(&zp[3], 7); /* value from openssl.c #define OPENSSL_ALGO_SHA256 7 */
+	} else {
+		/* don't rely on default value which may change in the future */
+		ZVAL_LONG(&zp[3], 1); /* value from openssl.c #define OPENSSL_ALGO_SHA1   1 */
 	}
 
 	if ((size_t)end != Z_STRLEN(zp[0])) {
@@ -1415,7 +1437,7 @@ static int phar_call_openssl_signverify(int is_sign, php_stream *fp, zend_off_t 
 		return FAILURE;
 	}
 
-	fci.param_count = 3;
+	fci.param_count = 4;
 	fci.params = zp;
 	Z_ADDREF(zp[0]);
 	if (is_sign) {
@@ -1478,12 +1500,22 @@ int phar_verify_signature(php_stream *fp, size_t end_of_phar, uint32_t sig_type,
 	php_stream_rewind(fp);
 
 	switch (sig_type) {
+		case PHAR_SIG_OPENSSL_SHA512:
+		case PHAR_SIG_OPENSSL_SHA256:
 		case PHAR_SIG_OPENSSL: {
 #ifdef PHAR_HAVE_OPENSSL
 			BIO *in;
 			EVP_PKEY *key;
-			EVP_MD *mdtype = (EVP_MD *) EVP_sha1();
+			const EVP_MD *mdtype;
 			EVP_MD_CTX *md_ctx;
+
+			if (sig_type == PHAR_SIG_OPENSSL_SHA512) {
+				mdtype = EVP_sha512();
+			} else if (sig_type == PHAR_SIG_OPENSSL_SHA256) {
+				mdtype = EVP_sha256();
+			} else {
+				mdtype = EVP_sha1();
+			}
 #else
 			size_t tempsig;
 #endif
@@ -1517,10 +1549,8 @@ int phar_verify_signature(php_stream *fp, size_t end_of_phar, uint32_t sig_type,
 #ifndef PHAR_HAVE_OPENSSL
 			tempsig = sig_len;
 
-			if (FAILURE == phar_call_openssl_signverify(0, fp, end_of_phar, pubkey ? ZSTR_VAL(pubkey) : NULL, pubkey ? ZSTR_LEN(pubkey) : 0, &sig, &tempsig)) {
-				if (pubkey) {
-					zend_string_release_ex(pubkey, 0);
-				}
+			if (FAILURE == phar_call_openssl_signverify(0, fp, end_of_phar, ZSTR_VAL(pubkey), ZSTR_LEN(pubkey), &sig, &tempsig, sig_type)) {
+				zend_string_release_ex(pubkey, 0);
 
 				if (error) {
 					spprintf(error, 0, "openssl signature could not be verified");
@@ -1529,13 +1559,11 @@ int phar_verify_signature(php_stream *fp, size_t end_of_phar, uint32_t sig_type,
 				return FAILURE;
 			}
 
-			if (pubkey) {
-				zend_string_release_ex(pubkey, 0);
-			}
+			zend_string_release_ex(pubkey, 0);
 
 			sig_len = tempsig;
 #else
-			in = BIO_new_mem_buf(pubkey ? ZSTR_VAL(pubkey) : NULL, pubkey ? ZSTR_LEN(pubkey) : 0);
+			in = BIO_new_mem_buf(ZSTR_VAL(pubkey), ZSTR_LEN(pubkey));
 
 			if (NULL == in) {
 				zend_string_release_ex(pubkey, 0);
@@ -1557,7 +1585,15 @@ int phar_verify_signature(php_stream *fp, size_t end_of_phar, uint32_t sig_type,
 			}
 
 			md_ctx = EVP_MD_CTX_create();
-			EVP_VerifyInit(md_ctx, mdtype);
+			if (!md_ctx || !EVP_VerifyInit(md_ctx, mdtype)) {
+				if (md_ctx) {
+					EVP_MD_CTX_destroy(md_ctx);
+				}
+				if (error) {
+					spprintf(error, 0, "openssl signature could not be verified");
+				}
+				return FAILURE;
+			}
 			read_len = end_of_phar;
 
 			if ((size_t)read_len > sizeof(buf)) {
@@ -1569,7 +1605,9 @@ int phar_verify_signature(php_stream *fp, size_t end_of_phar, uint32_t sig_type,
 			php_stream_seek(fp, 0, SEEK_SET);
 
 			while (read_size && (len = php_stream_read(fp, (char*)buf, read_size)) > 0) {
-				EVP_VerifyUpdate (md_ctx, buf, len);
+				if (UNEXPECTED(EVP_VerifyUpdate (md_ctx, buf, len) == 0)) {
+					goto failure;
+				}
 				read_len -= (zend_off_t)len;
 
 				if (read_len < read_size) {
@@ -1578,6 +1616,7 @@ int phar_verify_signature(php_stream *fp, size_t end_of_phar, uint32_t sig_type,
 			}
 
 			if (EVP_VerifyFinal(md_ctx, (unsigned char *)sig, sig_len, key) != 1) {
+				failure:
 				/* 1: signature verified, 0: signature does not match, -1: failed signature operation */
 				EVP_PKEY_free(key);
 				EVP_MD_CTX_destroy(md_ctx);
@@ -1794,6 +1833,9 @@ int phar_create_signature(phar_archive_data *phar, php_stream *fp, char **signat
 			*signature_length = 64;
 			break;
 		}
+		default:
+			phar->sig_flags = PHAR_SIG_SHA256;
+			ZEND_FALLTHROUGH;
 		case PHAR_SIG_SHA256: {
 			unsigned char digest[32];
 			PHP_SHA256_CTX  context;
@@ -1809,6 +1851,8 @@ int phar_create_signature(phar_archive_data *phar, php_stream *fp, char **signat
 			*signature_length = 32;
 			break;
 		}
+		case PHAR_SIG_OPENSSL_SHA512:
+		case PHAR_SIG_OPENSSL_SHA256:
 		case PHAR_SIG_OPENSSL: {
 			unsigned char *sigbuf;
 #ifdef PHAR_HAVE_OPENSSL
@@ -1816,6 +1860,15 @@ int phar_create_signature(phar_archive_data *phar, php_stream *fp, char **signat
 			BIO *in;
 			EVP_PKEY *key;
 			EVP_MD_CTX *md_ctx;
+			const EVP_MD *mdtype;
+
+			if (phar->sig_flags == PHAR_SIG_OPENSSL_SHA512) {
+				mdtype = EVP_sha512();
+			} else if (phar->sig_flags == PHAR_SIG_OPENSSL_SHA256) {
+				mdtype = EVP_sha256();
+			} else {
+				mdtype = EVP_sha1();
+			}
 
 			in = BIO_new_mem_buf(PHAR_G(openssl_privatekey), PHAR_G(openssl_privatekey_len));
 
@@ -1841,7 +1894,7 @@ int phar_create_signature(phar_archive_data *phar, php_stream *fp, char **signat
 			siglen = EVP_PKEY_size(key);
 			sigbuf = emalloc(siglen + 1);
 
-			if (!EVP_SignInit(md_ctx, EVP_sha1())) {
+			if (!EVP_SignInit(md_ctx, mdtype)) {
 				EVP_PKEY_free(key);
 				efree(sigbuf);
 				if (error) {
@@ -1879,7 +1932,7 @@ int phar_create_signature(phar_archive_data *phar, php_stream *fp, char **signat
 			siglen = 0;
 			php_stream_seek(fp, 0, SEEK_END);
 
-			if (FAILURE == phar_call_openssl_signverify(1, fp, php_stream_tell(fp), PHAR_G(openssl_privatekey), PHAR_G(openssl_privatekey_len), (char **)&sigbuf, &siglen)) {
+			if (FAILURE == phar_call_openssl_signverify(1, fp, php_stream_tell(fp), PHAR_G(openssl_privatekey), PHAR_G(openssl_privatekey_len), (char **)&sigbuf, &siglen, phar->sig_flags)) {
 				if (error) {
 					spprintf(error, 0, "unable to write phar \"%s\" with requested openssl signature", phar->fname);
 				}
@@ -1890,8 +1943,6 @@ int phar_create_signature(phar_archive_data *phar, php_stream *fp, char **signat
 			*signature_length = siglen;
 		}
 		break;
-		default:
-			phar->sig_flags = PHAR_SIG_SHA1;
 		case PHAR_SIG_SHA1: {
 			unsigned char digest[20];
 			PHP_SHA1_CTX  context;
@@ -2022,7 +2073,7 @@ static void phar_copy_cached_phar(phar_archive_data **pphar) /* {{{ */
 	*pphar = phar;
 
 	/* now, scan the list of persistent Phar objects referencing this phar and update the pointers */
-	ZEND_HASH_FOREACH_PTR(&PHAR_G(phar_persist_map), objphar) {
+	ZEND_HASH_MAP_FOREACH_PTR(&PHAR_G(phar_persist_map), objphar) {
 		if (objphar->archive->fname_len == phar->fname_len && !memcmp(objphar->archive->fname, phar->fname, phar->fname_len)) {
 			objphar->archive = phar;
 		}

@@ -1,9 +1,10 @@
 --TEST--
 mysqli_stmt_fetch()
+--EXTENSIONS--
+mysqli
 --SKIPIF--
 <?php
-require_once('skipif.inc');
-require_once('skipifconnectfailure.inc');
+require_once 'skipifconnectfailure.inc';
 ?>
 --FILE--
 <?php
@@ -12,9 +13,7 @@ require_once('skipifconnectfailure.inc');
     mysqli_stmt_bind_result.phpt already. Restrict
     this test case to the basics.
     */
-    require_once("connect.inc");
-
-    require('table.inc');
+    require 'table.inc';
 
     if (!$stmt = mysqli_stmt_init($link))
         printf("[003] [%d] %s\n", mysqli_errno($link), mysqli_error($link));
@@ -78,7 +77,7 @@ require_once('skipifconnectfailure.inc');
 ?>
 --CLEAN--
 <?php
-    require_once("clean_table.inc");
+    require_once 'clean_table.inc';
 ?>
 --EXPECTF--
 mysqli_stmt object is not fully initialized

@@ -5,7 +5,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -21,14 +21,14 @@
 
 #include "php.h"
 
-#if HAVE_UNISTD_H
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
 #if PHP_USE_PHP_CRYPT_R
 # include "php_crypt_r.h"
 # include "crypt_freesec.h"
 #else
-# if HAVE_CRYPT_H
+# ifdef HAVE_CRYPT_H
 #  if defined(CRYPT_R_GNU_SOURCE) && !defined(_GNU_SOURCE)
 #   define _GNU_SOURCE
 #  endif
@@ -43,24 +43,12 @@
 #endif
 
 #include "php_crypt.h"
-#include "php_random.h"
-
-/* sha512 crypt has the maximal salt length of 123 characters */
-#define PHP_MAX_SALT_LEN 123
 
 /* Used to check DES salts to ensure that they contain only valid characters */
 #define IS_VALID_SALT_CHARACTER(c) (((c) >= '.' && (c) <= '9') || ((c) >= 'A' && (c) <= 'Z') || ((c) >= 'a' && (c) <= 'z'))
 
 PHP_MINIT_FUNCTION(crypt) /* {{{ */
 {
-	REGISTER_LONG_CONSTANT("CRYPT_SALT_LENGTH", PHP_MAX_SALT_LEN, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("CRYPT_STD_DES", 1, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("CRYPT_EXT_DES", 1, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("CRYPT_MD5", 1, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("CRYPT_BLOWFISH", 1, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("CRYPT_SHA256", 1, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("CRYPT_SHA512", 1, CONST_CS | CONST_PERSISTENT);
-
 #if PHP_USE_PHP_CRYPT_R
 	php_init_crypt_r();
 #endif
@@ -135,6 +123,7 @@ PHPAPI zend_string *php_crypt(const char *password, const int pass_len, const ch
 		} else if (
 				salt[0] == '$' &&
 				salt[1] == '2' &&
+				salt[2] != 0 &&
 				salt[3] == '$') {
 			char output[PHP_MAX_SALT_LEN + 1];
 

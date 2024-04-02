@@ -3,7 +3,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -45,14 +45,14 @@ extern "C" {
 	 UDAT_PATTERN == (i))
 
 /* {{{ */
-static zend_result datefmt_ctor(INTERNAL_FUNCTION_PARAMETERS)
+static zend_result datefmt_ctor(INTERNAL_FUNCTION_PARAMETERS, zend_error_handling *error_handling, bool *error_handling_replaced)
 {
 	zval		*object;
 	char	*locale_str;
 	size_t		locale_len	= 0;
 	Locale		locale;
-	zend_long	date_type	= 0;
-	zend_long	time_type	= 0;
+	zend_long	date_type = UDAT_FULL;
+	zend_long	time_type = UDAT_FULL;
 	zend_object *calendar_obj = NULL;
 	zend_long calendar_long = 0;
 	bool calendar_is_null = 1;
@@ -71,15 +71,20 @@ static zend_result datefmt_ctor(INTERNAL_FUNCTION_PARAMETERS)
 	intl_error_reset(NULL);
 	object = return_value;
 
-	ZEND_PARSE_PARAMETERS_START(3, 6)
+	ZEND_PARSE_PARAMETERS_START(1, 6)
 		Z_PARAM_STRING_OR_NULL(locale_str, locale_len)
+		Z_PARAM_OPTIONAL
 		Z_PARAM_LONG(date_type)
 		Z_PARAM_LONG(time_type)
-		Z_PARAM_OPTIONAL
 		Z_PARAM_ZVAL(timezone_zv)
 		Z_PARAM_OBJ_OF_CLASS_OR_LONG_OR_NULL(calendar_obj, Calendar_ce_ptr, calendar_long, calendar_is_null)
 		Z_PARAM_STRING_OR_NULL(pattern_str, pattern_str_len)
 	ZEND_PARSE_PARAMETERS_END_EX(return FAILURE);
+
+	if (error_handling != NULL) {
+		zend_replace_error_handling(EH_THROW, IntlException_ce_ptr, error_handling);
+		*error_handling_replaced = 1;
+	}
 
 	DATE_FORMAT_METHOD_FETCH_OBJECT_NO_CHECK;
 
@@ -94,7 +99,11 @@ static zend_result datefmt_ctor(INTERNAL_FUNCTION_PARAMETERS)
 	}
 	if (!INTL_UDATE_FMT_OK(time_type)) {
 		intl_error_set(NULL, U_ILLEGAL_ARGUMENT_ERROR, "datefmt_create: invalid time format style", 0);
-return FAILURE;
+		return FAILURE;
+	}
+	if (date_type == UDAT_PATTERN && time_type != UDAT_PATTERN) {
+		intl_error_set(NULL, U_ILLEGAL_ARGUMENT_ERROR, "datefmt_create: time format must be UDAT_PATTERN if date format is UDAT_PATTERN", 0);
+		return FAILURE;
 	}
 
 	INTL_CHECK_LOCALE_LEN_OR_FAILURE(locale_len);
@@ -102,6 +111,11 @@ return FAILURE;
 		locale_str = (char *) intl_locale_get_default();
 	}
 	locale = Locale::createFromName(locale_str);
+	/* get*Name accessors being set does not preclude being bogus */
+	if (locale.isBogus() || ((locale_len == 1 && locale_str[0] != 'C') || (locale_len > 1 && strlen(locale.getISO3Language()) == 0))) {
+        zend_argument_value_error(1, "\"%s\" is invalid", locale_str);
+		return FAILURE;
+	}
 
 	/* process calendar */
 	if (datefmt_process_calendar_arg(calendar_obj, calendar_long, calendar_is_null, locale, "datefmt_create",
@@ -189,7 +203,7 @@ error:
 U_CFUNC PHP_FUNCTION( datefmt_create )
 {
     object_init_ex( return_value, IntlDateFormatter_ce_ptr );
-    if (datefmt_ctor(INTERNAL_FUNCTION_PARAM_PASSTHRU) == FAILURE) {
+    if (datefmt_ctor(INTERNAL_FUNCTION_PARAM_PASSTHRU, NULL, NULL) == FAILURE) {
 		zval_ptr_dtor(return_value);
 		RETURN_NULL();
 	}
@@ -200,18 +214,20 @@ U_CFUNC PHP_FUNCTION( datefmt_create )
 U_CFUNC PHP_METHOD( IntlDateFormatter, __construct )
 {
 	zend_error_handling error_handling;
+	bool error_handling_replaced = 0;
 
-	zend_replace_error_handling(EH_THROW, IntlException_ce_ptr, &error_handling);
 	/* return_value param is being changed, therefore we will always return
 	 * NULL here */
 	return_value = ZEND_THIS;
-	if (datefmt_ctor(INTERNAL_FUNCTION_PARAM_PASSTHRU) == FAILURE) {
+	if (datefmt_ctor(INTERNAL_FUNCTION_PARAM_PASSTHRU, &error_handling, &error_handling_replaced) == FAILURE) {
 		if (!EG(exception)) {
 			zend_string *err = intl_error_get_message(NULL);
 			zend_throw_exception(IntlException_ce_ptr, ZSTR_VAL(err), intl_error_get_code(NULL));
 			zend_string_release_ex(err, 0);
 		}
 	}
-	zend_restore_error_handling(&error_handling);
+	if (error_handling_replaced) {
+		zend_restore_error_handling(&error_handling);
+	}
 }
 /* }}} */

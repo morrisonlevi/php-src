@@ -3,8 +3,9 @@ ldap_unbind() - Variation of ldap_unbind() function using ldap_set_rebind_proc()
 --CREDITS--
 Patrick Allaert <patrickallaert@php.net>
 # Belgian PHP Testfest 2009
+--EXTENSIONS--
+ldap
 --SKIPIF--
-<?php require_once('skipif.inc'); ?>
 <?php require_once('skipifbindfailure.inc'); ?>
 --FILE--
 <?php
@@ -23,7 +24,7 @@ function rebind_proc ($ds, $ldap_url) {
     }
 }
 
-$link = ldap_connect_and_bind($host, $port, $user, $passwd, $protocol_version);
+$link = ldap_connect_and_bind($uri, $user, $passwd, $protocol_version);
 ldap_set_rebind_proc($link, "rebind_proc");
 
 var_dump(ldap_unbind($link));

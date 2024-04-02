@@ -1,5 +1,5 @@
 /* This is a generated file, edit the .stub.php file instead.
- * Stub hash: 69215fb94adb4156c974360e5698e842471cb27d */
+ * Stub hash: d52f82c7084a8122fe07c91eb6d4ab6030daa27d */
 
 ZEND_BEGIN_ARG_WITH_RETURN_OBJ_INFO_EX(arginfo_gmp_init, 0, 1, GMP, 0)
 	ZEND_ARG_TYPE_MASK(0, num, MAY_BE_LONG|MAY_BE_STRING, NULL)
@@ -184,6 +184,17 @@ ZEND_BEGIN_ARG_WITH_RETURN_OBJ_INFO_EX(arginfo_gmp_binomial, 0, 2, GMP, 0)
 	ZEND_ARG_TYPE_INFO(0, k, IS_LONG, 0)
 ZEND_END_ARG_INFO()
 
+ZEND_BEGIN_ARG_INFO_EX(arginfo_class_GMP___construct, 0, 0, 0)
+	ZEND_ARG_TYPE_MASK(0, num, MAY_BE_LONG|MAY_BE_STRING, "0")
+	ZEND_ARG_TYPE_INFO_WITH_DEFAULT_VALUE(0, base, IS_LONG, 0, "0")
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_GMP___serialize, 0, 0, IS_ARRAY, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_GMP___unserialize, 0, 1, IS_VOID, 0)
+	ZEND_ARG_TYPE_INFO(0, data, IS_ARRAY, 0)
+ZEND_END_ARG_INFO()
 
 ZEND_FUNCTION(gmp_init);
 ZEND_FUNCTION(gmp_import);
@@ -235,7 +246,9 @@ ZEND_FUNCTION(gmp_popcount);
 ZEND_FUNCTION(gmp_hamdist);
 ZEND_FUNCTION(gmp_nextprime);
 ZEND_FUNCTION(gmp_binomial);
-
+ZEND_METHOD(GMP, __construct);
+ZEND_METHOD(GMP, __serialize);
+ZEND_METHOD(GMP, __unserialize);
 
 static const zend_function_entry ext_functions[] = {
 	ZEND_FE(gmp_init, arginfo_gmp_init)
@@ -249,7 +262,7 @@ static const zend_function_entry ext_functions[] = {
 	ZEND_FE(gmp_div_qr, arginfo_gmp_div_qr)
 	ZEND_FE(gmp_div_q, arginfo_gmp_div_q)
 	ZEND_FE(gmp_div_r, arginfo_gmp_div_r)
-	ZEND_FALIAS(gmp_div, gmp_div_q, arginfo_gmp_div)
+	ZEND_RAW_FENTRY("gmp_div", zif_gmp_div_q, arginfo_gmp_div, 0, NULL, NULL)
 	ZEND_FE(gmp_mod, arginfo_gmp_mod)
 	ZEND_FE(gmp_divexact, arginfo_gmp_divexact)
 	ZEND_FE(gmp_neg, arginfo_gmp_neg)
@@ -292,12 +305,30 @@ static const zend_function_entry ext_functions[] = {
 	ZEND_FE_END
 };
 
-
 static const zend_function_entry class_GMP_methods[] = {
+	ZEND_ME(GMP, __construct, arginfo_class_GMP___construct, ZEND_ACC_PUBLIC)
+	ZEND_ME(GMP, __serialize, arginfo_class_GMP___serialize, ZEND_ACC_PUBLIC)
+	ZEND_ME(GMP, __unserialize, arginfo_class_GMP___unserialize, ZEND_ACC_PUBLIC)
 	ZEND_FE_END
 };
 
-zend_class_entry *register_class_GMP()
+static void register_gmp_symbols(int module_number)
+{
+	REGISTER_LONG_CONSTANT("GMP_ROUND_ZERO", GMP_ROUND_ZERO, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("GMP_ROUND_PLUSINF", GMP_ROUND_PLUSINF, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("GMP_ROUND_MINUSINF", GMP_ROUND_MINUSINF, CONST_PERSISTENT);
+#if defined(mpir_version)
+	REGISTER_STRING_CONSTANT("GMP_MPIR_VERSION", GMP_MPIR_VERSION_STRING, CONST_PERSISTENT);
+#endif
+	REGISTER_STRING_CONSTANT("GMP_VERSION", GMP_VERSION_STRING, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("GMP_MSW_FIRST", GMP_MSW_FIRST, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("GMP_LSW_FIRST", GMP_LSW_FIRST, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("GMP_LITTLE_ENDIAN", GMP_LITTLE_ENDIAN, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("GMP_BIG_ENDIAN", GMP_BIG_ENDIAN, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("GMP_NATIVE_ENDIAN", GMP_NATIVE_ENDIAN, CONST_PERSISTENT);
+}
+
+static zend_class_entry *register_class_GMP(void)
 {
 	zend_class_entry ce, *class_entry;
 
@@ -306,4 +337,3 @@ zend_class_entry *register_class_GMP()
 
 	return class_entry;
 }
-

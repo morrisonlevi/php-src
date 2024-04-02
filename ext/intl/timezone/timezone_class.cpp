@@ -3,7 +3,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -157,7 +157,7 @@ U_CFUNC TimeZone *timezone_process_timezone_argument(zval *zv_timezone,
 			return NULL;
 		}
 		timeZone = to->utimezone->clone();
-		if (timeZone == NULL) {
+		if (UNEXPECTED(timeZone == NULL)) {
 			spprintf(&message, 0, "%s: could not clone TimeZone", func);
 			if (message) {
 				intl_errors_set(outside_error, U_MEMORY_ALLOCATION_ERROR, message, 1);
@@ -175,8 +175,7 @@ U_CFUNC TimeZone *timezone_process_timezone_argument(zval *zv_timezone,
 		return timezone_convert_datetimezone(tzobj->type, tzobj, 0,
 			outside_error, func);
 	} else {
-		UnicodeString	id,
-						gottenId;
+		UnicodeString	id;
 		UErrorCode		status = U_ZERO_ERROR; /* outside_error may be NULL */
 		if (!try_convert_to_string(zv_timezone)) {
 			zval_ptr_dtor_str(&local_zv_tz);
@@ -194,7 +193,7 @@ U_CFUNC TimeZone *timezone_process_timezone_argument(zval *zv_timezone,
 			return NULL;
 		}
 		timeZone = TimeZone::createTimeZone(id);
-		if (timeZone == NULL) {
+		if (UNEXPECTED(timeZone == NULL)) {
 			spprintf(&message, 0, "%s: Could not create time zone", func);
 			if (message) {
 				intl_errors_set(outside_error, U_MEMORY_ALLOCATION_ERROR, message, 1);
@@ -203,7 +202,7 @@ U_CFUNC TimeZone *timezone_process_timezone_argument(zval *zv_timezone,
 			zval_ptr_dtor_str(&local_zv_tz);
 			return NULL;
 		}
-		if (timeZone->getID(gottenId) != id) {
+		if (*timeZone == TimeZone::getUnknown()) {
 			spprintf(&message, 0, "%s: No such time zone: '%s'",
 				func, Z_STRVAL_P(zv_timezone));
 			if (message) {
@@ -352,13 +351,6 @@ static void TimeZone_object_init(TimeZone_object *to)
 }
 /* }}} */
 
-/* {{{ TimeZone_objects_dtor */
-static void TimeZone_objects_dtor(zend_object *object)
-{
-	zend_objects_destroy_object(object);
-}
-/* }}} */
-
 /* {{{ TimeZone_objects_free */
 static void TimeZone_objects_free(zend_object *object)
 {
@@ -385,8 +377,6 @@ static zend_object *TimeZone_object_create(zend_class_entry *ce)
     object_properties_init(&intern->zo, ce);
 	TimeZone_object_init(intern);
 
-	intern->zo.handlers = &TimeZone_handlers;
-
 	return &intern->zo;
 }
 /* }}} */
@@ -399,6 +389,7 @@ U_CFUNC void timezone_register_IntlTimeZone_class(void)
 	/* Create and register 'IntlTimeZone' class. */
 	TimeZone_ce_ptr = register_class_IntlTimeZone();
 	TimeZone_ce_ptr->create_object = TimeZone_object_create;
+	TimeZone_ce_ptr->default_object_handlers = &TimeZone_handlers;
 
 	memcpy(&TimeZone_handlers, &std_object_handlers,
 		sizeof TimeZone_handlers);
@@ -406,30 +397,6 @@ U_CFUNC void timezone_register_IntlTimeZone_class(void)
 	TimeZone_handlers.clone_obj = TimeZone_clone_obj;
 	TimeZone_handlers.compare = TimeZone_compare_objects;
 	TimeZone_handlers.get_debug_info = TimeZone_get_debug_info;
-	TimeZone_handlers.dtor_obj = TimeZone_objects_dtor;
 	TimeZone_handlers.free_obj = TimeZone_objects_free;
-
-
-	/* Declare 'IntlTimeZone' class constants */
-#define TIMEZONE_DECL_LONG_CONST(name, val) \
-	zend_declare_class_constant_long(TimeZone_ce_ptr, name, sizeof(name) - 1, \
-		val)
-
-	TIMEZONE_DECL_LONG_CONST("DISPLAY_SHORT", TimeZone::SHORT);
-	TIMEZONE_DECL_LONG_CONST("DISPLAY_LONG", TimeZone::LONG);
-
-	TIMEZONE_DECL_LONG_CONST("DISPLAY_SHORT_GENERIC", TimeZone::SHORT_GENERIC);
-	TIMEZONE_DECL_LONG_CONST("DISPLAY_LONG_GENERIC", TimeZone::LONG_GENERIC);
-	TIMEZONE_DECL_LONG_CONST("DISPLAY_SHORT_GMT", TimeZone::SHORT_GMT);
-	TIMEZONE_DECL_LONG_CONST("DISPLAY_LONG_GMT", TimeZone::LONG_GMT);
-	TIMEZONE_DECL_LONG_CONST("DISPLAY_SHORT_COMMONLY_USED", TimeZone::SHORT_COMMONLY_USED);
-	TIMEZONE_DECL_LONG_CONST("DISPLAY_GENERIC_LOCATION", TimeZone::GENERIC_LOCATION);
-
-	TIMEZONE_DECL_LONG_CONST("TYPE_ANY", UCAL_ZONE_TYPE_ANY);
-	TIMEZONE_DECL_LONG_CONST("TYPE_CANONICAL", UCAL_ZONE_TYPE_CANONICAL);
-	TIMEZONE_DECL_LONG_CONST("TYPE_CANONICAL_LOCATION", UCAL_ZONE_TYPE_CANONICAL_LOCATION);
-
-	/* Declare 'IntlTimeZone' class properties */
-
 }
 /* }}} */

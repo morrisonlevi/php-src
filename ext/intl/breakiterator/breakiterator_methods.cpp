@@ -3,7 +3,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -63,7 +63,6 @@ static void _breakiter_factory(const char *func_name,
 
 	biter = func(Locale::createFromName(locale_str), status);
 	intl_error_set_code(NULL, status);
-	// Todo check if this can happen?
 	if (U_FAILURE(status)) {
 		spprintf(&msg, 0, "%s: error creating BreakIterator",
 				func_name);
@@ -154,11 +153,11 @@ U_CFUNC PHP_METHOD(IntlBreakIterator, setText)
 	BREAKITER_METHOD_FETCH_OBJECT;
 
 	ut = utext_openUTF8(ut, ZSTR_VAL(text), ZSTR_LEN(text), BREAKITER_ERROR_CODE_P(bio));
-	INTL_METHOD_CHECK_STATUS_OR_NULL(bio, "breakiter_set_text: error opening UText");
+	INTL_METHOD_CHECK_STATUS(bio, "breakiter_set_text: error opening UText");
 
 	bio->biter->setText(ut, BREAKITER_ERROR_CODE(bio));
 	utext_close(ut); /* ICU shallow clones the UText */
-	INTL_METHOD_CHECK_STATUS_OR_NULL(bio, "breakiter_set_text: error calling "
+	INTL_METHOD_CHECK_STATUS(bio, "breakiter_set_text: error calling "
 		"BreakIterator::setText()");
 
 	/* When ICU clones the UText, it does not copy the buffer, so we have to
@@ -174,7 +173,6 @@ static void _breakiter_no_args_ret_int32(
 		int32_t (BreakIterator::*func)(),
 		INTERNAL_FUNCTION_PARAMETERS)
 {
-	char	*msg;
 	BREAKITER_METHOD_INIT_VARS;
 	object = ZEND_THIS;
 
@@ -203,7 +201,7 @@ static void _breakiter_int32_ret_int32(
 
 	BREAKITER_METHOD_FETCH_OBJECT;
 
-	if (arg < INT32_MIN || arg > INT32_MAX) {
+	if (UNEXPECTED(arg < INT32_MIN || arg > INT32_MAX)) {
 		zend_argument_value_error(1, "must be between %d and %d", INT32_MIN, INT32_MAX);
 		RETURN_THROWS();
 	}
@@ -294,7 +292,7 @@ U_CFUNC PHP_METHOD(IntlBreakIterator, isBoundary)
 		RETURN_THROWS();
 	}
 
-	if (offset < INT32_MIN || offset > INT32_MAX) {
+	if (UNEXPECTED(offset < INT32_MIN || offset > INT32_MAX)) {
 		zend_argument_value_error(1, "must be between %d and %d", INT32_MIN, INT32_MAX);
 		RETURN_THROWS();
 	}

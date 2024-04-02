@@ -1,8 +1,9 @@
 --TEST--
 PDO Common: serializing
+--EXTENSIONS--
+pdo
 --SKIPIF--
 <?php
-if (!extension_loaded('pdo')) die('skip');
 $dir = getenv('REDIR_TEST_DIR');
 if (false == $dir) die('skip no driver');
 require_once $dir . 'pdo_test.inc';
@@ -66,27 +67,27 @@ class TestLeaf extends TestDerived
 {
 }
 
-$db->exec('CREATE TABLE classtypes(id int NOT NULL PRIMARY KEY, name VARCHAR(20) NOT NULL UNIQUE)');
-$db->exec('INSERT INTO classtypes VALUES(0, \'stdClass\')');
-$db->exec('INSERT INTO classtypes VALUES(1, \'TestBase\')');
-$db->exec('INSERT INTO classtypes VALUES(2, \'TestDerived\')');
+$db->exec('CREATE TABLE classtypes018(id int NOT NULL PRIMARY KEY, name VARCHAR(20) NOT NULL UNIQUE)');
+$db->exec("INSERT INTO classtypes018 VALUES(0, 'stdClass')");
+$db->exec("INSERT INTO classtypes018 VALUES(1, 'TestBase')");
+$db->exec("INSERT INTO classtypes018 VALUES(2, 'TestDerived')");
 
 switch ($db->getAttribute(PDO::ATTR_DRIVER_NAME)) {
   case 'dblib':
     // environment settings can influence how the table is created if specifics are missing
     // https://msdn.microsoft.com/en-us/library/ms174979.aspx#Nullability Rules Within a Table Definition
-    $sql = 'CREATE TABLE test(id int NOT NULL PRIMARY KEY, classtype int NULL, val VARCHAR(255) NULL)';
+    $sql = 'CREATE TABLE test018(id int NOT NULL PRIMARY KEY, classtype int NULL, val VARCHAR(255) NULL)';
     break;
   default:
-    $sql = 'CREATE TABLE test(id int NOT NULL PRIMARY KEY, classtype int, val VARCHAR(255))';
+    $sql = 'CREATE TABLE test018(id int NOT NULL PRIMARY KEY, classtype int, val VARCHAR(255))';
     break;
 }
 $db->exec($sql);
 
 $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-var_dump($db->query('SELECT COUNT(*) FROM classtypes')->fetchColumn());
-var_dump($db->query('SELECT id, name FROM classtypes ORDER by id')->fetchAll(PDO::FETCH_COLUMN|PDO::FETCH_UNIQUE));
+var_dump($db->query('SELECT COUNT(*) FROM classtypes018')->fetchColumn());
+var_dump($db->query('SELECT id, name FROM classtypes018 ORDER by id')->fetchAll(PDO::FETCH_COLUMN|PDO::FETCH_UNIQUE));
 
 $objs = array();
 $objs[0] = new stdClass;
@@ -94,7 +95,7 @@ $objs[1] = new TestBase;
 $objs[2] = new TestDerived;
 $objs[3] = new TestLeaf;
 
-$stmt = $db->prepare('SELECT id FROM classtypes WHERE name=:cname');
+$stmt = $db->prepare('SELECT id FROM classtypes018 WHERE name=:cname');
 $stmt->bindParam(':cname', $cname);
 
 $ctypes = array();
@@ -115,7 +116,7 @@ var_dump($ctypes);
 unset($stmt);
 
 echo "===INSERT===\n";
-$stmt = $db->prepare('INSERT INTO test VALUES(:id, :classtype, :val)');
+$stmt = $db->prepare('INSERT INTO test018 VALUES(:id, :classtype, :val)');
 $stmt->bindParam(':id', $idx);
 $stmt->bindParam(':classtype', $ctype);
 $stmt->bindParam(':val', $val);
@@ -137,7 +138,7 @@ foreach($objs as $idx => $obj)
 unset($stmt);
 
 echo "===DATA===\n";
-$res = $db->query('SELECT test.val FROM test')->fetchAll(PDO::FETCH_COLUMN);
+$res = $db->query('SELECT test018.val FROM test018')->fetchAll(PDO::FETCH_COLUMN);
 
 switch ($db->getAttribute(PDO::ATTR_DRIVER_NAME)) {
     case 'dblib':
@@ -159,7 +160,7 @@ var_dump($res);
 echo "===FAILURE===\n";
 try
 {
-    $db->query('SELECT classtypes.name AS name, test.val AS val FROM test LEFT JOIN classtypes ON test.classtype=classtypes.id')->fetchAll(PDO::FETCH_CLASS|PDO::FETCH_CLASSTYPE|PDO::FETCH_SERIALIZE, 'TestLeaf', array());
+    $db->query('SELECT classtypes018.name AS name, test018.val AS val FROM test018 LEFT JOIN classtypes018 ON test018.classtype=classtypes018.id')->fetchAll(PDO::FETCH_CLASS|PDO::FETCH_CLASSTYPE|PDO::FETCH_SERIALIZE, 'TestLeaf', array());
 }
 catch (PDOException $e)
 {
@@ -168,10 +169,10 @@ catch (PDOException $e)
 }
 
 echo "===COUNT===\n";
-var_dump($db->query('SELECT COUNT(*) FROM test LEFT JOIN classtypes ON test.classtype=classtypes.id WHERE (classtypes.id IS NULL OR classtypes.id > 0)')->fetchColumn());
+var_dump($db->query('SELECT COUNT(*) FROM test018 LEFT JOIN classtypes018 ON test018.classtype=classtypes018.id WHERE (classtypes018.id IS NULL OR classtypes018.id > 0)')->fetchColumn());
 
 echo "===DATABASE===\n";
-$stmt = $db->prepare('SELECT classtypes.name AS name, test.val AS val FROM test LEFT JOIN classtypes ON test.classtype=classtypes.id WHERE (classtypes.id IS NULL OR classtypes.id > 0)');
+$stmt = $db->prepare('SELECT classtypes018.name AS name, test018.val AS val FROM test018 LEFT JOIN classtypes018 ON test018.classtype=classtypes018.id WHERE (classtypes018.id IS NULL OR classtypes018.id > 0)');
 
 $stmt->execute();
 var_dump($stmt->fetchAll(PDO::FETCH_ASSOC));
@@ -182,7 +183,19 @@ var_dump($stmt->fetchAll(PDO::FETCH_CLASS|PDO::FETCH_CLASSTYPE|PDO::FETCH_SERIAL
 
 
 ?>
+--CLEAN--
+<?php
+require_once getenv('REDIR_TEST_DIR') . 'pdo_test.inc';
+$db = PDOTest::factory();
+PDOTest::dropTableIfExists($db, "test018");
+PDOTest::dropTableIfExists($db, "classtypes018");
+?>
 --EXPECTF--
+Deprecated: %s implements the Serializable interface, which is deprecated. Implement __serialize() and __unserialize() instead (or in addition, if support for old PHP versions is necessary) in %s on line %d
+
+Deprecated: %s implements the Serializable interface, which is deprecated. Implement __serialize() and __unserialize() instead (or in addition, if support for old PHP versions is necessary) in %s on line %d
+
+Deprecated: %s implements the Serializable interface, which is deprecated. Implement __serialize() and __unserialize() instead (or in addition, if support for old PHP versions is necessary) in %s on line %d
 string(1) "3"
 array(3) {
   [0]=>
@@ -206,9 +219,9 @@ array(4) {
 ===INSERT===
 TestBase::serialize() = 'a:3:{s:7:"BasePub";s:6:"Public";s:7:"BasePro";s:9:"Protected";s:7:"BasePri";s:7:"Private";}'
 TestDerived::serialize()
-TestBase::serialize() = 'a:5:{s:7:"BasePub";s:13:"DerivedPublic";s:7:"BasePro";s:16:"DerivdeProtected";s:10:"DerivedPub";s:6:"Public";s:10:"DerivedPro";s:9:"Protected";s:7:"BasePri";s:7:"Private";}'
+TestBase::serialize() = 'a:5:{s:7:"BasePub";s:13:"DerivedPublic";s:7:"BasePro";s:16:"DerivdeProtected";s:7:"BasePri";s:7:"Private";s:10:"DerivedPub";s:6:"Public";s:10:"DerivedPro";s:9:"Protected";}'
 TestDerived::serialize()
-TestBase::serialize() = 'a:5:{s:7:"BasePub";s:13:"DerivedPublic";s:7:"BasePro";s:16:"DerivdeProtected";s:10:"DerivedPub";s:6:"Public";s:10:"DerivedPro";s:9:"Protected";s:7:"BasePri";s:7:"Private";}'
+TestBase::serialize() = 'a:5:{s:7:"BasePub";s:13:"DerivedPublic";s:7:"BasePro";s:16:"DerivdeProtected";s:7:"BasePri";s:7:"Private";s:10:"DerivedPub";s:6:"Public";s:10:"DerivedPro";s:9:"Protected";}'
 ===DATA===
 array(4) {
   [0]=>
@@ -216,11 +229,13 @@ array(4) {
   [1]=>
   string(91) "a:3:{s:7:"BasePub";s:6:"Public";s:7:"BasePro";s:9:"Protected";s:7:"BasePri";s:7:"Private";}"
   [2]=>
-  string(172) "a:5:{s:7:"BasePub";s:13:"DerivedPublic";s:7:"BasePro";s:16:"DerivdeProtected";s:10:"DerivedPub";s:6:"Public";s:10:"DerivedPro";s:9:"Protected";s:7:"BasePri";s:7:"Private";}"
+  string(172) "a:5:{s:7:"BasePub";s:13:"DerivedPublic";s:7:"BasePro";s:16:"DerivdeProtected";s:7:"BasePri";s:7:"Private";s:10:"DerivedPub";s:6:"Public";s:10:"DerivedPro";s:9:"Protected";}"
   [3]=>
-  string(172) "a:5:{s:7:"BasePub";s:13:"DerivedPublic";s:7:"BasePro";s:16:"DerivdeProtected";s:10:"DerivedPub";s:6:"Public";s:10:"DerivedPro";s:9:"Protected";s:7:"BasePri";s:7:"Private";}"
+  string(172) "a:5:{s:7:"BasePub";s:13:"DerivedPublic";s:7:"BasePro";s:16:"DerivdeProtected";s:7:"BasePri";s:7:"Private";s:10:"DerivedPub";s:6:"Public";s:10:"DerivedPro";s:9:"Protected";}"
 }
 ===FAILURE===
+
+Deprecated: PDOStatement::fetchAll(): The PDO::FETCH_SERIALIZE mode is deprecated in %s on line %d
 Exception:SQLSTATE[HY000]: General error: cannot unserialize class
 ===COUNT===
 string(1) "3"
@@ -238,22 +253,24 @@ array(3) {
     ["name"]=>
     string(11) "TestDerived"
     ["val"]=>
-    string(172) "a:5:{s:7:"BasePub";s:13:"DerivedPublic";s:7:"BasePro";s:16:"DerivdeProtected";s:10:"DerivedPub";s:6:"Public";s:10:"DerivedPro";s:9:"Protected";s:7:"BasePri";s:7:"Private";}"
+    string(172) "a:5:{s:7:"BasePub";s:13:"DerivedPublic";s:7:"BasePro";s:16:"DerivdeProtected";s:7:"BasePri";s:7:"Private";s:10:"DerivedPub";s:6:"Public";s:10:"DerivedPro";s:9:"Protected";}"
   }
   [2]=>
   array(2) {
     ["name"]=>
     NULL
     ["val"]=>
-    string(172) "a:5:{s:7:"BasePub";s:13:"DerivedPublic";s:7:"BasePro";s:16:"DerivdeProtected";s:10:"DerivedPub";s:6:"Public";s:10:"DerivedPro";s:9:"Protected";s:7:"BasePri";s:7:"Private";}"
+    string(172) "a:5:{s:7:"BasePub";s:13:"DerivedPublic";s:7:"BasePro";s:16:"DerivdeProtected";s:7:"BasePri";s:7:"Private";s:10:"DerivedPub";s:6:"Public";s:10:"DerivedPro";s:9:"Protected";}"
   }
 }
 ===FETCHCLASS===
+
+Deprecated: PDOStatement::fetchAll(): The PDO::FETCH_SERIALIZE mode is deprecated in %s on line %d
 TestBase::unserialize(a:3:{s:7:"BasePub";s:6:"Public";s:7:"BasePro";s:9:"Protected";s:7:"BasePri";s:7:"Private";})
 TestDerived::unserialize()
-TestBase::unserialize(a:5:{s:7:"BasePub";s:13:"DerivedPublic";s:7:"BasePro";s:16:"DerivdeProtected";s:10:"DerivedPub";s:6:"Public";s:10:"DerivedPro";s:9:"Protected";s:7:"BasePri";s:7:"Private";})
+TestBase::unserialize(a:5:{s:7:"BasePub";s:13:"DerivedPublic";s:7:"BasePro";s:16:"DerivdeProtected";s:7:"BasePri";s:7:"Private";s:10:"DerivedPub";s:6:"Public";s:10:"DerivedPro";s:9:"Protected";})
 TestDerived::unserialize()
-TestBase::unserialize(a:5:{s:7:"BasePub";s:13:"DerivedPublic";s:7:"BasePro";s:16:"DerivdeProtected";s:10:"DerivedPub";s:6:"Public";s:10:"DerivedPro";s:9:"Protected";s:7:"BasePri";s:7:"Private";})
+TestBase::unserialize(a:5:{s:7:"BasePub";s:13:"DerivedPublic";s:7:"BasePro";s:16:"DerivdeProtected";s:7:"BasePri";s:7:"Private";s:10:"DerivedPub";s:6:"Public";s:10:"DerivedPro";s:9:"Protected";})
 array(3) {
   [0]=>
   object(TestBase)#%d (3) {
@@ -270,14 +287,14 @@ array(3) {
     string(14) "#DerivedPublic"
     ["BasePro":protected]=>
     string(17) "#DerivdeProtected"
+    ["BasePri":"TestBase":private]=>
+    string(8) "#Private"
     ["DerivedPub"]=>
     string(7) "#Public"
     ["DerivedPro":protected]=>
     string(10) "#Protected"
     ["DerivedPri":"TestDerived":private]=>
     string(7) "Private"
-    ["BasePri":"TestBase":private]=>
-    string(8) "#Private"
   }
   [2]=>
   object(TestLeaf)#%d (6) {
@@ -285,13 +302,13 @@ array(3) {
     string(14) "#DerivedPublic"
     ["BasePro":protected]=>
     string(17) "#DerivdeProtected"
+    ["BasePri":"TestBase":private]=>
+    string(8) "#Private"
     ["DerivedPub"]=>
     string(7) "#Public"
     ["DerivedPro":protected]=>
     string(10) "#Protected"
     ["DerivedPri":"TestDerived":private]=>
     string(7) "Private"
-    ["BasePri":"TestBase":private]=>
-    string(8) "#Private"
   }
 }

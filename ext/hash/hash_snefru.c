@@ -5,7 +5,7 @@
   | This source file is subject to version 3.01 of the PHP license,      |
   | that is bundled with this package in the file LICENSE, and is        |
   | available through the world-wide-web at the following url:           |
-  | http://www.php.net/license/3_01.txt                                  |
+  | https://www.php.net/license/3_01.txt                                 |
   | If you did not receive a copy of the PHP license and are unable to   |
   | obtain it through the world-wide-web, please send a note to          |
   | license@php.net so we can mail you a copy immediately.               |
@@ -39,7 +39,7 @@ void ph(uint32_t h[16])
 
 static inline void Snefru(uint32_t input[16])
 {
-	static int shifts[4] = {16, 8, 16, 24};
+	static const int shifts[4] = {16, 8, 16, 24};
 	int b, index, rshift, lshift;
 	const uint32_t *t0,*t1;
 	uint32_t SBE,B00,B01,B02,B03,B04,B05,B06,B07,B08,B09,B10,B11,B12,B13,B14,B15;

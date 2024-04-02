@@ -1,13 +1,17 @@
 --TEST--
 PDO_DBLIB: PDO::DBLIB_ATTR_SKIP_EMPTY_ROWSETS for skip junk resultsets on SET NOCOUNT expression
+--EXTENSIONS--
+pdo_dblib
 --SKIPIF--
 <?php
-if (!extension_loaded('pdo_dblib')) die('skip not loaded');
 require __DIR__ . '/config.inc';
+getDbConnection();
 ?>
 --FILE--
 <?php
 require __DIR__ . '/config.inc';
+
+$db = getDbConnection();
 
 $sql = '
     SET NOCOUNT ON

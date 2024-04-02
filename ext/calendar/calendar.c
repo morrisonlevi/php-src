@@ -5,7 +5,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -23,7 +23,6 @@
 
 #include "php.h"
 #include "ext/standard/info.h"
-#include "calendar_arginfo.h"
 #include "php_calendar.h"
 #include "sdncal.h"
 
@@ -33,23 +32,6 @@
 /* This conflicts with a define in winnls.h, but that header is needed
    to have GetACP(). */
 #undef CAL_GREGORIAN
-#endif
-
-zend_module_entry calendar_module_entry = {
-	STANDARD_MODULE_HEADER,
-	"calendar",
-	ext_functions,
-	PHP_MINIT(calendar),
-	NULL,
-	NULL,
-	NULL,
-	PHP_MINFO(calendar),
-	PHP_CALENDAR_VERSION,
-	STANDARD_MODULE_PROPERTIES,
-};
-
-#ifdef COMPILE_DL_CALENDAR
-ZEND_GET_MODULE(calendar)
 #endif
 
 /* this order must match the conversion table below */
@@ -107,33 +89,29 @@ static const char alef_bet[25] = "0\xE0\xE1\xE2\xE3\xE4\xE5\xE6\xE7\xE8\xE9\xEB\
 #define CAL_JEWISH_ADD_ALAFIM 0x4
 #define CAL_JEWISH_ADD_GERESHAYIM 0x8
 
+#include "calendar_arginfo.h"
+
+zend_module_entry calendar_module_entry = {
+	STANDARD_MODULE_HEADER,
+	"calendar",
+	ext_functions,
+	PHP_MINIT(calendar),
+	NULL,
+	NULL,
+	NULL,
+	PHP_MINFO(calendar),
+	PHP_CALENDAR_VERSION,
+	STANDARD_MODULE_PROPERTIES,
+};
+
+#ifdef COMPILE_DL_CALENDAR
+ZEND_GET_MODULE(calendar)
+#endif
+
 PHP_MINIT_FUNCTION(calendar)
 {
-	REGISTER_LONG_CONSTANT("CAL_GREGORIAN", CAL_GREGORIAN, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("CAL_JULIAN", CAL_JULIAN, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("CAL_JEWISH", CAL_JEWISH, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("CAL_FRENCH", CAL_FRENCH, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("CAL_NUM_CALS", CAL_NUM_CALS, CONST_CS | CONST_PERSISTENT);
-/* constants for jddayofweek */
-	REGISTER_LONG_CONSTANT("CAL_DOW_DAYNO", CAL_DOW_DAYNO, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("CAL_DOW_SHORT", CAL_DOW_SHORT, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("CAL_DOW_LONG", CAL_DOW_LONG, CONST_CS | CONST_PERSISTENT);
-/* constants for jdmonthname */
-	REGISTER_LONG_CONSTANT("CAL_MONTH_GREGORIAN_SHORT", CAL_MONTH_GREGORIAN_SHORT, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("CAL_MONTH_GREGORIAN_LONG", CAL_MONTH_GREGORIAN_LONG, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("CAL_MONTH_JULIAN_SHORT", CAL_MONTH_JULIAN_SHORT, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("CAL_MONTH_JULIAN_LONG", CAL_MONTH_JULIAN_LONG, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("CAL_MONTH_JEWISH", CAL_MONTH_JEWISH, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("CAL_MONTH_FRENCH", CAL_MONTH_FRENCH, CONST_CS | CONST_PERSISTENT);
-/* constants for easter calculation */
-	REGISTER_LONG_CONSTANT("CAL_EASTER_DEFAULT", CAL_EASTER_DEFAULT, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("CAL_EASTER_ROMAN", CAL_EASTER_ROMAN, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("CAL_EASTER_ALWAYS_GREGORIAN", CAL_EASTER_ALWAYS_GREGORIAN, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("CAL_EASTER_ALWAYS_JULIAN", CAL_EASTER_ALWAYS_JULIAN, CONST_CS | CONST_PERSISTENT);
-/* constants for Jewish date formatting */
-	REGISTER_LONG_CONSTANT("CAL_JEWISH_ADD_ALAFIM_GERESH", CAL_JEWISH_ADD_ALAFIM_GERESH, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("CAL_JEWISH_ADD_ALAFIM", CAL_JEWISH_ADD_ALAFIM, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("CAL_JEWISH_ADD_GERESHAYIM", CAL_JEWISH_ADD_GERESHAYIM, CONST_CS | CONST_PERSISTENT);
+	register_calendar_symbols(module_number);
+
 	return SUCCESS;
 }
 
@@ -376,7 +354,7 @@ PHP_FUNCTION(juliantojd)
 
 /* {{{ heb_number_to_chars*/
 /*
-caution: the Hebrew format produces non unique result.
+caution: the Hebrew format produces non-unique result.
 for example both: year '5' and year '5000' produce 'ה'.
 use the numeric one for calculations.
  */

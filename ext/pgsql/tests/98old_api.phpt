@@ -1,33 +1,48 @@
 --TEST--
 PostgreSQL old api
+--EXTENSIONS--
+pgsql
 --SKIPIF--
-<?php include("skipif.inc"); ?>
+<?php include("inc/skipif.inc"); ?>
 --FILE--
 <?php
 
-include('config.inc');
+include('inc/config.inc');
+$table_name = "table_98old_api";
 
 $db = pg_connect($conn_str);
-$result = pg_exec("SELECT * FROM ".$table_name);
+pg_query($db, "CREATE TABLE {$table_name} (num int, str text, bin bytea)");
+pg_query($db, "INSERT INTO {$table_name} DEFAULT VALUES");
+
+$result = pg_exec($db, "SELECT * FROM ".$table_name);
 pg_numrows($result);
 pg_numfields($result);
 pg_fieldname($result, 0);
 pg_fieldsize($result, 0);
 pg_fieldtype($result, 0);
 pg_fieldprtlen($result, 0);
+pg_fieldprtlen($result, null, 0);
 pg_fieldisnull($result, 0);
-
+pg_fieldisnull($result, null, 0);
 pg_result($result,0,0);
-$result = pg_exec("INSERT INTO ".$table_name." VALUES (7777, 'KKK')");
+pg_result($result,null,0);
+
+$result = pg_exec($db, "INSERT INTO ".$table_name." VALUES (7777, 'KKK')");
 $oid = pg_getlastoid($result);
 pg_freeresult($result);
-pg_errormessage();
-$result = pg_exec("UPDATE ".$table_name." SET str = 'QQQ' WHERE str like 'RGD';");
+pg_errormessage($db);
+$result = pg_exec($db, "UPDATE ".$table_name." SET str = 'QQQ' WHERE str like 'RGD';");
 pg_cmdtuples($result);
 
-
-
 echo "OK";
+?>
+--CLEAN--
+<?php
+include('inc/config.inc');
+$table_name = "table_98old_api";
+
+$db = pg_connect($conn_str);
+pg_query($db, "DROP TABLE IF EXISTS {$table_name}");
 ?>
 --EXPECTF--
 Deprecated: Function pg_numrows() is deprecated in %s on line %d
@@ -42,9 +57,21 @@ Deprecated: Function pg_fieldtype() is deprecated in %s on line %d
 
 Deprecated: Function pg_fieldprtlen() is deprecated in %s on line %d
 
+Deprecated: Function pg_fieldprtlen() is deprecated in %s on line %d
+
+Deprecated: pg_fieldprtlen(): Passing null to parameter #2 ($row) of type int is deprecated in %s on line %d
+
 Deprecated: Function pg_fieldisnull() is deprecated in %s on line %d
 
+Deprecated: Function pg_fieldisnull() is deprecated in %s on line %d
+
+Deprecated: pg_fieldisnull(): Passing null to parameter #2 ($row) of type int is deprecated in %s on line %d
+
 Deprecated: Function pg_result() is deprecated in %s on line %d
+
+Deprecated: Function pg_result() is deprecated in %s on line %d
+
+Deprecated: pg_result(): Passing null to parameter #2 ($row) of type int is deprecated in %s on line %d
 
 Deprecated: Function pg_getlastoid() is deprecated in %s on line %d
 

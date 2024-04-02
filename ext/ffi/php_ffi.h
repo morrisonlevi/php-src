@@ -5,7 +5,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -206,12 +206,12 @@ typedef struct _zend_ffi_val {
 	};
 } zend_ffi_val;
 
-int zend_ffi_parse_decl(const char *str, size_t len);
-int zend_ffi_parse_type(const char *str, size_t len, zend_ffi_dcl *dcl);
+zend_result zend_ffi_parse_decl(const char *str, size_t len);
+zend_result zend_ffi_parse_type(const char *str, size_t len, zend_ffi_dcl *dcl);
 
 /* parser callbacks */
 void ZEND_NORETURN zend_ffi_parser_error(const char *msg, ...);
-int zend_ffi_is_typedef_name(const char *name, size_t name_len);
+bool zend_ffi_is_typedef_name(const char *name, size_t name_len);
 void zend_ffi_resolve_typedef(const char *name, size_t name_len, zend_ffi_dcl *dcl);
 void zend_ffi_resolve_const(const char *name, size_t name_len, zend_ffi_val *val);
 void zend_ffi_declare_tag(const char *name, size_t name_len, zend_ffi_dcl *dcl, bool incomplete);

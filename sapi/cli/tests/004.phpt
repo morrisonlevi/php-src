@@ -7,7 +7,7 @@ include "skipif.inc";
 --FILE--
 <?php
 
-$php = getenv('TEST_PHP_EXECUTABLE');
+$php = getenv('TEST_PHP_EXECUTABLE_ESCAPED');
 
 var_dump(`$php -n --rf unknown`);
 var_dump(`$php -n --rf echo`);
@@ -25,7 +25,7 @@ string(155) "Function [ <internal:standard> function phpinfo ] {
   - Parameters [1] {
     Parameter #0 [ <optional> int $flags = INFO_ALL ]
   }
-  - Return [ bool ]
+  - Return [ true ]
 }
 
 "

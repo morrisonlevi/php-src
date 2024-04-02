@@ -7,7 +7,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -111,7 +111,6 @@ static inline bool may_have_side_effects(
 		case ZEND_ROPE_INIT:
 		case ZEND_ROPE_ADD:
 		case ZEND_INIT_ARRAY:
-		case ZEND_ADD_ARRAY_ELEMENT:
 		case ZEND_SPACESHIP:
 		case ZEND_STRLEN:
 		case ZEND_COUNT:
@@ -128,19 +127,26 @@ static inline bool may_have_side_effects(
 		case ZEND_ARRAY_KEY_EXISTS:
 			/* No side effects */
 			return 0;
+		case ZEND_ADD_ARRAY_ELEMENT:
+			/* TODO: We can't free two vars. Keep instruction alive. <?php [0, "$a" => "$b"]; */
+			if ((opline->op1_type & (IS_VAR|IS_TMP_VAR)) && (opline->op2_type & (IS_VAR|IS_TMP_VAR))) {
+				return 1;
+			}
+			return 0;
 		case ZEND_ROPE_END:
 			/* TODO: Rope dce optimization, see #76446 */
 			return 1;
 		case ZEND_JMP:
 		case ZEND_JMPZ:
 		case ZEND_JMPNZ:
-		case ZEND_JMPZNZ:
 		case ZEND_JMPZ_EX:
 		case ZEND_JMPNZ_EX:
 		case ZEND_JMP_SET:
 		case ZEND_COALESCE:
 		case ZEND_ASSERT_CHECK:
 		case ZEND_JMP_NULL:
+		case ZEND_BIND_INIT_STATIC_OR_JMP:
+		case ZEND_JMP_FRAMELESS:
 			/* For our purposes a jumps and branches are side effects. */
 			return 1;
 		case ZEND_BEGIN_SILENCE:
@@ -155,12 +161,17 @@ static inline bool may_have_side_effects(
 		case ZEND_TICKS:
 		case ZEND_YIELD:
 		case ZEND_YIELD_FROM:
+		case ZEND_VERIFY_NEVER_TYPE:
 			/* Intrinsic side effects */
 			return 1;
 		case ZEND_DO_FCALL:
 		case ZEND_DO_FCALL_BY_NAME:
 		case ZEND_DO_ICALL:
 		case ZEND_DO_UCALL:
+		case ZEND_FRAMELESS_ICALL_0:
+		case ZEND_FRAMELESS_ICALL_1:
+		case ZEND_FRAMELESS_ICALL_2:
+		case ZEND_FRAMELESS_ICALL_3:
 			/* For now assume all calls have side effects */
 			return 1;
 		case ZEND_RECV:
@@ -233,13 +244,15 @@ static inline bool may_have_side_effects(
 			}
 			return 0;
 		case ZEND_BIND_STATIC:
-			if (op_array->static_variables
-			 && (opline->extended_value & ZEND_BIND_REF) != 0) {
-				zval *value =
-					(zval*)((char*)op_array->static_variables->arData +
-						(opline->extended_value & ~ZEND_BIND_REF));
-				if (Z_TYPE_P(value) == IS_CONSTANT_AST) {
-					/* AST may contain undefined constants */
+			if (op_array->static_variables) {
+				/* Implicit and Explicit bind static is effectively prologue of closure so
+				   report it has side effects like RECV, RECV_INIT; This allows us to
+				   reflect on the closure and discover used variable at runtime */
+				if ((opline->extended_value & (ZEND_BIND_IMPLICIT|ZEND_BIND_EXPLICIT))) {
+					return 1;
+				}
+				/* Modifies static variables which are observable through reflection */
+				if ((opline->extended_value & ZEND_BIND_REF) && opline->op2_type != IS_UNUSED) {
 					return 1;
 				}
 			}
@@ -354,9 +367,7 @@ static bool try_remove_var_def(context *ctx, int free_var, int use_chain, zend_o
 				case ZEND_PRE_INC:
 				case ZEND_PRE_DEC:
 				case ZEND_PRE_INC_OBJ:
-				case ZEND_POST_INC_OBJ:
 				case ZEND_PRE_DEC_OBJ:
-				case ZEND_POST_DEC_OBJ:
 				case ZEND_DO_ICALL:
 				case ZEND_DO_UCALL:
 				case ZEND_DO_FCALL_BY_NAME:
@@ -378,14 +389,19 @@ static bool try_remove_var_def(context *ctx, int free_var, int use_chain, zend_o
 	return 0;
 }
 
+static zend_always_inline bool may_be_refcounted(uint32_t type) {
+	return (type & (MAY_BE_STRING|MAY_BE_ARRAY|MAY_BE_OBJECT|MAY_BE_RESOURCE|MAY_BE_REF)) != 0;
+}
+
 static inline bool is_free_of_live_var(context *ctx, zend_op *opline, zend_ssa_op *ssa_op) {
 	switch (opline->opcode) {
 		case ZEND_FREE:
 			/* It is always safe to remove FREEs of non-refcounted values, even if they are live. */
-			if (!(ctx->ssa->var_info[ssa_op->op1_use].type & (MAY_BE_STRING|MAY_BE_ARRAY|MAY_BE_OBJECT|MAY_BE_RESOURCE|MAY_BE_REF))) {
+			if ((ctx->ssa->var_info[ssa_op->op1_use].type & (MAY_BE_REF|MAY_BE_ANY|MAY_BE_UNDEF)) != 0
+			 && !may_be_refcounted(ctx->ssa->var_info[ssa_op->op1_use].type)) {
 				return 0;
 			}
-			/* break missing intentionally */
+			ZEND_FALLTHROUGH;
 		case ZEND_FE_FREE:
 			return !is_var_dead(ctx, ssa_op->op1_use);
 		default:
@@ -397,7 +413,7 @@ static inline bool is_free_of_live_var(context *ctx, zend_op *opline, zend_ssa_o
 static bool dce_instr(context *ctx, zend_op *opline, zend_ssa_op *ssa_op) {
 	zend_ssa *ssa = ctx->ssa;
 	int free_var = -1;
-	zend_uchar free_var_type;
+	uint8_t free_var_type;
 
 	if (opline->opcode == ZEND_NOP) {
 		return 0;
@@ -410,9 +426,8 @@ static bool dce_instr(context *ctx, zend_op *opline, zend_ssa_op *ssa_op) {
 
 	if ((opline->op1_type & (IS_VAR|IS_TMP_VAR))&& !is_var_dead(ctx, ssa_op->op1_use)) {
 		if (!try_remove_var_def(ctx, ssa_op->op1_use, ssa_op->op1_use_chain, opline)) {
-			if (ssa->var_info[ssa_op->op1_use].type & (MAY_BE_STRING|MAY_BE_ARRAY|MAY_BE_OBJECT|MAY_BE_RESOURCE|MAY_BE_REF)
-				&& opline->opcode != ZEND_CASE
-				&& opline->opcode != ZEND_CASE_STRICT) {
+			if (may_be_refcounted(ssa->var_info[ssa_op->op1_use].type)
+					&& opline->opcode != ZEND_CASE && opline->opcode != ZEND_CASE_STRICT) {
 				free_var = ssa_op->op1_use;
 				free_var_type = opline->op1_type;
 			}
@@ -420,7 +435,7 @@ static bool dce_instr(context *ctx, zend_op *opline, zend_ssa_op *ssa_op) {
 	}
 	if ((opline->op2_type & (IS_VAR|IS_TMP_VAR)) && !is_var_dead(ctx, ssa_op->op2_use)) {
 		if (!try_remove_var_def(ctx, ssa_op->op2_use, ssa_op->op2_use_chain, opline)) {
-			if (ssa->var_info[ssa_op->op2_use].type & (MAY_BE_STRING|MAY_BE_ARRAY|MAY_BE_OBJECT|MAY_BE_RESOURCE|MAY_BE_REF)) {
+			if (may_be_refcounted(ssa->var_info[ssa_op->op2_use].type)) {
 				if (free_var >= 0) {
 					// TODO: We can't free two vars. Keep instruction alive.
 					zend_bitset_excl(ctx->instr_dead, opline - ctx->op_array->opcodes);
@@ -452,13 +467,19 @@ static inline int get_common_phi_source(zend_ssa *ssa, zend_ssa_phi *phi) {
 	int common_source = -1;
 	int source;
 	FOREACH_PHI_SOURCE(phi, source) {
+		if (source == phi->ssa_var) {
+			continue;
+		}
 		if (common_source == -1) {
 			common_source = source;
-		} else if (common_source != source && source != phi->ssa_var) {
+		} else if (common_source != source) {
 			return -1;
 		}
 	} FOREACH_PHI_SOURCE_END();
-	ZEND_ASSERT(common_source != -1);
+
+	/* If all sources are phi->ssa_var this phi must be in an unreachable cycle.
+	 * We can't easily drop the phi in that case, as we don't have something to replace it with.
+	 * Ideally SCCP would eliminate the whole cycle. */
 	return common_source;
 }
 
@@ -498,7 +519,11 @@ static inline bool may_break_varargs(const zend_op_array *op_array, const zend_s
 	return 0;
 }
 
-int dce_optimize_op_array(zend_op_array *op_array, zend_ssa *ssa, bool reorder_dtor_effects) {
+static inline bool may_throw_dce_exception(const zend_op *opline) {
+	return opline->opcode == ZEND_ADD_ARRAY_ELEMENT && opline->op2_type == IS_UNUSED;
+}
+
+int dce_optimize_op_array(zend_op_array *op_array, zend_optimizer_ctx *optimizer_ctx, zend_ssa *ssa, bool reorder_dtor_effects) {
 	int i;
 	zend_ssa_phi *phi;
 	int removed_ops = 0;
@@ -511,23 +536,31 @@ int dce_optimize_op_array(zend_op_array *op_array, zend_ssa *ssa, bool reorder_d
 	ctx.op_array = op_array;
 	ctx.reorder_dtor_effects = reorder_dtor_effects;
 
+	void *checkpoint = zend_arena_checkpoint(optimizer_ctx->arena);
 	/* We have no dedicated phi vector, so we use the whole ssa var vector instead */
 	ctx.instr_worklist_len = zend_bitset_len(op_array->last);
-	ctx.instr_worklist = alloca(sizeof(zend_ulong) * ctx.instr_worklist_len);
-	memset(ctx.instr_worklist, 0, sizeof(zend_ulong) * ctx.instr_worklist_len);
+	ctx.instr_worklist = zend_arena_calloc(&optimizer_ctx->arena, ctx.instr_worklist_len, sizeof(zend_ulong));
 	ctx.phi_worklist_len = zend_bitset_len(ssa->vars_count);
-	ctx.phi_worklist = alloca(sizeof(zend_ulong) * ctx.phi_worklist_len);
-	memset(ctx.phi_worklist, 0, sizeof(zend_ulong) * ctx.phi_worklist_len);
-	ctx.phi_worklist_no_val = alloca(sizeof(zend_ulong) * ctx.phi_worklist_len);
-	memset(ctx.phi_worklist_no_val, 0, sizeof(zend_ulong) * ctx.phi_worklist_len);
+	ctx.phi_worklist = zend_arena_calloc(&optimizer_ctx->arena, ctx.phi_worklist_len, sizeof(zend_ulong));
+	ctx.phi_worklist_no_val = zend_arena_calloc(&optimizer_ctx->arena, ctx.phi_worklist_len, sizeof(zend_ulong));
 
 	/* Optimistically assume all instructions and phis to be dead */
-	ctx.instr_dead = alloca(sizeof(zend_ulong) * ctx.instr_worklist_len);
-	memset(ctx.instr_dead, 0, sizeof(zend_ulong) * ctx.instr_worklist_len);
-	ctx.phi_dead = alloca(sizeof(zend_ulong) * ctx.phi_worklist_len);
+	ctx.instr_dead = zend_arena_calloc(&optimizer_ctx->arena, ctx.instr_worklist_len, sizeof(zend_ulong));
+	ctx.phi_dead = zend_arena_alloc(&optimizer_ctx->arena, ctx.phi_worklist_len * sizeof(zend_ulong));
 	memset(ctx.phi_dead, 0xff, sizeof(zend_ulong) * ctx.phi_worklist_len);
 
-	/* Mark reacable instruction without side effects as dead */
+	/* Mark non-CV phis as live. Even if the result is unused, we generally cannot remove one
+	 * of the producing instructions, as it combines producing the result with control flow.
+	 * This can be made more precise if there are any cases where this is not the case. */
+	FOREACH_PHI(phi) {
+		if (phi->var >= op_array->last_var
+				&& may_be_refcounted(ssa->var_info[phi->ssa_var].type)) {
+			zend_bitset_excl(ctx.phi_dead, phi->ssa_var);
+			add_phi_sources_to_worklists(&ctx, phi, 0);
+		}
+	} FOREACH_PHI_END();
+
+	/* Mark reachable instruction without side effects as dead */
 	int b = ssa->cfg.blocks_count;
 	while (b > 0) {
 		int	op_data = -1;
@@ -553,7 +586,8 @@ int dce_optimize_op_array(zend_op_array *op_array, zend_ssa *ssa, bool reorder_d
 					add_operands_to_worklists(&ctx, &op_array->opcodes[op_data], &ssa->ops[op_data], ssa, 0);
 				}
 			} else if (may_have_side_effects(op_array, ssa, &op_array->opcodes[i], &ssa->ops[i], ctx.reorder_dtor_effects)
-					|| zend_may_throw(&op_array->opcodes[i], &ssa->ops[i], op_array, ssa)
+					|| (zend_may_throw(&op_array->opcodes[i], &ssa->ops[i], op_array, ssa)
+						&& !may_throw_dce_exception(&op_array->opcodes[i]))
 					|| (has_varargs && may_break_varargs(op_array, ssa, &ssa->ops[i]))) {
 				if (op_array->opcodes[i].opcode == ZEND_NEW
 						&& op_array->opcodes[i+1].opcode == ZEND_DO_FCALL
@@ -583,7 +617,10 @@ int dce_optimize_op_array(zend_op_array *op_array, zend_ssa *ssa, bool reorder_d
 		while ((i = zend_bitset_pop_first(ctx.instr_worklist, ctx.instr_worklist_len)) >= 0) {
 			zend_bitset_excl(ctx.instr_dead, i);
 			add_operands_to_worklists(&ctx, &op_array->opcodes[i], &ssa->ops[i], ssa, 1);
-			if (i < op_array->last && op_array->opcodes[i+1].opcode == ZEND_OP_DATA) {
+			if (i < op_array->last
+			 && (op_array->opcodes[i+1].opcode == ZEND_OP_DATA
+			  || (op_array->opcodes[i].opcode == ZEND_NEW
+			   && op_array->opcodes[i+1].opcode == ZEND_DO_FCALL))) {
 				zend_bitset_excl(ctx.instr_dead, i+1);
 				add_operands_to_worklists(&ctx, &op_array->opcodes[i+1], &ssa->ops[i+1], ssa, 1);
 			}
@@ -623,6 +660,8 @@ int dce_optimize_op_array(zend_op_array *op_array, zend_ssa *ssa, bool reorder_d
 			try_remove_trivial_phi(&ctx, phi);
 		}
 	} FOREACH_PHI_END();
+
+	zend_arena_release(&optimizer_ctx->arena, checkpoint);
 
 	return removed_ops;
 }

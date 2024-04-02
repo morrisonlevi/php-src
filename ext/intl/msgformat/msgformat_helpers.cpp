@@ -3,7 +3,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -308,14 +308,13 @@ static void umsg_set_timezone(MessageFormatter_object *mfo,
 		return; /* already done */
 	}
 
-	/* There is a bug in ICU which prevents MessageFormatter::getFormats()
+#if U_ICU_VERSION_MAJOR_NUM < 65
+	/* There is a bug in ICU < 64.1 (ICU-12584) which prevents MessageFormatter::getFormats()
 	   to handle more than 10 formats correctly. The enumerator could be
 	   used to walk through the present formatters using getFormat(), which
 	   however seems to provide just a readonly access. This workaround
 	   prevents crash when there are > 10 formats but doesn't set any error.
-	   As a result, only DateFormatters with > 10 subformats are affected.
-	   This workaround should be ifdef'd out, when the bug has been fixed
-	   in ICU. */
+	   As a result, only DateFormatters with > 10 subformats are affected. */
 	icu::StringEnumeration* fnames = mf->getFormatNames(err.code);
 	if (!fnames || U_FAILURE(err.code)) {
 		return;
@@ -325,10 +324,11 @@ static void umsg_set_timezone(MessageFormatter_object *mfo,
 	if (count > 10) {
 		return;
 	}
+#endif
 
 	formats = mf->getFormats(count);
 
-	if (formats == NULL) {
+	if (UNEXPECTED(formats == NULL)) {
 		intl_errors_set(&err, U_MEMORY_ALLOCATION_ERROR,
 			"Out of memory retrieving subformats", 0);
 	}
@@ -392,6 +392,7 @@ U_CFUNC void umsg_format_helper(MessageFormatter_object *mfo,
 	zend_ulong		 num_index;
 
 	ZEND_HASH_FOREACH_KEY_VAL(args, num_index, str_index, elem) {
+		ZVAL_DEREF(elem);
 		Formattable& formattable = fargs[argNum];
 		UnicodeString& key = farg_names[argNum];
 		Formattable::Type argType = Formattable::kObject, //unknown
@@ -402,7 +403,7 @@ U_CFUNC void umsg_format_helper(MessageFormatter_object *mfo,
 		/* Process key and retrieve type */
 		if (str_index == NULL) {
 			/* includes case where index < 0 because it's exposed as unsigned */
-			if (num_index > (zend_ulong)INT32_MAX) {
+			if (UNEXPECTED(num_index > (zend_ulong)INT32_MAX)) {
 				intl_errors_set(&err, U_ILLEGAL_ARGUMENT_ERROR,
 					"Found negative or too large array key", 0);
 				continue;
@@ -476,8 +477,8 @@ U_CFUNC void umsg_format_helper(MessageFormatter_object *mfo,
 					int32_t tInt32 = 0;
 
 					if (Z_TYPE_P(elem) == IS_DOUBLE) {
-						if (Z_DVAL_P(elem) > (double)INT32_MAX ||
-								Z_DVAL_P(elem) < (double)INT32_MIN) {
+						if (UNEXPECTED(Z_DVAL_P(elem) > (double)INT32_MAX ||
+								Z_DVAL_P(elem) < (double)INT32_MIN)) {
 							intl_errors_set(&err, U_ILLEGAL_ARGUMENT_ERROR,
 								"Found PHP float with absolute value too large for "
 								"32 bit integer argument", 0);
@@ -485,8 +486,8 @@ U_CFUNC void umsg_format_helper(MessageFormatter_object *mfo,
 							tInt32 = (int32_t)Z_DVAL_P(elem);
 						}
 					} else if (Z_TYPE_P(elem) == IS_LONG) {
-						if (Z_LVAL_P(elem) > INT32_MAX ||
-								Z_LVAL_P(elem) < INT32_MIN) {
+						if (UNEXPECTED(Z_LVAL_P(elem) > INT32_MAX ||
+								Z_LVAL_P(elem) < INT32_MIN)) {
 							intl_errors_set(&err, U_ILLEGAL_ARGUMENT_ERROR,
 								"Found PHP integer with absolute value too large "
 								"for 32 bit integer argument", 0);
@@ -504,8 +505,8 @@ U_CFUNC void umsg_format_helper(MessageFormatter_object *mfo,
 					int64_t tInt64 = 0;
 
 					if (Z_TYPE_P(elem) == IS_DOUBLE) {
-						if (Z_DVAL_P(elem) > (double)U_INT64_MAX ||
-								Z_DVAL_P(elem) < (double)U_INT64_MIN) {
+						if (UNEXPECTED(Z_DVAL_P(elem) > (double)U_INT64_MAX ||
+								Z_DVAL_P(elem) < (double)U_INT64_MIN)) {
 							intl_errors_set(&err, U_ILLEGAL_ARGUMENT_ERROR,
 								"Found PHP float with absolute value too large for "
 								"64 bit integer argument", 0);

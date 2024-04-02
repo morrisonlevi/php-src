@@ -1,13 +1,17 @@
 --TEST--
 PDO_DBLIB: Column data types, with or without stringifying
+--EXTENSIONS--
+pdo_dblib
 --SKIPIF--
 <?php
-if (!extension_loaded('pdo_dblib')) die('skip not loaded');
 require __DIR__ . '/config.inc';
+getDbConnection();
 ?>
 --FILE--
 <?php
 require __DIR__ . '/config.inc';
+
+$db = getDbConnection();
 
 function get_expected_float_string() {
     global $db;

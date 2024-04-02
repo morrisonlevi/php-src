@@ -1,7 +1,7 @@
 --TEST--
 openssl_pkcs12_export_to_file() error tests
---SKIPIF--
-<?php if (!extension_loaded("openssl")) print "skip"; ?>
+--EXTENSIONS--
+openssl
 --FILE--
 <?php
 $pkcsfile = __DIR__ . "/openssl_pkcs12_export_to_file__pkcsfile.tmp";
@@ -33,5 +33,5 @@ bool(false)
 Warning: openssl_pkcs12_export_to_file(): Private key does not correspond to cert in %s on line %d
 bool(false)
 
-Warning: openssl_pkcs12_export_to_file(): Error opening file . in %s on line %d
+Warning: openssl_pkcs12_export_to_file(): Error opening file %s in %s on line %d
 bool(false)

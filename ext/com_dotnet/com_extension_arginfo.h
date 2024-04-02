@@ -1,5 +1,5 @@
 /* This is a generated file, edit the .stub.php file instead.
- * Stub hash: 6b162963bcceb90144fdd3165137fb567f916812 */
+ * Stub hash: b91206482b5119ce6d7c899e9599acfa2e06ec2a */
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_variant_set, 0, 2, IS_VOID, 0)
 	ZEND_ARG_OBJ_INFO(0, variant, variant, 0)
@@ -131,7 +131,6 @@ ZEND_BEGIN_ARG_INFO_EX(arginfo_class_dotnet___construct, 0, 0, 2)
 ZEND_END_ARG_INFO()
 #endif
 
-
 ZEND_FUNCTION(variant_set);
 ZEND_FUNCTION(variant_add);
 ZEND_FUNCTION(variant_cat);
@@ -170,7 +169,6 @@ ZEND_METHOD(com, __construct);
 ZEND_METHOD(dotnet, __construct);
 #endif
 
-
 static const zend_function_entry ext_functions[] = {
 	ZEND_FE(variant_set, arginfo_variant_set)
 	ZEND_FE(variant_add, arginfo_variant_add)
@@ -207,27 +205,147 @@ static const zend_function_entry ext_functions[] = {
 	ZEND_FE_END
 };
 
-
 static const zend_function_entry class_variant_methods[] = {
 	ZEND_ME(variant, __construct, arginfo_class_variant___construct, ZEND_ACC_PUBLIC)
 	ZEND_FE_END
 };
-
 
 static const zend_function_entry class_com_methods[] = {
 	ZEND_ME(com, __construct, arginfo_class_com___construct, ZEND_ACC_PUBLIC)
 	ZEND_FE_END
 };
 
-
-static const zend_function_entry class_dotnet_methods[] = {
 #if HAVE_MSCOREE_H
+static const zend_function_entry class_dotnet_methods[] = {
 	ZEND_ME(dotnet, __construct, arginfo_class_dotnet___construct, ZEND_ACC_PUBLIC)
-#endif
 	ZEND_FE_END
 };
+#endif
 
+static const zend_function_entry class_com_safearray_proxy_methods[] = {
+	ZEND_FE_END
+};
 
 static const zend_function_entry class_com_exception_methods[] = {
 	ZEND_FE_END
 };
+
+static void register_com_extension_symbols(int module_number)
+{
+	REGISTER_LONG_CONSTANT("CLSCTX_INPROC_SERVER", CLSCTX_INPROC_SERVER, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("CLSCTX_INPROC_HANDLER", CLSCTX_INPROC_HANDLER, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("CLSCTX_LOCAL_SERVER", CLSCTX_LOCAL_SERVER, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("CLSCTX_REMOTE_SERVER", CLSCTX_REMOTE_SERVER, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("CLSCTX_SERVER", CLSCTX_SERVER, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("CLSCTX_ALL", CLSCTX_ALL, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("VT_NULL", VT_NULL, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("VT_EMPTY", VT_EMPTY, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("VT_UI1", VT_UI1, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("VT_I1", VT_I1, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("VT_UI2", VT_UI2, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("VT_I2", VT_I2, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("VT_UI4", VT_UI4, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("VT_I4", VT_I4, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("VT_R4", VT_R4, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("VT_R8", VT_R8, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("VT_BOOL", VT_BOOL, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("VT_ERROR", VT_ERROR, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("VT_CY", VT_CY, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("VT_DATE", VT_DATE, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("VT_BSTR", VT_BSTR, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("VT_DECIMAL", VT_DECIMAL, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("VT_UNKNOWN", VT_UNKNOWN, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("VT_DISPATCH", VT_DISPATCH, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("VT_VARIANT", VT_VARIANT, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("VT_INT", VT_INT, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("VT_UINT", VT_UINT, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("VT_ARRAY", VT_ARRAY, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("VT_BYREF", VT_BYREF, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("CP_ACP", CP_ACP, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("CP_MACCP", CP_MACCP, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("CP_OEMCP", CP_OEMCP, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("CP_UTF7", CP_UTF7, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("CP_UTF8", CP_UTF8, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("CP_SYMBOL", CP_SYMBOL, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("CP_THREAD_ACP", CP_THREAD_ACP, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("VARCMP_LT", VARCMP_LT, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("VARCMP_EQ", VARCMP_EQ, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("VARCMP_GT", VARCMP_GT, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("VARCMP_NULL", VARCMP_NULL, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("LOCALE_SYSTEM_DEFAULT", LOCALE_SYSTEM_DEFAULT, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("LOCALE_NEUTRAL", LOCALE_NEUTRAL, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("NORM_IGNORECASE", NORM_IGNORECASE, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("NORM_IGNORENONSPACE", NORM_IGNORENONSPACE, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("NORM_IGNORESYMBOLS", NORM_IGNORESYMBOLS, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("NORM_IGNOREWIDTH", NORM_IGNOREWIDTH, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("NORM_IGNOREKANATYPE", NORM_IGNOREKANATYPE, CONST_PERSISTENT);
+#if defined(NORM_IGNOREKASHIDA)
+	REGISTER_LONG_CONSTANT("NORM_IGNOREKASHIDA", NORM_IGNOREKASHIDA, CONST_PERSISTENT);
+#endif
+	REGISTER_LONG_CONSTANT("DISP_E_DIVBYZERO", PHP_DISP_E_DIVBYZERO, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("DISP_E_OVERFLOW", PHP_DISP_E_OVERFLOW, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("DISP_E_BADINDEX", PHP_DISP_E_BADINDEX, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("DISP_E_PARAMNOTFOUND", PHP_DISP_E_PARAMNOTFOUND, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("MK_E_UNAVAILABLE", PHP_MK_E_UNAVAILABLE, CONST_PERSISTENT);
+#if SIZEOF_ZEND_LONG == 8
+	REGISTER_LONG_CONSTANT("VT_UI8", VT_UI8, CONST_PERSISTENT);
+#endif
+#if SIZEOF_ZEND_LONG == 8
+	REGISTER_LONG_CONSTANT("VT_I8", VT_I8, CONST_PERSISTENT);
+#endif
+}
+
+static zend_class_entry *register_class_variant(void)
+{
+	zend_class_entry ce, *class_entry;
+
+	INIT_CLASS_ENTRY(ce, "variant", class_variant_methods);
+	class_entry = zend_register_internal_class_ex(&ce, NULL);
+	class_entry->ce_flags |= ZEND_ACC_NOT_SERIALIZABLE;
+
+	return class_entry;
+}
+
+static zend_class_entry *register_class_com(zend_class_entry *class_entry_variant)
+{
+	zend_class_entry ce, *class_entry;
+
+	INIT_CLASS_ENTRY(ce, "com", class_com_methods);
+	class_entry = zend_register_internal_class_ex(&ce, class_entry_variant);
+
+	return class_entry;
+}
+
+#if HAVE_MSCOREE_H
+static zend_class_entry *register_class_dotnet(zend_class_entry *class_entry_variant)
+{
+	zend_class_entry ce, *class_entry;
+
+	INIT_CLASS_ENTRY(ce, "dotnet", class_dotnet_methods);
+	class_entry = zend_register_internal_class_ex(&ce, class_entry_variant);
+
+	return class_entry;
+}
+#endif
+
+static zend_class_entry *register_class_com_safearray_proxy(void)
+{
+	zend_class_entry ce, *class_entry;
+
+	INIT_CLASS_ENTRY(ce, "com_safearray_proxy", class_com_safearray_proxy_methods);
+	class_entry = zend_register_internal_class_ex(&ce, NULL);
+	class_entry->ce_flags |= ZEND_ACC_FINAL;
+
+	return class_entry;
+}
+
+static zend_class_entry *register_class_com_exception(zend_class_entry *class_entry_Exception)
+{
+	zend_class_entry ce, *class_entry;
+
+	INIT_CLASS_ENTRY(ce, "com_exception", class_com_exception_methods);
+	class_entry = zend_register_internal_class_ex(&ce, class_entry_Exception);
+	class_entry->ce_flags |= ZEND_ACC_FINAL;
+
+	return class_entry;
+}

@@ -5,7 +5,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -21,7 +21,6 @@
 #endif
 
 #include "php.h"
-#include "Zend/zend_interfaces.h"
 
 #include "curl_private.h"
 
@@ -54,7 +53,7 @@ PHP_FUNCTION(curl_share_close)
 }
 /* }}} */
 
-static int _php_curl_share_setopt(php_curlsh *sh, zend_long option, zval *zvalue, zval *return_value) /* {{{ */
+static bool _php_curl_share_setopt(php_curlsh *sh, zend_long option, zval *zvalue, zval *return_value) /* {{{ */
 {
 	CURLSHcode error = CURLSHE_OK;
 
@@ -72,7 +71,7 @@ static int _php_curl_share_setopt(php_curlsh *sh, zend_long option, zval *zvalue
 
 	SAVE_CURLSH_ERROR(sh, error);
 
-	return error != CURLSHE_OK;
+	return error == CURLSHE_OK;
 }
 /* }}} */
 
@@ -91,7 +90,7 @@ PHP_FUNCTION(curl_share_setopt)
 
 	sh = Z_CURL_SHARE_P(z_sh);
 
-	if (!_php_curl_share_setopt(sh, options, zvalue, return_value)) {
+	if (_php_curl_share_setopt(sh, options, zvalue, return_value)) {
 		RETURN_TRUE;
 	} else {
 		RETURN_FALSE;
@@ -137,14 +136,11 @@ PHP_FUNCTION(curl_share_strerror)
 
 /* CurlShareHandle class */
 
-static zend_object_handlers curl_share_handlers;
-
 static zend_object *curl_share_create_object(zend_class_entry *class_type) {
 	php_curlsh *intern = zend_object_alloc(sizeof(php_curlsh), class_type);
 
 	zend_object_std_init(&intern->std, class_type);
 	object_properties_init(&intern->std, class_type);
-	intern->std.handlers = &curl_share_handlers;
 
 	return &intern->std;
 }
@@ -162,14 +158,16 @@ void curl_share_free_obj(zend_object *object)
 	zend_object_std_dtor(&sh->std);
 }
 
+static zend_object_handlers curl_share_handlers;
+
 void curl_share_register_handlers(void) {
 	curl_share_ce->create_object = curl_share_create_object;
-	curl_share_ce->serialize = &zend_class_serialize_deny;
-	curl_share_ce->unserialize = &zend_class_unserialize_deny;
+	curl_share_ce->default_object_handlers = &curl_share_handlers;
 
 	memcpy(&curl_share_handlers, &std_object_handlers, sizeof(zend_object_handlers));
 	curl_share_handlers.offset = XtOffsetOf(php_curlsh, std);
 	curl_share_handlers.free_obj = curl_share_free_obj;
 	curl_share_handlers.get_constructor = curl_share_get_constructor;
 	curl_share_handlers.clone_obj = NULL;
+	curl_share_handlers.compare = zend_objects_not_comparable;
 }

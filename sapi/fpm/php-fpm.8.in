@@ -1,4 +1,4 @@
-.TH PHP-FPM 8 "2021" "The PHP Group" "Scripting Language"
+.TH PHP-FPM 8 "2024" "The PHP Group" "Scripting Language"
 .SH NAME
 .TP 15
 php-fpm \- PHP FastCGI Process Manager 'PHP-FPM'
@@ -77,6 +77,8 @@ Show compiled in modules
 .PD 1
 .B \-v
 Version number
+.TP
+.PD 0
 .B \-\-prefix \fIpath\fP
 .TP
 .PD 1
@@ -184,18 +186,12 @@ For a more or less complete description of PHP look here:
 .P
 .B http://www.php.net/manual/
 .PD 1
-.P
-A nice introduction to PHP by Stig Bakken can be found here:
-.PD 0
-.P
-.B http://www.zend.com/zend/art/intro.php
-.PD 1
 .SH BUGS
 You can view the list of known bugs or report any new bug you
 found at:
 .PD 0
 .P
-.B http://bugs.php.net
+.B https://github.com/php/php-src/issues
 .PD 1
 .SH AUTHORS
 PHP-FPM SAPI was written by Andrei Nigmatulin. The mailing-lists are highload-php-en (English) and highload-php-ru (Russian).
@@ -224,7 +220,7 @@ that is bundled with this package in the file LICENSE, and is
 available through the world-wide-web at the following url:
 .PD 0
 .P
-.B http://www.php.net/license/3_01.txt
+.B https://www.php.net/license/3_01.txt
 .PD 1
 .P
 If you did not receive a copy of the PHP license and are unable to

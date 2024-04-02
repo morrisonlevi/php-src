@@ -1,9 +1,7 @@
 --TEST--
 IntlGregorianCalendar::__construct(): bad arguments
---SKIPIF--
-<?php
-if (!extension_loaded('intl'))
-    die('skip intl extension not enabled');
+--EXTENSIONS--
+intl
 --FILE--
 <?php
 ini_set("intl.error_level", E_WARNING);
@@ -29,7 +27,7 @@ try {
     echo $e->getMessage(), "\n";
 }
 try {
-    var_dump(new IntlGregorianCalendar(1,2,3,4,NULL,array()));
+    var_dump(new IntlGregorianCalendar(1,2,3,4,5,array()));
 } catch (TypeError $e) {
     echo $e->getMessage(), "\n";
 }
@@ -41,10 +39,19 @@ try {
     echo $e->getMessage(), "\n";
 }
 ?>
---EXPECT--
+--EXPECTF--
+Deprecated: Function intlgregcal_create_instance() is deprecated in %s on line %d
 Too many arguments
+
+Deprecated: Function intlgregcal_create_instance() is deprecated in %s on line %d
 Too many arguments
+
+Deprecated: Function intlgregcal_create_instance() is deprecated in %s on line %d
 No variant with 4 arguments (excluding trailing NULLs)
+
+Deprecated: Calling IntlGregorianCalendar::__construct() with more than 2 arguments is deprecated, use either IntlGregorianCalendar::createFromDate() or IntlGregorianCalendar::createFromDateTime() instead in %s on line %d
 No variant with 4 arguments (excluding trailing NULLs)
+
+Deprecated: Calling IntlGregorianCalendar::__construct() with more than 2 arguments is deprecated, use either IntlGregorianCalendar::createFromDate() or IntlGregorianCalendar::createFromDateTime() instead in %s on line %d
 IntlGregorianCalendar::__construct(): Argument #6 ($second) must be of type int, array given
 IntlGregorianCalendar object is already constructed

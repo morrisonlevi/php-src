@@ -1,13 +1,14 @@
 --TEST--
 mysqli_fetch_assoc()
+--EXTENSIONS--
+mysqli
 --SKIPIF--
 <?php
-require_once('skipif.inc');
-require_once('skipifconnectfailure.inc');
+require_once 'skipifconnectfailure.inc';
 ?>
 --FILE--
 <?php
-    require('table.inc');
+    require 'table.inc';
 
     if (!$res = mysqli_query($link, "SELECT 1, 2")) {
         printf("[001] [%d] %s\n", mysqli_errno($link), mysqli_error($link));

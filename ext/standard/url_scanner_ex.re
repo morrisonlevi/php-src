@@ -5,7 +5,7 @@
   | This source file is subject to version 3.01 of the PHP license,      |
   | that is bundled with this package in the file LICENSE, and is        |
   | available through the world-wide-web at the following url:           |
-  | http://www.php.net/license/3_01.txt                                  |
+  | https://www.php.net/license/3_01.txt                                 |
   | If you did not receive a copy of the PHP license and are unable to   |
   | obtain it through the world-wide-web, please send a note to          |
   | license@php.net so we can mail you a copy immediately.               |
@@ -180,7 +180,7 @@ alphadash = ([a-zA-Z] | "-");
 #define YYLIMIT q
 #define YYMARKER r
 
-static inline void append_modified_url(smart_str *url, smart_str *dest, smart_str *url_app, const char *separator)
+static inline void append_modified_url(smart_str *url, smart_str *dest, smart_str *url_app, const char *separator, int type)
 {
 	php_url *url_parts;
 
@@ -212,7 +212,8 @@ static inline void append_modified_url(smart_str *url, smart_str *dest, smart_st
 	/* Check host whitelist. If it's not listed, do nothing. */
 	if (url_parts->host) {
 		zend_string *tmp = zend_string_tolower(url_parts->host);
-		if (!zend_hash_exists(&BG(url_adapt_session_hosts_ht), tmp)) {
+		HashTable *allowed_hosts = type ? &BG(url_adapt_session_hosts_ht) : &BG(url_adapt_output_hosts_ht);
+		if (!zend_hash_exists(allowed_hosts, tmp)) {
 			zend_string_release_ex(tmp, 0);
 			smart_str_append_smart_str(dest, url);
 			php_url_free(url_parts);
@@ -305,7 +306,7 @@ static inline void tag_arg(url_adapt_state_ex_t *ctx, char quotes, char type)
 		smart_str_appendc(&ctx->result, type);
 	}
 	if (f) {
-		append_modified_url(&ctx->val, &ctx->result, &ctx->url_app, PG(arg_separator).output);
+		append_modified_url(&ctx->val, &ctx->result, &ctx->url_app, PG(arg_separator).output, ctx->type);
 	} else {
 		smart_str_append_smart_str(&ctx->result, &ctx->val);
 	}
@@ -333,7 +334,7 @@ enum {
 #define STD_PARA url_adapt_state_ex_t *ctx, char *start, char *YYCURSOR
 #define STD_ARGS ctx, start, xp
 
-#if SCANNER_DEBUG
+#ifdef SCANNER_DEBUG
 #define scdebug(x) printf x
 #else
 #define scdebug(x)
@@ -352,7 +353,7 @@ static int check_http_host(char *target)
 	zend_string *host_tmp;
 	char *colon;
 
-	if ((tmp  = zend_hash_str_find(&EG(symbol_table), ZEND_STRL("_SERVER"))) &&
+	if ((tmp = zend_hash_find(&EG(symbol_table), ZSTR_KNOWN(ZEND_STR_AUTOGLOBAL_SERVER))) &&
 		Z_TYPE_P(tmp) == IS_ARRAY &&
 		(host = zend_hash_str_find(Z_ARRVAL_P(tmp), ZEND_STRL("HTTP_HOST"))) &&
 		Z_TYPE_P(host) == IS_STRING) {
@@ -606,7 +607,7 @@ PHPAPI char *php_url_scanner_adapt_single_url(const char *url, size_t urllen, co
 		smart_str_appends(&url_app, value);
 	}
 
-	append_modified_url(&surl, &buf, &url_app, PG(arg_separator).output);
+	append_modified_url(&surl, &buf, &url_app, PG(arg_separator).output, 1);
 
 	smart_str_0(&buf);
 	if (newlen) *newlen = ZSTR_LEN(buf.s);
@@ -747,6 +748,7 @@ static inline int php_url_scanner_add_var_impl(const char *name, size_t name_len
 		php_url_scanner_ex_activate(type);
 		php_output_start_internal(ZEND_STRL("URL-Rewriter"), handler, 0, PHP_OUTPUT_HANDLER_STDFLAGS);
 		url_state->active = 1;
+		url_state->type = type;
 	}
 
 	if (url_state->url_app.s && ZSTR_LEN(url_state->url_app.s) != 0) {

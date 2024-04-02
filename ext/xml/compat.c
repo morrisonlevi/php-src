@@ -5,7 +5,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -17,6 +17,7 @@
 #include "php.h"
 #if defined(HAVE_LIBXML) && (defined(HAVE_XML) || defined(HAVE_XMLRPC)) && !defined(HAVE_LIBEXPAT)
 #include "expat_compat.h"
+#include "ext/libxml/php_libxml.h"
 
 typedef struct _php_xml_ns {
 	xmlNsPtr nsptr;
@@ -284,9 +285,9 @@ _pi_handler(void *user, const xmlChar *target, const xmlChar *data)
 static void
 _unparsed_entity_decl_handler(void *user,
                               const xmlChar *name,
-							  const xmlChar *pub_id,
-							  const xmlChar *sys_id,
-							  const xmlChar *notation)
+                              const xmlChar *pub_id,
+                              const xmlChar *sys_id,
+                              const xmlChar *notation)
 {
 	XML_Parser parser = (XML_Parser) user;
 
@@ -310,7 +311,7 @@ _notation_decl_handler(void *user, const xmlChar *notation, const xmlChar *pub_i
 }
 
 static void
-_build_comment(const xmlChar *data, int data_len, xmlChar **comment, int *comment_len)
+_build_comment(const xmlChar *data, size_t data_len, xmlChar **comment, size_t *comment_len)
 {
 	*comment_len = data_len + 7;
 
@@ -329,16 +330,16 @@ _comment_handler(void *user, const xmlChar *comment)
 
 	if (parser->h_default) {
 		xmlChar *d_comment;
-		int      d_comment_len;
+		size_t   d_comment_len;
 
-		_build_comment(comment, xmlStrlen(comment), &d_comment, &d_comment_len);
+		_build_comment(comment, (size_t) xmlStrlen(comment), &d_comment, &d_comment_len);
 		parser->h_default(parser->user, d_comment, d_comment_len);
 		xmlFree(d_comment);
 	}
 }
 
 static void
-_build_entity(const xmlChar *name, int len, xmlChar **entity, int *entity_len)
+_build_entity(const xmlChar *name, size_t len, xmlChar **entity, size_t *entity_len)
 {
 	*entity_len = len + 2;
 	*entity = xmlMalloc(*entity_len + 1);
@@ -379,9 +380,9 @@ _get_entity(void *user, const xmlChar *name)
 				/* Predefined entities will expand unless no cdata handler is present */
 				if (parser->h_default && ! (ret && ret->etype == XML_INTERNAL_PREDEFINED_ENTITY && parser->h_cdata)) {
 					xmlChar *entity;
-					int      len;
+					size_t   len;
 
-					_build_entity(name, xmlStrlen(name), &entity, &len);
+					_build_entity(name, (size_t) xmlStrlen(name), &entity, &len);
 					parser->h_default(parser->user, (const xmlChar *) entity, len);
 					xmlFree(entity);
 				} else {
@@ -469,6 +470,7 @@ XML_ParserCreate_MM(const XML_Char *encoding, const XML_Memory_Handling_Suite *m
 		return NULL;
 	}
 
+	php_libxml_sanitize_parse_ctxt_options(parser->parser);
 	xmlCtxtUseOptions(parser->parser, XML_PARSE_OLDSAX);
 
 	parser->parser->replaceEntities = 1;
@@ -563,16 +565,8 @@ XML_Parse(XML_Parser parser, const XML_Char *data, int data_len, int is_final)
 {
 	int error;
 
-	if (parser->parser->lastError.level >= XML_ERR_WARNING) {
-		return 0;
-	}
-
 	error = xmlParseChunk(parser->parser, (char *) data, data_len, is_final);
-	if (error) {
-		return 0;
-	} else {
-		return 1;
-	}
+	return !error && parser->parser->lastError.level <= XML_ERR_WARNING;
 }
 
 PHP_XML_API int

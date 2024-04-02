@@ -1,15 +1,9 @@
 PHP_ARG_ENABLE([phpdbg],
   [for phpdbg support],
-  [AS_HELP_STRING([--enable-phpdbg],
-    [Build phpdbg])],
+  [AS_HELP_STRING([--disable-phpdbg],
+    [Disable building of phpdbg])],
   [yes],
   [yes])
-
-PHP_ARG_ENABLE([phpdbg-webhelper],
-  [for phpdbg web SAPI support],
-  [AS_HELP_STRING([--enable-phpdbg-webhelper],
-    [Build phpdbg web SAPI support])],
-  [no])
 
 PHP_ARG_ENABLE([phpdbg-debug],
   [for phpdbg debug build],
@@ -25,7 +19,7 @@ PHP_ARG_ENABLE([phpdbg-readline],
   [no],
   [no])
 
-if test "$BUILD_PHPDBG" = "" && test "$PHP_PHPDBG" != "no"; then
+if test "$PHP_PHPDBG" != "no"; then
   AC_HEADER_TIOCGWINSZ
   AC_DEFINE(HAVE_PHPDBG, 1, [ ])
 
@@ -35,12 +29,12 @@ if test "$BUILD_PHPDBG" = "" && test "$PHP_PHPDBG" != "no"; then
     AC_DEFINE(PHPDBG_DEBUG, 0, [ ])
   fi
 
-  PHP_PHPDBG_CFLAGS="-D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1"
-  PHP_PHPDBG_FILES="phpdbg.c phpdbg_parser.c phpdbg_lexer.c phpdbg_prompt.c phpdbg_help.c phpdbg_break.c phpdbg_print.c phpdbg_bp.c phpdbg_opcode.c phpdbg_list.c phpdbg_utils.c phpdbg_info.c phpdbg_cmd.c phpdbg_set.c phpdbg_frame.c phpdbg_watch.c phpdbg_btree.c phpdbg_sigsafe.c phpdbg_wait.c phpdbg_io.c phpdbg_eol.c phpdbg_out.c"
+  PHP_PHPDBG_CFLAGS="-DZEND_ENABLE_STATIC_TSRMLS_CACHE=1"
+  PHP_PHPDBG_FILES="phpdbg.c phpdbg_parser.c phpdbg_lexer.c phpdbg_prompt.c phpdbg_help.c phpdbg_break.c phpdbg_print.c phpdbg_bp.c phpdbg_list.c phpdbg_utils.c phpdbg_info.c phpdbg_cmd.c phpdbg_set.c phpdbg_frame.c phpdbg_watch.c phpdbg_btree.c phpdbg_sigsafe.c phpdbg_io.c phpdbg_out.c"
 
   AC_MSG_CHECKING([for phpdbg and readline integration])
   if test "$PHP_PHPDBG_READLINE" = "yes"; then
-    if test "$PHP_READLINE" != "no" -o  "$PHP_LIBEDIT" != "no"; then
+    if test "$PHP_READLINE" != "no" || test "$PHP_LIBEDIT" != "no"; then
   	  AC_DEFINE(HAVE_PHPDBG_READLINE, 1, [ ])
   	  PHPDBG_EXTRA_LIBS="$PHP_READLINE_LIBS"
   	  AC_MSG_RESULT([ok])
@@ -51,8 +45,30 @@ if test "$BUILD_PHPDBG" = "" && test "$PHP_PHPDBG" != "no"; then
     AC_MSG_RESULT([disabled])
   fi
 
-  PHP_SUBST(PHP_PHPDBG_CFLAGS)
-  PHP_SUBST(PHP_PHPDBG_FILES)
+  AC_CHECK_DECL([UFFDIO_WRITEPROTECT_MODE_WP], [
+    if test "$enable_zts" != "yes"; then
+      CFLAGS_SAVE="$CFLAGS"
+      LIBS_SAVE="$LIBS"
+
+      PTHREADS_CHECK
+      AC_MSG_CHECKING([working pthreads]);
+
+      if test "$pthreads_working" = "yes"; then
+      	AC_MSG_RESULT([$ac_cv_pthreads_cflags -l$ac_cv_pthreads_lib]);
+      	PHP_PHPDBG_CFLAGS="$PHP_PHPDBG_CFLAGS $ac_cv_pthreads_cflags"
+      	PHPDBG_EXTRA_LIBS="$PHPDBG_EXTRA_LIBS -l$ac_cv_pthreads_lib"
+      	AC_DEFINE(HAVE_USERFAULTFD_WRITEFAULT, 1, [Whether faulting on write-protected memory support can be compiled for userfaultfd])
+      else
+        AC_MSG_WARN([pthreads not available])
+      fi
+
+      CFLAGS="$CFLAGS_SAVE"
+      LIBS="$LIBS_SAVE"
+    else
+      AC_DEFINE(HAVE_USERFAULTFD_WRITEFAULT, 1, [Whether faulting on write-protected memory support can be compiled for userfaultfd])
+    fi
+  ],,[#include <linux/userfaultfd.h>])
+
   PHP_SUBST(PHPDBG_EXTRA_LIBS)
 
   PHP_ADD_MAKEFILE_FRAGMENT([$abs_srcdir/sapi/phpdbg/Makefile.frag], [$abs_srcdir/sapi/phpdbg], [$abs_builddir/sapi/phpdbg])
@@ -61,7 +77,7 @@ if test "$BUILD_PHPDBG" = "" && test "$PHP_PHPDBG" != "no"; then
   BUILD_BINARY="sapi/phpdbg/phpdbg"
   BUILD_SHARED="sapi/phpdbg/libphpdbg.la"
 
-  BUILD_PHPDBG="\$(LIBTOOL) --mode=link \
+  BUILD_PHPDBG="\$(LIBTOOL) --tag=CC --mode=link \
         \$(CC) -export-dynamic \$(CFLAGS_CLEAN) \$(EXTRA_CFLAGS) \$(EXTRA_LDFLAGS_PROGRAM) \$(LDFLAGS) \$(PHP_RPATHS) \
                 \$(PHP_GLOBAL_OBJS:.lo=.o) \
                 \$(PHP_BINARY_OBJS:.lo=.o) \
@@ -72,7 +88,7 @@ if test "$BUILD_PHPDBG" = "" && test "$PHP_PHPDBG" != "no"; then
                 \$(PHP_FRAMEWORKS) \
          -o \$(BUILD_BINARY)"
 
-  BUILD_PHPDBG_SHARED="\$(LIBTOOL) --mode=link \
+  BUILD_PHPDBG_SHARED="\$(LIBTOOL) --tag=CC --mode=link \
         \$(CC) -shared -Wl,-soname,libphpdbg.so -export-dynamic \$(CFLAGS_CLEAN) \$(EXTRA_CFLAGS) \$(EXTRA_LDFLAGS_PROGRAM) \$(LDFLAGS) \$(PHP_RPATHS) \
                 \$(PHP_GLOBAL_OBJS) \
                 \$(PHP_BINARY_OBJS) \
@@ -89,8 +105,4 @@ if test "$BUILD_PHPDBG" = "" && test "$PHP_PHPDBG" != "no"; then
   PHP_SUBST(BUILD_PHPDBG_SHARED)
 
   PHP_OUTPUT(sapi/phpdbg/phpdbg.1)
-fi
-
-if test "$PHP_PHPDBG_WEBHELPER" != "no"; then
-  PHP_NEW_EXTENSION(phpdbg_webhelper, phpdbg_rinit_hook.c phpdbg_webdata_transfer.c, $ext_shared)
 fi

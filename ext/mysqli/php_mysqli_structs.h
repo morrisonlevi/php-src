@@ -5,7 +5,7 @@
   | This source file is subject to version 3.01 of the PHP license,      |
   | that is bundled with this package in the file LICENSE, and is        |
   | available through the world-wide-web at the following url:           |
-  | http://www.php.net/license/3_01.txt                                  |
+  | https://www.php.net/license/3_01.txt                                 |
   | If you did not receive a copy of the PHP license and are unable to   |
   | obtain it through the world-wide-web, please send a note to          |
   | license@php.net so we can mail you a copy immediately.               |
@@ -26,27 +26,8 @@
 #undef LIST
 #endif
 
-#ifndef TRUE
-#define TRUE 1
-#endif
-
-#ifndef FALSE
-#define FALSE 0
-#endif
-
-#ifdef MYSQLI_USE_MYSQLND
 #include "ext/mysqlnd/mysqlnd.h"
 #include "mysqli_mysqlnd.h"
-#else
-
-#include <mysql.h>
-#if MYSQL_VERSION_ID >= 80000 &&  MYSQL_VERSION_ID < 100000
-typedef _Bool		my_bool;
-#endif
-#include <errmsg.h>
-#include <mysqld_error.h>
-#include "mysqli_libmysql.h"
-#endif /* MYSQLI_USE_MYSQLND */
 
 
 #define MYSQLI_VERSION_ID		101009
@@ -76,10 +57,6 @@ typedef struct {
 	BIND_BUFFER	param;
 	BIND_BUFFER	result;
 	char		*query;
-#ifndef MYSQLI_USE_MYSQLND
-	/* used to manage refcount with libmysql (already implement in mysqlnd) */
-	zval		link_handle;
-#endif
 } MY_STMT;
 
 typedef struct {
@@ -89,9 +66,7 @@ typedef struct {
 	php_stream		*li_stream;
 	unsigned int 	multi_query;
 	bool		persistent;
-#ifdef MYSQLI_USE_MYSQLND
 	int				async_result_fetch_type;
-#endif
 } MY_MYSQL;
 
 typedef struct {
@@ -134,8 +109,6 @@ typedef struct {
 
 #ifdef PHP_WIN32
 #define PHP_MYSQLI_API __declspec(dllexport)
-#define MYSQLI_LLU_SPEC "%I64u"
-#define MYSQLI_LL_SPEC "%I64d"
 #ifndef L64
 #define L64(x) x##i64
 #endif
@@ -146,15 +119,16 @@ typedef __int64 my_longlong;
 # else
 #  define PHP_MYSQLI_API
 # endif
-/* we need this for PRIu64 and PRId64 */
-#include <inttypes.h>
-#define MYSQLI_LLU_SPEC "%" PRIu64
-#define MYSQLI_LL_SPEC "%" PRId64
 #ifndef L64
 #define L64(x) x##LL
 #endif
 typedef int64_t my_longlong;
 #endif
+
+/* we need this for PRIu64 and PRId64 */
+#include <inttypes.h>
+#define MYSQLI_LLU_SPEC "%" PRIu64
+#define MYSQLI_LL_SPEC "%" PRId64
 
 #ifdef ZTS
 #include "TSRM.h"
@@ -186,17 +160,10 @@ extern void php_mysqli_fetch_into_hash_aux(zval *return_value, MYSQL_RES * resul
 	mysql->multi_query = 1; \
 }
 
-#define REGISTER_MYSQLI_CLASS_ENTRY(name, mysqli_entry, class_functions) { \
-	zend_class_entry ce; \
-	INIT_CLASS_ENTRY(ce, name,class_functions); \
-	ce.create_object = mysqli_objects_new; \
-	mysqli_entry = zend_register_internal_class(&ce); \
-} \
-
 #define MYSQLI_REGISTER_RESOURCE_EX(__ptr, __zval)  \
 	(Z_MYSQLI_P(__zval))->ptr = __ptr;
 
-#define MYSQLI_RETURN_RESOURCE(__ptr, __ce) \
+#define MYSQLI_RETVAL_RESOURCE(__ptr, __ce) \
 	RETVAL_OBJ(mysqli_objects_new(__ce)); \
 	MYSQLI_REGISTER_RESOURCE_EX(__ptr, return_value)
 
@@ -269,27 +236,23 @@ extern void php_mysqli_fetch_into_hash_aux(zval *return_value, MYSQL_RES * resul
 
 
 ZEND_BEGIN_MODULE_GLOBALS(mysqli)
-	zend_long			default_link;
 	zend_long			num_links;
 	zend_long			max_links;
 	zend_long 			num_active_persistent;
 	zend_long 			num_inactive_persistent;
 	zend_long			max_persistent;
-	zend_long			allow_persistent;
-	zend_ulong	default_port;
-	char			*default_host;
-	char			*default_user;
-	char			*default_socket;
-	char			*default_pw;
-	zend_long			reconnect;
-	zend_long			allow_local_infile;
-	zend_long			strict;
+	bool				allow_persistent;
+	zend_ulong			default_port;
+	char				*default_host;
+	char				*default_user;
+	char				*default_pw;
+	char				*default_socket;
+	bool				allow_local_infile;
+	char				*local_infile_directory;
 	zend_long			error_no;
-	char			*error_msg;
+	char				*error_msg;
 	zend_long			report_mode;
-	HashTable		*report_ht;
-	zend_ulong	multi_query;
-	bool 		rollback_on_cached_plink;
+	bool 				rollback_on_cached_plink;
 ZEND_END_MODULE_GLOBALS(mysqli)
 
 #define MyG(v) ZEND_MODULE_GLOBALS_ACCESSOR(mysqli, v)

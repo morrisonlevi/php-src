@@ -1,35 +1,12 @@
 --TEST--
 mysqli_set_charset()
+--EXTENSIONS--
+mysqli
 --SKIPIF--
 <?php
-require_once('skipif.inc');
-require_once('skipifconnectfailure.inc');
-
-if (!function_exists('mysqli_set_charset'))
-    die("skip Function not available");
-
-require_once('connect.inc');
-if (!$link = my_mysqli_connect($host, $user, $passwd, $db, $port, $socket))
-    die(sprintf("skip Cannot connect, [%d] %s", mysqli_connect_errno(), mysqli_connect_error()));
-
-if (!($res = mysqli_query($link, 'SELECT version() AS server_version')) ||
-        !($tmp = mysqli_fetch_assoc($res))) {
-    mysqli_close($link);
-    die(sprintf("skip Cannot check server version, [%d] %s\n",
-    mysqli_errno($link), mysqli_error($link)));
-}
-mysqli_free_result($res);
-$version = explode('.', $tmp['server_version']);
-if (empty($version)) {
-    mysqli_close($link);
-    die(sprintf("skip Cannot check server version, based on '%s'",
-        $tmp['server_version']));
-}
-
-if ($version[0] <= 4 && $version[1] < 1) {
-    mysqli_close($link);
-    die(sprintf("skip Requires MySQL Server 4.1+\n"));
-}
+require_once 'connect.inc';
+if (!$link = @my_mysqli_connect($host, $user, $passwd, $db, $port, $socket))
+    die(sprintf("skip Can't connect to MySQL Server - [%d] %s", mysqli_connect_errno(), mysqli_connect_error()));
 
 if ((($res = mysqli_query($link, 'SHOW CHARACTER SET LIKE "latin1"', MYSQLI_STORE_RESULT)) &&
         (mysqli_num_rows($res) == 1)) ||
@@ -45,9 +22,7 @@ if ((($res = mysqli_query($link, 'SHOW CHARACTER SET LIKE "latin1"', MYSQLI_STOR
 ?>
 --FILE--
 <?php
-    require_once("connect.inc");
-
-    require('table.inc');
+    require 'table.inc';
 
     if (!$res = mysqli_query($link, 'SELECT @@character_set_connection AS charset, @@collation_connection AS collation'))
         printf("[007] [%d] %s\n", mysqli_errno($link), mysqli_error($link));
@@ -85,7 +60,8 @@ if ((($res = mysqli_query($link, 'SHOW CHARACTER SET LIKE "latin1"', MYSQLI_STOR
         printf("[016] Cannot get list of character sets\n");
 
     while ($tmp = mysqli_fetch_assoc($res)) {
-        if ('ucs2' == $tmp['Charset'] || 'utf16' == $tmp['Charset'] || 'utf32' == $tmp['Charset'] || 'utf16le' == $tmp['Charset'])
+        /* As of MySQL 8.0.28, `SHOW CHARACTER SET` contains utf8mb3, but that is not yet supported by mysqlnd */
+        if ('ucs2' == $tmp['Charset'] || 'utf16' == $tmp['Charset'] || 'utf32' == $tmp['Charset'] || 'utf16le' == $tmp['Charset'] || 'utf8mb3' == $tmp['Charset'])
             continue;
 
         /* Uncomment to see where it hangs - var_dump($tmp); flush(); */
@@ -127,7 +103,7 @@ if ((($res = mysqli_query($link, 'SHOW CHARACTER SET LIKE "latin1"', MYSQLI_STOR
 ?>
 --CLEAN--
 <?php
-    require_once("clean_table.inc");
+require_once 'clean_table.inc';
 ?>
 --EXPECTF--
 Exception: %s

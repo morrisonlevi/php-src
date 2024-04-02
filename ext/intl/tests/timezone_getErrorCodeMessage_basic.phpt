@@ -1,9 +1,9 @@
 --TEST--
 IntlTimeZone::getErrorCode/Message(): basic test
+--EXTENSIONS--
+intl
 --SKIPIF--
 <?php
-if (!extension_loaded('intl'))
-    die('skip intl extension not enabled');
 /* INF being an invalid offset depends on UB in float->int cast behavior. */
 $arch = php_uname('m');
 if ($arch != 'x86_64' && $arch != 'i386')
@@ -28,7 +28,7 @@ var_dump($lsb->getErrorMessage());
 int(0)
 string(12) "U_ZERO_ERROR"
 
-Warning: IntlTimeZone::getOffset(): intltz_get_offset: error obtaining offset in %s on line %d
+Warning: IntlTimeZone::getOffset(): error obtaining offset in %s on line %d
 bool(false)
 int(1)
-string(67) "intltz_get_offset: error obtaining offset: U_ILLEGAL_ARGUMENT_ERROR"
+string(48) "error obtaining offset: U_ILLEGAL_ARGUMENT_ERROR"

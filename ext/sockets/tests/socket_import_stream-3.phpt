@@ -1,10 +1,10 @@
 --TEST--
 socket_import_stream: Test with multicasting
+--EXTENSIONS--
+sockets
 --SKIPIF--
 <?php
-if (!extension_loaded('sockets')) {
-    die('SKIP sockets extension not available.');
-}
+
 $s = socket_create(AF_INET, SOCK_DGRAM, SOL_UDP);
 $br = @socket_bind($s, '0.0.0.0', 58379);
 if ($br === false)
@@ -15,6 +15,7 @@ $so = @socket_set_option($s, IPPROTO_IP, MCAST_JOIN_GROUP, array(
 ));
 if ($so === false)
     die("SKIP joining group 224.0.0.23 on interface lo failed");
+?>
 --FILE--
 <?php
 

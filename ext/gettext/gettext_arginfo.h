@@ -1,5 +1,5 @@
 /* This is a generated file, edit the .stub.php file instead.
- * Stub hash: bc0c8a6b95afdacad81cc19b5aeb727a58f0cb38 */
+ * Stub hash: 864b3389d4f99b0d7302ae399544e6fb9fb80b7e */
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_textdomain, 0, 1, IS_STRING, 0)
 	ZEND_ARG_TYPE_INFO(0, domain, IS_STRING, 1)
@@ -61,7 +61,6 @@ ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_bind_textdomain_codeset, 0, 2, M
 ZEND_END_ARG_INFO()
 #endif
 
-
 ZEND_FUNCTION(textdomain);
 ZEND_FUNCTION(gettext);
 ZEND_FUNCTION(dgettext);
@@ -80,11 +79,10 @@ ZEND_FUNCTION(dcngettext);
 ZEND_FUNCTION(bind_textdomain_codeset);
 #endif
 
-
 static const zend_function_entry ext_functions[] = {
 	ZEND_FE(textdomain, arginfo_textdomain)
 	ZEND_FE(gettext, arginfo_gettext)
-	ZEND_FALIAS(_, gettext, arginfo__)
+	ZEND_RAW_FENTRY("_", zif_gettext, arginfo__, 0, NULL, NULL)
 	ZEND_FE(dgettext, arginfo_dgettext)
 	ZEND_FE(dcgettext, arginfo_dcgettext)
 	ZEND_FE(bindtextdomain, arginfo_bindtextdomain)
@@ -102,4 +100,3 @@ static const zend_function_entry ext_functions[] = {
 #endif
 	ZEND_FE_END
 };
-

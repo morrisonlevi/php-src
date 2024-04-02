@@ -11,7 +11,7 @@ function test($nix, Array $ar, &$ref, stdClass $std,
 class test
 {
     function method($nix, Array $ar, &$ref, stdClass $std,
-        NonExistingClass $na, stdClass $opt = NULL, $def = "FooBar")
+        NonExistingClass $na, ?stdClass $opt = NULL, $def = "FooBar")
     {
     }
 }
@@ -69,10 +69,11 @@ function check_params($r)
 
 check_params(new ReflectionFunction('test'));
 
-check_params(new ReflectionMethod('test::method'));
+check_params(ReflectionMethod::createFromMethodName('test::method'));
 
 ?>
 --EXPECTF--
+Deprecated: Implicitly marking parameter $opt as nullable is deprecated, the explicit nullable type must be used instead in %s on line %d
 #####test()#####
 ===0===
 getName: string(3) "nix"

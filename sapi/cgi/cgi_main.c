@@ -5,7 +5,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -22,6 +22,7 @@
 #include "php.h"
 #include "php_globals.h"
 #include "php_variables.h"
+#include "php_ini_builder.h"
 #include "zend_modules.h"
 
 #include "SAPI.h"
@@ -96,7 +97,7 @@ int __riscosify_control = __RISCOSIFY_STRICT_UNIX_SPECS;
 
 #ifndef PHP_WIN32
 /* XXX this will need to change later when threaded fastcgi is implemented.  shane */
-struct sigaction act, old_term, old_quit, old_int;
+static struct sigaction act, old_term, old_quit, old_int;
 #endif
 
 static void (*php_php_import_environment_variables)(zval *array_ptr);
@@ -115,7 +116,7 @@ static int parent = 1;
 
 #ifndef PHP_WIN32
 /* Did parent received exit signals SIG_TERM/SIG_INT/SIG_QUIT */
-static int exit_signal = 0;
+static volatile sig_atomic_t exit_signal = 0;
 
 /* Is Parent waiting for children to exit */
 static int parent_waiting = 0;
@@ -155,7 +156,7 @@ static const opt_struct OPTIONS[] = {
 	{'?', 0, "usage"},/* help alias (both '?' and 'usage') */
 	{'v', 0, "version"},
 	{'z', 1, "zend-extension"},
- 	{'T', 1, "timing"},
+	{'T', 1, "timing"},
 	{'-', 0, NULL} /* end of args */
 };
 
@@ -254,7 +255,7 @@ static void print_modules(void)
 	zend_hash_init(&sorted_registry, 64, NULL, NULL, 1);
 	zend_hash_copy(&sorted_registry, &module_registry, NULL);
 	zend_hash_sort(&sorted_registry, module_name_cmp, 0);
-	ZEND_HASH_FOREACH_PTR(&sorted_registry, module) {
+	ZEND_HASH_MAP_FOREACH_PTR(&sorted_registry, module) {
 		php_printf("%s\n", module->name);
 	} ZEND_HASH_FOREACH_END();
 	zend_hash_destroy(&sorted_registry);
@@ -354,11 +355,11 @@ static void sapi_fcgi_flush(void *server_context)
 {
 	fcgi_request *request = (fcgi_request*) server_context;
 
-	if (
-		!parent &&
-		request && !fcgi_flush(request, 0)) {
-
-		php_handle_aborted_connection();
+	if (!parent && request) {
+		sapi_send_headers();
+		if (!fcgi_flush(request, 0)) {
+			php_handle_aborted_connection();
+		}
 	}
 }
 
@@ -383,7 +384,7 @@ static int sapi_cgi_send_headers(sapi_headers_struct *sapi_headers)
 
 		if (CGIG(rfc2616_headers) && SG(sapi_headers).http_status_line) {
 			char *s;
-			len = slprintf(buf, SAPI_CGI_MAX_HEADER_LENGTH, "%s\r\n", SG(sapi_headers).http_status_line);
+			len = slprintf(buf, SAPI_CGI_MAX_HEADER_LENGTH, "%s", SG(sapi_headers).http_status_line);
 			if ((s = strchr(SG(sapi_headers).http_status_line, ' '))) {
 				response_status = atoi((s + 1));
 			}
@@ -400,7 +401,7 @@ static int sapi_cgi_send_headers(sapi_headers_struct *sapi_headers)
 				(s - SG(sapi_headers).http_status_line) >= 5 &&
 				strncasecmp(SG(sapi_headers).http_status_line, "HTTP/", 5) == 0
 			) {
-				len = slprintf(buf, sizeof(buf), "Status:%s\r\n", s);
+				len = slprintf(buf, sizeof(buf), "Status:%s", s);
 				response_status = atoi((s + 1));
 			} else {
 				h = (sapi_header_struct*)zend_llist_get_first_ex(&sapi_headers->headers, &pos);
@@ -423,9 +424,9 @@ static int sapi_cgi_send_headers(sapi_headers_struct *sapi_headers)
 						err++;
 					}
 					if (err->str) {
-						len = slprintf(buf, sizeof(buf), "Status: %d %s\r\n", SG(sapi_headers).http_response_code, err->str);
+						len = slprintf(buf, sizeof(buf), "Status: %d %s", SG(sapi_headers).http_response_code, err->str);
 					} else {
-						len = slprintf(buf, sizeof(buf), "Status: %d\r\n", SG(sapi_headers).http_response_code);
+						len = slprintf(buf, sizeof(buf), "Status: %d", SG(sapi_headers).http_response_code);
 					}
 				}
 			}
@@ -433,6 +434,7 @@ static int sapi_cgi_send_headers(sapi_headers_struct *sapi_headers)
 
 		if (!has_status) {
 			PHPWRITE_H(buf, len);
+			PHPWRITE_H("\r\n", 2);
 			ignore_status = 1;
 		}
 	}
@@ -663,7 +665,7 @@ static void cgi_php_import_environment_variables(zval *array_ptr)
 {
 	if (PG(variables_order) && (strchr(PG(variables_order),'E') || strchr(PG(variables_order),'e'))) {
 		if (Z_TYPE(PG(http_globals)[TRACK_VARS_ENV]) != IS_ARRAY) {
-			zend_is_auto_global_str("_ENV", sizeof("_ENV")-1);
+			zend_is_auto_global(ZSTR_KNOWN(ZEND_STR_AUTOGLOBAL_ENV));
 		}
 
 		if (Z_TYPE(PG(http_globals)[TRACK_VARS_ENV]) == IS_ARRAY &&
@@ -965,10 +967,7 @@ static int sapi_cgi_deactivate(void)
 
 static int php_cgi_startup(sapi_module_struct *sapi_module)
 {
-	if (php_module_startup(sapi_module, &cgi_module_entry, 1) == FAILURE) {
-		return FAILURE;
-	}
-	return SUCCESS;
+	return php_module_startup(sapi_module, &cgi_module_entry);
 }
 
 /* {{{ sapi_module_struct cgi_sapi_module */
@@ -1019,7 +1018,7 @@ static void php_cgi_usage(char *argv0)
 	if (prog) {
 		prog++;
 	} else {
-		prog = "php";
+		prog = "php-cgi";
 	}
 
 	php_printf(	"Usage: %s [-q] [-h] [-s] [-v] [-i] [-f <file>]\n"
@@ -1083,7 +1082,7 @@ static int is_valid_path(const char *path)
 #define CGI_GETENV(name) \
 	((has_env) ? \
 		FCGI_GETENV(request, name) : \
-    	getenv(name))
+		getenv(name))
 
 #define CGI_PUTENV(name, value) \
 	((has_env) ? \
@@ -1211,7 +1210,7 @@ static void init_request_info(fcgi_request *request)
 #endif
 
 		if (CGIG(fix_pathinfo)) {
-			zend_stat_t st;
+			zend_stat_t st = {0};
 			char *real_path = NULL;
 			char *env_redirect_url = CGI_GETENV("REDIRECT_URL");
 			char *env_document_root = CGI_GETENV("DOCUMENT_ROOT");
@@ -1228,8 +1227,8 @@ static void init_request_info(fcgi_request *request)
 			}
 
 			if (env_path_translated != NULL && env_redirect_url != NULL &&
- 			    env_path_translated != script_path_translated &&
- 			    strcmp(env_path_translated, script_path_translated) != 0) {
+			    env_path_translated != script_path_translated &&
+			    strcmp(env_path_translated, script_path_translated) != 0) {
 				/*
 				 * pretty much apache specific.  If we have a redirect_url
 				 * then our script_filename and script_name point to the
@@ -1455,7 +1454,7 @@ static void init_request_info(fcgi_request *request)
 /**
  * Clean up child processes upon exit
  */
-void fastcgi_cleanup(int signal)
+static void fastcgi_cleanup(int signal)
 {
 #ifdef DEBUG_FASTCGI
 	fprintf(stderr, "FastCGI shutdown, pid %d\n", getpid());
@@ -1469,7 +1468,7 @@ void fastcgi_cleanup(int signal)
 	if (parent && parent_waiting) {
 		exit_signal = 1;
 	} else {
-		exit(0);
+		_exit(0);
 	}
 }
 #else
@@ -1726,7 +1725,7 @@ int main(int argc, char *argv[])
 	int orig_optind = php_optind;
 	char *orig_optarg = php_optarg;
 	char *script_file = NULL;
-	size_t ini_entries_len = 0;
+	struct php_ini_builder ini_builder;
 	/* end of temporary locals */
 
 	int max_requests = 500;
@@ -1811,6 +1810,8 @@ int main(int argc, char *argv[])
 		free(decoded_query_string);
 	}
 
+	php_ini_builder_init(&ini_builder);
+
 	while (!skip_getopt && (c = php_getopt(argc, argv, OPTIONS, &php_optarg, &php_optind, 0, 2)) != -1) {
 		switch (c) {
 			case 'c':
@@ -1822,37 +1823,10 @@ int main(int argc, char *argv[])
 			case 'n':
 				cgi_sapi_module.php_ini_ignore = 1;
 				break;
-			case 'd': {
+			case 'd':
 				/* define ini entries on command line */
-				size_t len = strlen(php_optarg);
-				char *val;
-
-				if ((val = strchr(php_optarg, '='))) {
-					val++;
-					if (!isalnum(*val) && *val != '"' && *val != '\'' && *val != '\0') {
-						cgi_sapi_module.ini_entries = realloc(cgi_sapi_module.ini_entries, ini_entries_len + len + sizeof("\"\"\n\0"));
-						memcpy(cgi_sapi_module.ini_entries + ini_entries_len, php_optarg, (val - php_optarg));
-						ini_entries_len += (val - php_optarg);
-						memcpy(cgi_sapi_module.ini_entries + ini_entries_len, "\"", 1);
-						ini_entries_len++;
-						memcpy(cgi_sapi_module.ini_entries + ini_entries_len, val, len - (val - php_optarg));
-						ini_entries_len += len - (val - php_optarg);
-						memcpy(cgi_sapi_module.ini_entries + ini_entries_len, "\"\n\0", sizeof("\"\n\0"));
-						ini_entries_len += sizeof("\n\0\"") - 2;
-					} else {
-						cgi_sapi_module.ini_entries = realloc(cgi_sapi_module.ini_entries, ini_entries_len + len + sizeof("\n\0"));
-						memcpy(cgi_sapi_module.ini_entries + ini_entries_len, php_optarg, len);
-						memcpy(cgi_sapi_module.ini_entries + ini_entries_len + len, "\n\0", sizeof("\n\0"));
-						ini_entries_len += len + sizeof("\n\0") - 2;
-					}
-				} else {
-					cgi_sapi_module.ini_entries = realloc(cgi_sapi_module.ini_entries, ini_entries_len + len + sizeof("=1\n\0"));
-					memcpy(cgi_sapi_module.ini_entries + ini_entries_len, php_optarg, len);
-					memcpy(cgi_sapi_module.ini_entries + ini_entries_len + len, "=1\n\0", sizeof("=1\n\0"));
-					ini_entries_len += len + sizeof("=1\n\0") - 2;
-				}
+				php_ini_builder_define(&ini_builder, php_optarg);
 				break;
-			}
 			/* if we're started on command line, check to see if
 			 * we are being started as an 'external' fastcgi
 			 * server by accepting a bindpath parameter. */
@@ -1868,6 +1842,8 @@ int main(int argc, char *argv[])
 	}
 	php_optind = orig_optind;
 	php_optarg = orig_optarg;
+
+	cgi_sapi_module.ini_entries = php_ini_builder_finish(&ini_builder);
 
 	if (fastcgi || bindpath) {
 		/* Override SAPI callbacks */
@@ -2011,7 +1987,7 @@ consult the installation file that came with this distribution, or visit \n\
 			int running = 0;
 			pid_t pid;
 
-			/* Create a process group for ourself & children */
+			/* Create a process group for us & children */
 			setsid();
 			pgroup = getpgrp();
 #ifdef DEBUG_FASTCGI
@@ -2243,6 +2219,8 @@ parent_loop_end:
 #ifdef HAVE_VALGRIND
 							if (warmup_repeats > 0) {
 								CALLGRIND_STOP_INSTRUMENTATION;
+								/* We're not interested in measuring startup */
+								CALLGRIND_ZERO_STATS;
 							}
 #endif
 						} else {
@@ -2295,6 +2273,7 @@ parent_loop_end:
 
 						case 'a':	/* interactive mode */
 							printf("Interactive mode enabled\n\n");
+							fflush(stdout);
 							break;
 
 						case 'C': /* don't chdir to the script directory */
@@ -2393,6 +2372,7 @@ parent_loop_end:
 					}
 				}
 
+do_repeat:
 				if (script_file) {
 					/* override path_translated if -f on command line */
 					if (SG(request_info).path_translated) efree(SG(request_info).path_translated);
@@ -2450,16 +2430,11 @@ parent_loop_end:
 				}
 			} /* end !cgi && !fastcgi */
 
-			/*
-				we never take stdin if we're (f)cgi, always
-				rely on the web server giving us the info
-				we need in the environment.
-			*/
-			if (SG(request_info).path_translated || cgi || fastcgi) {
-				zend_stream_init_filename(&file_handle, SG(request_info).path_translated);
-			} else {
-				zend_stream_init_fp(&file_handle, stdin, "Standard input code");
+#ifdef HAVE_VALGRIND
+			if (warmup_repeats == 0) {
+				CALLGRIND_START_INSTRUMENTATION;
 			}
+#endif
 
 			/* request startup only after we've done all we can to
 			 * get path_translated */
@@ -2520,6 +2495,10 @@ parent_loop_end:
 					free(bindpath);
 					return FAILURE;
 				}
+			} else {
+				/* we never take stdin if we're (f)cgi */
+				zend_stream_init_fp(&file_handle, stdin, "Standard input code");
+				file_handle.primary_script = 1;
 			}
 
 			if (CGIG(check_shebang_line)) {
@@ -2532,11 +2511,11 @@ parent_loop_end:
 					break;
 				case PHP_MODE_LINT:
 					PG(during_request_startup) = 0;
-					exit_status = php_lint_script(&file_handle);
-					if (exit_status == SUCCESS) {
-						zend_printf("No syntax errors detected in %s\n", file_handle.filename);
+					if (php_lint_script(&file_handle) == SUCCESS) {
+						zend_printf("No syntax errors detected in %s\n", ZSTR_VAL(file_handle.filename));
 					} else {
-						zend_printf("Errors parsing %s\n", file_handle.filename);
+						zend_printf("Errors parsing %s\n", ZSTR_VAL(file_handle.filename));
+						exit_status = -1;
 					}
 					break;
 				case PHP_MODE_STRIP:
@@ -2557,23 +2536,28 @@ parent_loop_end:
 			}
 
 fastcgi_request_done:
-			{
-				if (SG(request_info).path_translated) {
-					efree(SG(request_info).path_translated);
-					SG(request_info).path_translated = NULL;
-				}
+			zend_destroy_file_handle(&file_handle);
 
-				php_request_shutdown((void *) 0);
-
-				if (exit_status == 0) {
-					exit_status = EG(exit_status);
-				}
-
-				if (free_query_string && SG(request_info).query_string) {
-					free(SG(request_info).query_string);
-					SG(request_info).query_string = NULL;
-				}
+			if (SG(request_info).path_translated) {
+				efree(SG(request_info).path_translated);
+				SG(request_info).path_translated = NULL;
 			}
+
+			php_request_shutdown((void *) 0);
+
+			if (exit_status == 0) {
+				exit_status = EG(exit_status);
+			}
+
+			if (free_query_string && SG(request_info).query_string) {
+				free(SG(request_info).query_string);
+				SG(request_info).query_string = NULL;
+			}
+
+#ifdef HAVE_VALGRIND
+			/* We're not interested in measuring shutdown */
+			CALLGRIND_STOP_INSTRUMENTATION;
+#endif
 
 			if (!fastcgi) {
 				if (benchmark) {
@@ -2584,9 +2568,6 @@ fastcgi_request_done:
 							gettimeofday(&start, NULL);
 #else
 							time(&start);
-#endif
-#ifdef HAVE_VALGRIND
-							CALLGRIND_START_INSTRUMENTATION;
 #endif
 						}
 						continue;
@@ -2599,6 +2580,11 @@ fastcgi_request_done:
 							continue;
 						}
 					}
+				}
+				if (behavior == PHP_MODE_LINT && argc - 1 > php_optind) {
+					php_optind++;
+					script_file = NULL;
+					goto do_repeat;
 				}
 				break;
 			}
@@ -2625,9 +2611,7 @@ fastcgi_request_done:
 		if (cgi_sapi_module.php_ini_path_override) {
 			free(cgi_sapi_module.php_ini_path_override);
 		}
-		if (cgi_sapi_module.ini_entries) {
-			free(cgi_sapi_module.ini_entries);
-		}
+		php_ini_builder_deinit(&ini_builder);
 	} zend_catch {
 		exit_status = 255;
 	} zend_end_try();

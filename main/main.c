@@ -5,7 +5,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -48,7 +48,6 @@
 #include "php_syslog.h"
 #include "fopen_wrappers.h"
 #include "ext/standard/php_standard.h"
-#include "ext/standard/php_string.h"
 #include "ext/date/php_date.h"
 #include "php_variables.h"
 #include "ext/standard/credits.h"
@@ -83,6 +82,7 @@
 #include "rfc1867.h"
 
 #include "ext/standard/html_tables.h"
+#include "main_arginfo.h"
 /* }}} */
 
 PHPAPI int (*php_register_internal_extensions_func)(void) = php_register_internal_extensions;
@@ -96,133 +96,144 @@ PHPAPI size_t core_globals_offset;
 
 #define SAFE_FILENAME(f) ((f)?(f):"-")
 
+PHPAPI const char *php_version(void)
+{
+	return PHP_VERSION;
+}
+
+PHPAPI unsigned int php_version_id(void)
+{
+	return PHP_VERSION_ID;
+}
+
 /* {{{ PHP_INI_MH */
 static PHP_INI_MH(OnSetFacility)
 {
-	const char *facility = ZSTR_VAL(new_value);
+	const zend_string *facility = new_value;
 
 #ifdef LOG_AUTH
-	if (!strcmp(facility, "LOG_AUTH") || !strcmp(facility, "auth") || !strcmp(facility, "security")) {
+	if (zend_string_equals_literal(facility, "LOG_AUTH") || zend_string_equals_literal(facility, "auth")
+			|| zend_string_equals_literal(facility, "security")) {
 		PG(syslog_facility) = LOG_AUTH;
 		return SUCCESS;
 	}
 #endif
 #ifdef LOG_AUTHPRIV
-	if (!strcmp(facility, "LOG_AUTHPRIV") || !strcmp(facility, "authpriv")) {
+	if (zend_string_equals_literal(facility, "LOG_AUTHPRIV") || zend_string_equals_literal(facility, "authpriv")) {
 		PG(syslog_facility) = LOG_AUTHPRIV;
 		return SUCCESS;
 	}
 #endif
 #ifdef LOG_CRON
-	if (!strcmp(facility, "LOG_CRON") || !strcmp(facility, "cron")) {
+	if (zend_string_equals_literal(facility, "LOG_CRON") || zend_string_equals_literal(facility, "cron")) {
 		PG(syslog_facility) = LOG_CRON;
 		return SUCCESS;
 	}
 #endif
 #ifdef LOG_DAEMON
-	if (!strcmp(facility, "LOG_DAEMON") || !strcmp(facility, "daemon")) {
+	if (zend_string_equals_literal(facility, "LOG_DAEMON") || zend_string_equals_literal(facility, "daemon")) {
 		PG(syslog_facility) = LOG_DAEMON;
 		return SUCCESS;
 	}
 #endif
 #ifdef LOG_FTP
-	if (!strcmp(facility, "LOG_FTP") || !strcmp(facility, "ftp")) {
+	if (zend_string_equals_literal(facility, "LOG_FTP") || zend_string_equals_literal(facility, "ftp")) {
 		PG(syslog_facility) = LOG_FTP;
 		return SUCCESS;
 	}
 #endif
 #ifdef LOG_KERN
-	if (!strcmp(facility, "LOG_KERN") || !strcmp(facility, "kern")) {
+	if (zend_string_equals_literal(facility, "LOG_KERN") || zend_string_equals_literal(facility, "kern")) {
 		PG(syslog_facility) = LOG_KERN;
 		return SUCCESS;
 	}
 #endif
 #ifdef LOG_LPR
-	if (!strcmp(facility, "LOG_LPR") || !strcmp(facility, "lpr")) {
+	if (zend_string_equals_literal(facility, "LOG_LPR") || zend_string_equals_literal(facility, "lpr")) {
 		PG(syslog_facility) = LOG_LPR;
 		return SUCCESS;
 	}
 #endif
 #ifdef LOG_MAIL
-	if (!strcmp(facility, "LOG_MAIL") || !strcmp(facility, "mail")) {
+	if (zend_string_equals_literal(facility, "LOG_MAIL") || zend_string_equals_literal(facility, "mail")) {
 		PG(syslog_facility) = LOG_MAIL;
 		return SUCCESS;
 	}
 #endif
 #ifdef LOG_INTERNAL_MARK
-	if (!strcmp(facility, "LOG_INTERNAL_MARK") || !strcmp(facility, "mark")) {
+	if (zend_string_equals_literal(facility, "LOG_INTERNAL_MARK") || zend_string_equals_literal(facility, "mark")) {
 		PG(syslog_facility) = LOG_INTERNAL_MARK;
 		return SUCCESS;
 	}
 #endif
 #ifdef LOG_NEWS
-	if (!strcmp(facility, "LOG_NEWS") || !strcmp(facility, "news")) {
+	if (zend_string_equals_literal(facility, "LOG_NEWS") || zend_string_equals_literal(facility, "news")) {
 		PG(syslog_facility) = LOG_NEWS;
 		return SUCCESS;
 	}
 #endif
 #ifdef LOG_SYSLOG
-	if (!strcmp(facility, "LOG_SYSLOG") || !strcmp(facility, "syslog")) {
+	if (zend_string_equals_literal(facility, "LOG_SYSLOG") || zend_string_equals_literal(facility, "syslog")) {
 		PG(syslog_facility) = LOG_SYSLOG;
 		return SUCCESS;
 	}
 #endif
 #ifdef LOG_USER
-	if (!strcmp(facility, "LOG_USER") || !strcmp(facility, "user")) {
+	if (zend_string_equals(facility, ZSTR_KNOWN(ZEND_STR_USER)) || zend_string_equals_literal(facility, "LOG_USER")) {
 		PG(syslog_facility) = LOG_USER;
 		return SUCCESS;
 	}
 #endif
 #ifdef LOG_UUCP
-	if (!strcmp(facility, "LOG_UUCP") || !strcmp(facility, "uucp")) {
+	if (zend_string_equals_literal(facility, "LOG_UUCP") || zend_string_equals_literal(facility, "uucp")) {
 		PG(syslog_facility) = LOG_UUCP;
 		return SUCCESS;
 	}
 #endif
 #ifdef LOG_LOCAL0
-	if (!strcmp(facility, "LOG_LOCAL0") || !strcmp(facility, "local0")) {
+	if (zend_string_equals_literal(facility, "LOG_LOCAL0") || zend_string_equals_literal(facility, "local0")) {
 		PG(syslog_facility) = LOG_LOCAL0;
 		return SUCCESS;
 	}
 #endif
 #ifdef LOG_LOCAL1
-	if (!strcmp(facility, "LOG_LOCAL1") || !strcmp(facility, "local1")) {
+	if (zend_string_equals_literal(facility, "LOG_LOCAL1") || zend_string_equals_literal(facility, "local1")) {
 		PG(syslog_facility) = LOG_LOCAL1;
 		return SUCCESS;
 	}
 #endif
 #ifdef LOG_LOCAL2
-	if (!strcmp(facility, "LOG_LOCAL2") || !strcmp(facility, "local2")) {
+	if (zend_string_equals_literal(facility, "LOG_LOCAL2") || zend_string_equals_literal(facility, "local2")) {
 		PG(syslog_facility) = LOG_LOCAL2;
 		return SUCCESS;
 	}
 #endif
 #ifdef LOG_LOCAL3
-	if (!strcmp(facility, "LOG_LOCAL3") || !strcmp(facility, "local3")) {
+	if (zend_string_equals_literal(facility, "LOG_LOCAL3") || zend_string_equals_literal(facility, "local3")) {
 		PG(syslog_facility) = LOG_LOCAL3;
 		return SUCCESS;
 	}
 #endif
 #ifdef LOG_LOCAL4
-	if (!strcmp(facility, "LOG_LOCAL4") || !strcmp(facility, "local4")) {
+	if (zend_string_equals_literal(facility, "LOG_LOCAL4") || zend_string_equals_literal(facility, "local4")) {
 		PG(syslog_facility) = LOG_LOCAL4;
 		return SUCCESS;
 	}
 #endif
 #ifdef LOG_LOCAL5
-	if (!strcmp(facility, "LOG_LOCAL5") || !strcmp(facility, "local5")) {
+	if (zend_string_equals_literal(facility, "LOG_LOCAL5") || zend_string_equals_literal(facility, "local5")) {
 		PG(syslog_facility) = LOG_LOCAL5;
 		return SUCCESS;
 	}
 #endif
 #ifdef LOG_LOCAL6
-	if (!strcmp(facility, "LOG_LOCAL6") || !strcmp(facility, "local6")) {
+	if (zend_string_equals_literal(facility, "LOG_LOCAL6") || zend_string_equals_literal(facility, "local6")) {
 		PG(syslog_facility) = LOG_LOCAL6;
 		return SUCCESS;
 	}
 #endif
 #ifdef LOG_LOCAL7
-	if (!strcmp(facility, "LOG_LOCAL7") || !strcmp(facility, "local7")) {
+	if (zend_string_equals_literal(facility, "LOG_LOCAL7") || zend_string_equals_literal(facility, "local7")) {
 		PG(syslog_facility) = LOG_LOCAL7;
 		return SUCCESS;
 	}
@@ -235,9 +246,7 @@ static PHP_INI_MH(OnSetFacility)
 /* {{{ PHP_INI_MH */
 static PHP_INI_MH(OnSetPrecision)
 {
-	zend_long i;
-
-	ZEND_ATOL(i, ZSTR_VAL(new_value));
+	zend_long i = ZEND_ATOL(ZSTR_VAL(new_value));
 	if (i >= -1) {
 		EG(precision) = i;
 		return SUCCESS;
@@ -250,9 +259,7 @@ static PHP_INI_MH(OnSetPrecision)
 /* {{{ PHP_INI_MH */
 static PHP_INI_MH(OnSetSerializePrecision)
 {
-	zend_long i;
-
-	ZEND_ATOL(i, ZSTR_VAL(new_value));
+	zend_long i = ZEND_ATOL(ZSTR_VAL(new_value));
 	if (i >= -1) {
 		PG(serialize_precision) = i;
 		return SUCCESS;
@@ -265,12 +272,23 @@ static PHP_INI_MH(OnSetSerializePrecision)
 /* {{{ PHP_INI_MH */
 static PHP_INI_MH(OnChangeMemoryLimit)
 {
+	size_t value;
 	if (new_value) {
-		PG(memory_limit) = zend_atol(ZSTR_VAL(new_value), ZSTR_LEN(new_value));
+		value = zend_ini_parse_uquantity_warn(new_value, entry->name);
 	} else {
-		PG(memory_limit) = Z_L(1)<<30;		/* effectively, no limit */
+		value = Z_L(1)<<30;		/* effectively, no limit */
 	}
-	zend_set_memory_limit(PG(memory_limit));
+	if (zend_set_memory_limit(value) == FAILURE) {
+		/* When the memory limit is reset to the original level during deactivation, we may be
+		 * using more memory than the original limit while shutdown is still in progress.
+		 * Ignore a failure for now, and set the memory limit when the memory manager has been
+		 * shut down and the minimal amount of memory is used. */
+		if (stage != ZEND_INI_STAGE_DEACTIVATE) {
+			zend_error(E_WARNING, "Failed to set memory limit to %zd bytes (Current memory usage is %zd bytes)", value, zend_memory_usage(true));
+			return FAILURE;
+		}
+	}
+	PG(memory_limit) = value;
 	return SUCCESS;
 }
 /* }}} */
@@ -278,21 +296,21 @@ static PHP_INI_MH(OnChangeMemoryLimit)
 /* {{{ PHP_INI_MH */
 static PHP_INI_MH(OnSetLogFilter)
 {
-	const char *filter = ZSTR_VAL(new_value);
+	const zend_string *filter = new_value;
 
-	if (!strcmp(filter, "all")) {
+	if (zend_string_equals_literal(filter, "all")) {
 		PG(syslog_filter) = PHP_SYSLOG_FILTER_ALL;
 		return SUCCESS;
 	}
-	if (!strcmp(filter, "no-ctrl")) {
+	if (zend_string_equals_literal(filter, "no-ctrl")) {
 		PG(syslog_filter) = PHP_SYSLOG_FILTER_NO_CTRL;
 		return SUCCESS;
 	}
-	if (!strcmp(filter, "ascii")) {
+	if (zend_string_equals_literal(filter, "ascii")) {
 		PG(syslog_filter) = PHP_SYSLOG_FILTER_ASCII;
 		return SUCCESS;
 	}
-	if (!strcmp(filter, "raw")) {
+	if (zend_string_equals_literal(filter, "raw")) {
 		PG(syslog_filter) = PHP_SYSLOG_FILTER_RAW;
 		return SUCCESS;
 	}
@@ -341,22 +359,22 @@ static void php_binary_init(void)
 {
 	char *binary_location = NULL;
 #ifdef PHP_WIN32
-	binary_location = (char *)malloc(MAXPATHLEN);
-	if (binary_location && GetModuleFileName(0, binary_location, MAXPATHLEN) == 0) {
-		free(binary_location);
-		PG(php_binary) = NULL;
+	binary_location = (char *)pemalloc(MAXPATHLEN, 1);
+	if (GetModuleFileName(0, binary_location, MAXPATHLEN) == 0) {
+		pefree(binary_location, 1);
+		binary_location = NULL;
 	}
 #else
 	if (sapi_module.executable_location) {
-		binary_location = (char *)malloc(MAXPATHLEN);
-		if (binary_location && !strchr(sapi_module.executable_location, '/')) {
+		binary_location = (char *)pemalloc(MAXPATHLEN, 1);
+		if (!strchr(sapi_module.executable_location, '/')) {
 			char *envpath, *path;
-			int found = 0;
+			bool found = false;
 
 			if ((envpath = getenv("PATH")) != NULL) {
 				char *search_dir, search_path[MAXPATHLEN];
 				char *last = NULL;
-				zend_stat_t s;
+				zend_stat_t s = {0};
 
 				path = estrdup(envpath);
 				search_dir = php_strtok_r(path, ":", &last);
@@ -364,7 +382,7 @@ static void php_binary_init(void)
 				while (search_dir) {
 					snprintf(search_path, MAXPATHLEN, "%s/%s", search_dir, sapi_module.executable_location);
 					if (VCWD_REALPATH(search_path, binary_location) && !VCWD_ACCESS(binary_location, X_OK) && VCWD_STAT(binary_location, &s) == 0 && S_ISREG(s.st_mode)) {
-						found = 1;
+						found = true;
 						break;
 					}
 					search_dir = php_strtok_r(NULL, ":", &last);
@@ -372,11 +390,11 @@ static void php_binary_init(void)
 				efree(path);
 			}
 			if (!found) {
-				free(binary_location);
+				pefree(binary_location, 1);
 				binary_location = NULL;
 			}
 		} else if (!VCWD_REALPATH(sapi_module.executable_location, binary_location) || VCWD_ACCESS(binary_location, X_OK)) {
-			free(binary_location);
+			pefree(binary_location, 1);
 			binary_location = NULL;
 		}
 	}
@@ -390,40 +408,51 @@ static PHP_INI_MH(OnUpdateTimeout)
 {
 	if (stage==PHP_INI_STAGE_STARTUP) {
 		/* Don't set a timeout on startup, only per-request */
-		ZEND_ATOL(EG(timeout_seconds), ZSTR_VAL(new_value));
+		EG(timeout_seconds) = ZEND_ATOL(ZSTR_VAL(new_value));
 		return SUCCESS;
 	}
 	zend_unset_timeout();
-	ZEND_ATOL(EG(timeout_seconds), ZSTR_VAL(new_value));
-	zend_set_timeout(EG(timeout_seconds), 0);
+	EG(timeout_seconds) = ZEND_ATOL(ZSTR_VAL(new_value));
+	if (stage != PHP_INI_STAGE_DEACTIVATE) {
+		/*
+		 * If we're restoring INI values, we shouldn't reset the timer.
+		 * Otherwise, the timer is active when PHP is idle, such as the
+		 * CLI web server or CGI. Running a script will re-activate
+		 * the timeout, so it's not needed to do so at script end.
+		 */
+		zend_set_timeout(EG(timeout_seconds), 0);
+	}
 	return SUCCESS;
 }
 /* }}} */
 
 /* {{{ php_get_display_errors_mode() helper function */
-static zend_uchar php_get_display_errors_mode(char *value, size_t value_length)
+static uint8_t php_get_display_errors_mode(zend_string *value)
 {
-	zend_uchar mode;
-
 	if (!value) {
 		return PHP_DISPLAY_ERRORS_STDOUT;
 	}
 
-	if (value_length == 2 && !strcasecmp("on", value)) {
-		mode = PHP_DISPLAY_ERRORS_STDOUT;
-	} else if (value_length == 3 && !strcasecmp("yes", value)) {
-		mode = PHP_DISPLAY_ERRORS_STDOUT;
-	} else if (value_length == 4 && !strcasecmp("true", value)) {
-		mode = PHP_DISPLAY_ERRORS_STDOUT;
-	} else if (value_length == 6 && !strcasecmp(value, "stderr")) {
-		mode = PHP_DISPLAY_ERRORS_STDERR;
-	} else if (value_length == 6 && !strcasecmp(value, "stdout")) {
-		mode = PHP_DISPLAY_ERRORS_STDOUT;
-	} else {
-		ZEND_ATOL(mode, value);
-		if (mode && mode != PHP_DISPLAY_ERRORS_STDOUT && mode != PHP_DISPLAY_ERRORS_STDERR) {
-			mode = PHP_DISPLAY_ERRORS_STDOUT;
-		}
+	if (zend_string_equals_literal_ci(value, "on")) {
+		return PHP_DISPLAY_ERRORS_STDOUT;
+	}
+	if (zend_string_equals_literal_ci(value, "yes")) {
+		return PHP_DISPLAY_ERRORS_STDOUT;
+	}
+
+	if (zend_string_equals_literal_ci(value, "true")) {
+		return PHP_DISPLAY_ERRORS_STDOUT;
+	}
+	if (zend_string_equals_literal_ci(value, "stderr")) {
+		return PHP_DISPLAY_ERRORS_STDERR;
+	}
+	if (zend_string_equals_literal_ci(value, "stdout")) {
+		return PHP_DISPLAY_ERRORS_STDOUT;
+	}
+
+	uint8_t mode = ZEND_ATOL(ZSTR_VAL(value));
+	if (mode && mode != PHP_DISPLAY_ERRORS_STDOUT && mode != PHP_DISPLAY_ERRORS_STDERR) {
+		return PHP_DISPLAY_ERRORS_STDOUT;
 	}
 
 	return mode;
@@ -433,7 +462,7 @@ static zend_uchar php_get_display_errors_mode(char *value, size_t value_length)
 /* {{{ PHP_INI_MH */
 static PHP_INI_MH(OnUpdateDisplayErrors)
 {
-	PG(display_errors) = php_get_display_errors_mode(ZSTR_VAL(new_value), ZSTR_LEN(new_value));
+	PG(display_errors) = php_get_display_errors_mode(new_value);
 
 	return SUCCESS;
 }
@@ -442,23 +471,19 @@ static PHP_INI_MH(OnUpdateDisplayErrors)
 /* {{{ PHP_INI_DISP */
 static PHP_INI_DISP(display_errors_mode)
 {
-	zend_uchar mode;
+	uint8_t mode;
 	bool cgi_or_cli;
-	size_t tmp_value_length;
-	char *tmp_value;
+	zend_string *temporary_value;
 
 	if (type == ZEND_INI_DISPLAY_ORIG && ini_entry->modified) {
-		tmp_value = (ini_entry->orig_value ? ZSTR_VAL(ini_entry->orig_value) : NULL );
-		tmp_value_length = (ini_entry->orig_value? ZSTR_LEN(ini_entry->orig_value) : 0);
+		temporary_value = (ini_entry->orig_value ? ini_entry->orig_value : NULL );
 	} else if (ini_entry->value) {
-		tmp_value = ZSTR_VAL(ini_entry->value);
-		tmp_value_length = ZSTR_LEN(ini_entry->value);
+		temporary_value = ini_entry->value;
 	} else {
-		tmp_value = NULL;
-		tmp_value_length = 0;
+		temporary_value = NULL;
 	}
 
-	mode = php_get_display_errors_mode(tmp_value, tmp_value_length);
+	mode = php_get_display_errors_mode(temporary_value);
 
 	/* Display 'On' for other SAPIs instead of STDOUT or STDERR */
 	cgi_or_cli = (!strcmp(sapi_module.name, "cli") || !strcmp(sapi_module.name, "cgi") || !strcmp(sapi_module.name, "phpdbg"));
@@ -519,6 +544,10 @@ PHPAPI void (*php_internal_encoding_changed)(void) = NULL;
 /* {{{ PHP_INI_MH */
 static PHP_INI_MH(OnUpdateDefaultCharset)
 {
+	if (memchr(ZSTR_VAL(new_value), '\0', ZSTR_LEN(new_value))
+		|| strpbrk(ZSTR_VAL(new_value), "\r\n")) {
+		return FAILURE;
+	}
 	OnUpdateString(entry, new_value, mh_arg1, mh_arg2, mh_arg3, stage);
 	if (php_internal_encoding_changed) {
 		php_internal_encoding_changed();
@@ -529,6 +558,17 @@ static PHP_INI_MH(OnUpdateDefaultCharset)
 #endif
 	}
 	return SUCCESS;
+}
+/* }}} */
+
+/* {{{ PHP_INI_MH */
+static PHP_INI_MH(OnUpdateDefaultMimeTye)
+{
+	if (memchr(ZSTR_VAL(new_value), '\0', ZSTR_LEN(new_value))
+		|| strpbrk(ZSTR_VAL(new_value), "\r\n")) {
+		return FAILURE;
+	}
+	return OnUpdateString(entry, new_value, mh_arg1, mh_arg2, mh_arg3, stage);
 }
 /* }}} */
 
@@ -584,7 +624,8 @@ static PHP_INI_MH(OnUpdateOutputEncoding)
 static PHP_INI_MH(OnUpdateErrorLog)
 {
 	/* Only do the safemode/open_basedir check at runtime */
-	if ((stage == PHP_INI_STAGE_RUNTIME || stage == PHP_INI_STAGE_HTACCESS) && new_value && strcmp(ZSTR_VAL(new_value), "syslog")) {
+	if ((stage == PHP_INI_STAGE_RUNTIME || stage == PHP_INI_STAGE_HTACCESS) &&
+			new_value && zend_string_equals_literal(new_value, "syslog")) {
 		if (PG(open_basedir) && php_check_open_basedir(ZSTR_VAL(new_value))) {
 			return FAILURE;
 		}
@@ -659,7 +700,6 @@ PHP_INI_BEGIN()
 	STD_PHP_INI_BOOLEAN("ignore_user_abort",	"0",		PHP_INI_ALL,		OnUpdateBool,			ignore_user_abort,		php_core_globals,	core_globals)
 	STD_PHP_INI_BOOLEAN("implicit_flush",		"0",		PHP_INI_ALL,		OnUpdateBool,			implicit_flush,			php_core_globals,	core_globals)
 	STD_PHP_INI_BOOLEAN("log_errors",			"0",		PHP_INI_ALL,		OnUpdateBool,			log_errors,				php_core_globals,	core_globals)
-	STD_PHP_INI_ENTRY("log_errors_max_len",	 "1024",		PHP_INI_ALL,		OnUpdateLong,			log_errors_max_len,		php_core_globals,	core_globals)
 	STD_PHP_INI_BOOLEAN("ignore_repeated_errors",	"0",	PHP_INI_ALL,		OnUpdateBool,			ignore_repeated_errors,	php_core_globals,	core_globals)
 	STD_PHP_INI_BOOLEAN("ignore_repeated_source",	"0",	PHP_INI_ALL,		OnUpdateBool,			ignore_repeated_source,	php_core_globals,	core_globals)
 	STD_PHP_INI_BOOLEAN("report_memleaks",		"1",		PHP_INI_ALL,		OnUpdateBool,			report_memleaks,		php_core_globals,	core_globals)
@@ -679,11 +719,12 @@ PHP_INI_BEGIN()
 	STD_PHP_INI_ENTRY("auto_prepend_file",		NULL,		PHP_INI_SYSTEM|PHP_INI_PERDIR,		OnUpdateString,			auto_prepend_file,		php_core_globals,	core_globals)
 	STD_PHP_INI_ENTRY("doc_root",				NULL,		PHP_INI_SYSTEM,		OnUpdateStringUnempty,	doc_root,				php_core_globals,	core_globals)
 	STD_PHP_INI_ENTRY("default_charset",		PHP_DEFAULT_CHARSET,	PHP_INI_ALL,	OnUpdateDefaultCharset,			default_charset,		sapi_globals_struct, sapi_globals)
-	STD_PHP_INI_ENTRY("default_mimetype",		SAPI_DEFAULT_MIMETYPE,	PHP_INI_ALL,	OnUpdateString,			default_mimetype,		sapi_globals_struct, sapi_globals)
+	STD_PHP_INI_ENTRY("default_mimetype",		SAPI_DEFAULT_MIMETYPE,	PHP_INI_ALL,	OnUpdateDefaultMimeTye,			default_mimetype,		sapi_globals_struct, sapi_globals)
 	STD_PHP_INI_ENTRY("internal_encoding",		NULL,			PHP_INI_ALL,	OnUpdateInternalEncoding,	internal_encoding,	php_core_globals, core_globals)
 	STD_PHP_INI_ENTRY("input_encoding",			NULL,			PHP_INI_ALL,	OnUpdateInputEncoding,				input_encoding,		php_core_globals, core_globals)
 	STD_PHP_INI_ENTRY("output_encoding",		NULL,			PHP_INI_ALL,	OnUpdateOutputEncoding,				output_encoding,	php_core_globals, core_globals)
-	STD_PHP_INI_ENTRY("error_log",				NULL,		PHP_INI_ALL,		OnUpdateErrorLog,			error_log,				php_core_globals,	core_globals)
+	STD_PHP_INI_ENTRY("error_log",				NULL,			PHP_INI_ALL,		OnUpdateErrorLog,				error_log,				php_core_globals,	core_globals)
+	STD_PHP_INI_ENTRY("error_log_mode",			"0644",			PHP_INI_ALL,		OnUpdateLong,					error_log_mode,			php_core_globals,	core_globals)
 	STD_PHP_INI_ENTRY("extension_dir",			PHP_EXTENSION_DIR,		PHP_INI_SYSTEM,		OnUpdateStringUnempty,	extension_dir,			php_core_globals,	core_globals)
 	STD_PHP_INI_ENTRY("sys_temp_dir",			NULL,		PHP_INI_SYSTEM,		OnUpdateStringUnempty,	sys_temp_dir,			php_core_globals,	core_globals)
 	STD_PHP_INI_ENTRY("include_path",			PHP_INCLUDE_PATH,		PHP_INI_ALL,		OnUpdateStringUnempty,	include_path,			php_core_globals,	core_globals)
@@ -707,6 +748,7 @@ PHP_INI_BEGIN()
 	PHP_INI_ENTRY("SMTP",						"localhost",PHP_INI_ALL,		NULL)
 	PHP_INI_ENTRY("smtp_port",					"25",		PHP_INI_ALL,		NULL)
 	STD_PHP_INI_BOOLEAN("mail.add_x_header",			"0",		PHP_INI_SYSTEM|PHP_INI_PERDIR,		OnUpdateBool,			mail_x_header,			php_core_globals,	core_globals)
+	STD_PHP_INI_BOOLEAN("mail.mixed_lf_and_crlf",			"0",		PHP_INI_SYSTEM|PHP_INI_PERDIR,		OnUpdateBool,			mail_mixed_lf_and_crlf,			php_core_globals,	core_globals)
 	STD_PHP_INI_ENTRY("mail.log",					NULL,		PHP_INI_SYSTEM|PHP_INI_PERDIR,		OnUpdateMailLog,			mail_log,			php_core_globals,	core_globals)
 	PHP_INI_ENTRY("browscap",					NULL,		PHP_INI_SYSTEM,		OnChangeBrowscap)
 	PHP_INI_ENTRY("memory_limit",				"128M",		PHP_INI_ALL,		OnChangeMemoryLimit)
@@ -717,6 +759,7 @@ PHP_INI_BEGIN()
 	PHP_INI_ENTRY("disable_functions",			"",			PHP_INI_SYSTEM,		NULL)
 	PHP_INI_ENTRY("disable_classes",			"",			PHP_INI_SYSTEM,		NULL)
 	PHP_INI_ENTRY("max_file_uploads",			"20",			PHP_INI_SYSTEM|PHP_INI_PERDIR,		NULL)
+	PHP_INI_ENTRY("max_multipart_body_parts",	"-1",			PHP_INI_SYSTEM|PHP_INI_PERDIR,		NULL)
 
 	STD_PHP_INI_BOOLEAN("allow_url_fopen",		"1",		PHP_INI_SYSTEM,		OnUpdateBool,		allow_url_fopen,		php_core_globals,		core_globals)
 	STD_PHP_INI_BOOLEAN("allow_url_include",	"0",		PHP_INI_SYSTEM,		OnUpdateBool,		allow_url_include,		php_core_globals,		core_globals)
@@ -739,26 +782,26 @@ PHP_INI_END()
 
 /* True globals (no need for thread safety */
 /* But don't make them a single int bitfield */
-static int module_initialized = 0;
-static int module_startup = 1;
-static int module_shutdown = 0;
+static bool module_initialized = false;
+static bool module_startup = true;
+static bool module_shutdown = false;
 
 /* {{{ php_during_module_startup */
-PHPAPI int php_during_module_startup(void)
+PHPAPI bool php_during_module_startup(void)
 {
 	return module_startup;
 }
 /* }}} */
 
 /* {{{ php_during_module_shutdown */
-PHPAPI int php_during_module_shutdown(void)
+PHPAPI bool php_during_module_shutdown(void)
 {
 	return module_shutdown;
 }
 /* }}} */
 
 /* {{{ php_get_module_initialized */
-PHPAPI int php_get_module_initialized(void)
+PHPAPI bool php_get_module_initialized(void)
 {
 	return module_initialized;
 }
@@ -778,6 +821,8 @@ PHPAPI ZEND_COLD void php_log_err_with_severity(const char *log_message, int sys
 
 	/* Try to use the specified logging location. */
 	if (PG(error_log) != NULL) {
+		int error_log_mode;
+
 #ifdef HAVE_SYSLOG_H
 		if (!strcmp(PG(error_log), "syslog")) {
 			php_syslog(syslog_type_int, "%s", log_message);
@@ -785,7 +830,14 @@ PHPAPI ZEND_COLD void php_log_err_with_severity(const char *log_message, int sys
 			return;
 		}
 #endif
-		fd = VCWD_OPEN_MODE(PG(error_log), O_CREAT | O_APPEND | O_WRONLY, 0644);
+
+		error_log_mode = 0644;
+
+		if (PG(error_log_mode) > 0 && PG(error_log_mode) <= 0777) {
+			error_log_mode = PG(error_log_mode);
+		}
+
+		fd = VCWD_OPEN_MODE(PG(error_log), O_CREAT | O_APPEND | O_WRONLY, error_log_mode);
 		if (fd != -1) {
 			char *tmp;
 			size_t len;
@@ -803,9 +855,10 @@ PHPAPI ZEND_COLD void php_log_err_with_severity(const char *log_message, int sys
 #endif
 			len = spprintf(&tmp, 0, "[%s] %s%s", ZSTR_VAL(error_time_str), log_message, PHP_EOL);
 #ifdef PHP_WIN32
-			php_flock(fd, 2);
+			php_flock(fd, LOCK_EX);
 			/* XXX should eventually write in a loop if len > UINT_MAX */
 			php_ignore_value(write(fd, tmp, (unsigned)len));
+			php_flock(fd, LOCK_UN);
 #else
 			php_ignore_value(write(fd, tmp, len));
 #endif
@@ -891,11 +944,10 @@ static zend_string *escape_html(const char *buffer, size_t buffer_len) {
  */
 PHPAPI ZEND_COLD void php_verror(const char *docref, const char *params, int type, const char *format, va_list args)
 {
-	zend_string *replace_buffer = NULL, *replace_origin = NULL;
-	char *buffer = NULL, *docref_buf = NULL, *target = NULL;
+	zend_string *replace_origin = NULL;
+	char *docref_buf = NULL, *target = NULL;
 	char *docref_target = "", *docref_root = "";
 	char *p;
-	int buffer_len = 0;
 	const char *space = "";
 	const char *class_name = "";
 	const char *function;
@@ -905,18 +957,16 @@ PHPAPI ZEND_COLD void php_verror(const char *docref, const char *params, int typ
 	int is_function = 0;
 
 	/* get error text into buffer and escape for html if necessary */
-	buffer_len = (int)vspprintf(&buffer, 0, format, args);
+	zend_string *buffer = vstrpprintf(0, format, args);
 
 	if (PG(html_errors)) {
-		replace_buffer = escape_html(buffer, buffer_len);
-		efree(buffer);
+		zend_string *replace_buffer = escape_html(ZSTR_VAL(buffer), ZSTR_LEN(buffer));
+		zend_string_free(buffer);
 
 		if (replace_buffer) {
-			buffer = ZSTR_VAL(replace_buffer);
-			buffer_len = (int)ZSTR_LEN(replace_buffer);
+			buffer = replace_buffer;
 		} else {
-			buffer = "";
-			buffer_len = 0;
+			buffer = zend_empty_string;
 		}
 	}
 
@@ -925,6 +975,8 @@ PHPAPI ZEND_COLD void php_verror(const char *docref, const char *params, int typ
 		function = "PHP Startup";
 	} else if (php_during_module_shutdown()) {
 		function = "PHP Shutdown";
+	} else if (PG(during_request_startup)) {
+		function = "PHP Request Startup";
 	} else if (EG(current_execute_data) &&
 				EG(current_execute_data)->func &&
 				ZEND_USER_CODE(EG(current_execute_data)->func->common.type) &&
@@ -955,14 +1007,13 @@ PHPAPI ZEND_COLD void php_verror(const char *docref, const char *params, int typ
 			default:
 				function = "Unknown";
 		}
+	} else if ((function = get_active_function_name()) && strlen(function)) {
+		is_function = 1;
+		class_name = get_active_class_name(&space);
+	} else if (EG(flags) & EG_FLAGS_IN_SHUTDOWN) {
+		function = "PHP Request Shutdown";
 	} else {
-		function = get_active_function_name();
-		if (!function || !strlen(function)) {
-			function = "Unknown";
-		} else {
-			is_function = 1;
-			class_name = get_active_class_name(&space);
-		}
+		function = "Unknown";
 	}
 
 	/* if we still have memory then format the origin */
@@ -978,7 +1029,7 @@ PHPAPI ZEND_COLD void php_verror(const char *docref, const char *params, int typ
 		origin = ZSTR_VAL(replace_origin);
 	}
 
-	/* origin and buffer available, so lets come up with the error message */
+	/* origin and buffer available, so let's come up with the error message */
 	if (docref && docref[0] == '#') {
 		docref_target = strchr(docref, '#');
 		docref = NULL;
@@ -998,7 +1049,8 @@ PHPAPI ZEND_COLD void php_verror(const char *docref, const char *params, int typ
 		while((p = strchr(docref_buf, '_')) != NULL) {
 			*p = '-';
 		}
-		docref = php_strtolower(docref_buf, doclen);
+		zend_str_tolower(docref_buf, doclen);
+		docref = docref_buf;
 	}
 
 	/* we have a docref for a function AND
@@ -1036,15 +1088,15 @@ PHPAPI ZEND_COLD void php_verror(const char *docref, const char *params, int typ
 		}
 		/* display html formatted or only show the additional links */
 		if (PG(html_errors)) {
-			message = zend_strpprintf(0, "%s [<a href='%s%s%s'>%s</a>]: %s", origin, docref_root, docref, docref_target, docref, buffer);
+			message = zend_strpprintf_unchecked(0, "%s [<a href='%s%s%s'>%s</a>]: %S", origin, docref_root, docref, docref_target, docref, buffer);
 		} else {
-			message = zend_strpprintf(0, "%s [%s%s%s]: %s", origin, docref_root, docref, docref_target, buffer);
+			message = zend_strpprintf_unchecked(0, "%s [%s%s%s]: %S", origin, docref_root, docref, docref_target, buffer);
 		}
 		if (target) {
 			efree(target);
 		}
 	} else {
-		message = zend_strpprintf(0, "%s: %s", origin, buffer);
+		message = zend_strpprintf_unchecked(0, "%s: %S", origin, buffer);
 	}
 	if (replace_origin) {
 		zend_string_free(replace_origin);
@@ -1055,11 +1107,7 @@ PHPAPI ZEND_COLD void php_verror(const char *docref, const char *params, int typ
 		efree(docref_buf);
 	}
 
-	if (replace_buffer) {
-		zend_string_free(replace_buffer);
-	} else {
-		efree(buffer);
-	}
+	zend_string_free(buffer);
 
 	zend_error_zstr(type, message);
 	zend_string_release(message);
@@ -1068,13 +1116,21 @@ PHPAPI ZEND_COLD void php_verror(const char *docref, const char *params, int typ
 
 /* {{{ php_error_docref */
 /* Generate an error which links to docref or the php.net documentation if docref is NULL */
+#define php_error_docref_impl(docref, type, format) do {\
+		va_list args; \
+		va_start(args, format); \
+		php_verror(docref, "", type, format, args); \
+		va_end(args); \
+	} while (0)
+
 PHPAPI ZEND_COLD void php_error_docref(const char *docref, int type, const char *format, ...)
 {
-	va_list args;
+	php_error_docref_impl(docref, type, format);
+}
 
-	va_start(args, format);
-	php_verror(docref, "", type, format, args);
-	va_end(args);
+PHPAPI ZEND_COLD void php_error_docref_unchecked(const char *docref, int type, const char *format, ...)
+{
+	php_error_docref_impl(docref, type, format);
 }
 /* }}} */
 
@@ -1108,6 +1164,19 @@ PHPAPI ZEND_COLD void php_error_docref2(const char *docref, const char *param1, 
 /* }}} */
 
 #ifdef PHP_WIN32
+PHPAPI ZEND_COLD void php_win32_docref1_from_error(DWORD error, const char *param1) {
+	char *buf = php_win32_error_to_msg(error);
+	size_t buf_len;
+
+	buf_len = strlen(buf);
+	if (buf_len >= 2) {
+		buf[buf_len - 1] = '\0';
+		buf[buf_len - 2] = '\0';
+	}
+	php_error_docref1(NULL, param1, E_WARNING, "%s (code: %lu)", buf, error);
+	php_win32_error_msg_free(buf);
+}
+
 PHPAPI ZEND_COLD void php_win32_docref2_from_error(DWORD error, const char *param1, const char *param2) {
 	char *buf = php_win32_error_to_msg(error);
 	php_error_docref2(NULL, param1, param2, E_WARNING, "%s (code: %lu)", buf, error);
@@ -1122,20 +1191,20 @@ PHPAPI void php_html_puts(const char *str, size_t size)
 }
 /* }}} */
 
-static void clear_last_error() {
+static void clear_last_error(void) {
 	if (PG(last_error_message)) {
 		zend_string_release(PG(last_error_message));
 		PG(last_error_message) = NULL;
 	}
 	if (PG(last_error_file)) {
-		free(PG(last_error_file));
+		zend_string_release(PG(last_error_file));
 		PG(last_error_file) = NULL;
 	}
 }
 
 #if ZEND_DEBUG
 /* {{{ report_zend_debug_error_notify_cb */
-static void report_zend_debug_error_notify_cb(int type, const char *error_filename, uint32_t error_lineno, zend_string *message)
+static void report_zend_debug_error_notify_cb(int type, zend_string *error_filename, uint32_t error_lineno, zend_string *message)
 {
 	if (PG(report_zend_debug)) {
 		bool trigger_break;
@@ -1152,7 +1221,7 @@ static void report_zend_debug_error_notify_cb(int type, const char *error_filena
 				break;
 		}
 
-		zend_output_debug_string(trigger_break, "%s(%" PRIu32 ") : %s", error_filename, error_lineno, ZSTR_VAL(message));
+		zend_output_debug_string(trigger_break, "%s(%" PRIu32 ") : %s", ZSTR_VAL(error_filename), error_lineno, ZSTR_VAL(message));
 	}
 }
 /* }}} */
@@ -1160,7 +1229,7 @@ static void report_zend_debug_error_notify_cb(int type, const char *error_filena
 
 /* {{{ php_error_cb
  extended error handling function */
-static ZEND_COLD void php_error_cb(int orig_type, const char *error_filename, const uint32_t error_lineno, zend_string *message)
+static ZEND_COLD void php_error_cb(int orig_type, zend_string *error_filename, const uint32_t error_lineno, zend_string *message)
 {
 	bool display;
 	int type = orig_type & E_ALL;
@@ -1169,10 +1238,10 @@ static ZEND_COLD void php_error_cb(int orig_type, const char *error_filename, co
 	if (PG(ignore_repeated_errors) && PG(last_error_message)) {
 		/* no check for PG(last_error_file) is needed since it cannot
 		 * be NULL if PG(last_error_message) is not NULL */
-		if (zend_string_equals(PG(last_error_message), message)
+		if (!zend_string_equals(PG(last_error_message), message)
 			|| (!PG(ignore_repeated_source)
 				&& ((PG(last_error_lineno) != (int)error_lineno)
-					|| strcmp(PG(last_error_file), error_filename)))) {
+					|| !zend_string_equals(PG(last_error_file), error_filename)))) {
 			display = 1;
 		} else {
 			display = 0;
@@ -1207,12 +1276,16 @@ static ZEND_COLD void php_error_cb(int orig_type, const char *error_filename, co
 	if (display) {
 		clear_last_error();
 		if (!error_filename) {
-			error_filename = "Unknown";
+			error_filename = ZSTR_KNOWN(ZEND_STR_UNKNOWN_CAPITALIZED);
 		}
 		PG(last_error_type) = type;
 		PG(last_error_message) = zend_string_copy(message);
-		PG(last_error_file) = strdup(error_filename);
+		PG(last_error_file) = zend_string_copy(error_filename);
 		PG(last_error_lineno) = error_lineno;
+	}
+
+	if (zend_alloc_in_memory_limit_error_reporting()) {
+		php_output_discard_all();
 	}
 
 	/* display/log the error if necessary */
@@ -1271,14 +1344,14 @@ static ZEND_COLD void php_error_cb(int orig_type, const char *error_filename, co
 				syslog(LOG_ALERT, "PHP %s: %s (%s)", error_type_str, ZSTR_VAL(message), GetCommandLine());
 			}
 #endif
-			spprintf(&log_buffer, 0, "PHP %s:  %s in %s on line %" PRIu32, error_type_str, ZSTR_VAL(message), error_filename, error_lineno);
+			spprintf(&log_buffer, 0, "PHP %s:  %s in %s on line %" PRIu32, error_type_str, ZSTR_VAL(message), ZSTR_VAL(error_filename), error_lineno);
 			php_log_err_with_severity(log_buffer, syslog_type_int);
 			efree(log_buffer);
 		}
 
 		if (PG(display_errors) && ((module_initialized && !PG(during_request_startup)) || (PG(display_startup_errors)))) {
 			if (PG(xmlrpc_errors)) {
-				php_printf("<?xml version=\"1.0\"?><methodResponse><fault><value><struct><member><name>faultCode</name><value><int>" ZEND_LONG_FMT "</int></value></member><member><name>faultString</name><value><string>%s:%s in %s on line %" PRIu32 "</string></value></member></struct></value></fault></methodResponse>", PG(xmlrpc_error_number), error_type_str, ZSTR_VAL(message), error_filename, error_lineno);
+				php_printf("<?xml version=\"1.0\"?><methodResponse><fault><value><struct><member><name>faultCode</name><value><int>" ZEND_LONG_FMT "</int></value></member><member><name>faultString</name><value><string>%s:%s in %s on line %" PRIu32 "</string></value></member></struct></value></fault></methodResponse>", PG(xmlrpc_error_number), error_type_str, ZSTR_VAL(message), ZSTR_VAL(error_filename), error_lineno);
 			} else {
 				char *prepend_string = INI_STR("error_prepend_string");
 				char *append_string = INI_STR("error_append_string");
@@ -1286,22 +1359,24 @@ static ZEND_COLD void php_error_cb(int orig_type, const char *error_filename, co
 				if (PG(html_errors)) {
 					if (type == E_ERROR || type == E_PARSE) {
 						zend_string *buf = escape_html(ZSTR_VAL(message), ZSTR_LEN(message));
-						php_printf("%s<br />\n<b>%s</b>:  %s in <b>%s</b> on line <b>%" PRIu32 "</b><br />\n%s", STR_PRINT(prepend_string), error_type_str, ZSTR_VAL(buf), error_filename, error_lineno, STR_PRINT(append_string));
+						php_printf("%s<br />\n<b>%s</b>:  %s in <b>%s</b> on line <b>%" PRIu32 "</b><br />\n%s", STR_PRINT(prepend_string), error_type_str, ZSTR_VAL(buf), ZSTR_VAL(error_filename), error_lineno, STR_PRINT(append_string));
 						zend_string_free(buf);
 					} else {
-						php_printf("%s<br />\n<b>%s</b>:  %s in <b>%s</b> on line <b>%" PRIu32 "</b><br />\n%s", STR_PRINT(prepend_string), error_type_str, ZSTR_VAL(message), error_filename, error_lineno, STR_PRINT(append_string));
+						php_printf_unchecked("%s<br />\n<b>%s</b>:  %S in <b>%s</b> on line <b>%" PRIu32 "</b><br />\n%s", STR_PRINT(prepend_string), error_type_str, message, ZSTR_VAL(error_filename), error_lineno, STR_PRINT(append_string));
 					}
 				} else {
 					/* Write CLI/CGI errors to stderr if display_errors = "stderr" */
 					if ((!strcmp(sapi_module.name, "cli") || !strcmp(sapi_module.name, "cgi") || !strcmp(sapi_module.name, "phpdbg")) &&
 						PG(display_errors) == PHP_DISPLAY_ERRORS_STDERR
 					) {
-						fprintf(stderr, "%s: %s in %s on line %" PRIu32 "\n", error_type_str, ZSTR_VAL(message), error_filename, error_lineno);
+						fprintf(stderr, "%s: ", error_type_str);
+						fwrite(ZSTR_VAL(message), sizeof(char), ZSTR_LEN(message), stderr);
+						fprintf(stderr, " in %s on line %" PRIu32 "\n", ZSTR_VAL(error_filename), error_lineno);
 #ifdef PHP_WIN32
 						fflush(stderr);
 #endif
 					} else {
-						php_printf("%s\n%s: %s in %s on line %" PRIu32 "\n%s", STR_PRINT(prepend_string), error_type_str, ZSTR_VAL(message), error_filename, error_lineno, STR_PRINT(append_string));
+						php_printf_unchecked("%s\n%s: %S in %s on line %" PRIu32 "\n%s", STR_PRINT(prepend_string), error_type_str, message, ZSTR_VAL(error_filename), error_lineno, STR_PRINT(append_string));
 					}
 				}
 			}
@@ -1315,7 +1390,7 @@ static ZEND_COLD void php_error_cb(int orig_type, const char *error_filename, co
 				/* bad error in module startup - no way we can live with this */
 				exit(-2);
 			}
-		/* no break - intentionally */
+		ZEND_FALLTHROUGH;
 		case E_ERROR:
 		case E_RECOVERABLE_ERROR:
 		case E_PARSE:
@@ -1350,7 +1425,7 @@ static ZEND_COLD void php_error_cb(int orig_type, const char *error_filename, co
 /* {{{ php_get_current_user */
 PHPAPI char *php_get_current_user(void)
 {
-	zend_stat_t *pstat;
+	zend_stat_t *pstat = NULL;
 
 	if (SG(request_info).current_user) {
 		return SG(request_info).current_user;
@@ -1420,16 +1495,16 @@ PHP_FUNCTION(set_time_limit)
 {
 	zend_long new_timeout;
 	char *new_timeout_str;
-	int new_timeout_strlen;
+	size_t new_timeout_strlen;
 	zend_string *key;
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS(), "l", &new_timeout) == FAILURE) {
 		RETURN_THROWS();
 	}
 
-	new_timeout_strlen = (int)zend_spprintf(&new_timeout_str, 0, ZEND_LONG_FMT, new_timeout);
+	new_timeout_strlen = zend_spprintf(&new_timeout_str, 0, ZEND_LONG_FMT, new_timeout);
 
-	key = zend_string_init("max_execution_time", sizeof("max_execution_time")-1, 0);
+	key = ZSTR_INIT_LITERAL("max_execution_time", 0);
 	if (zend_alter_ini_entry_chars_ex(key, new_timeout_str, new_timeout_strlen, PHP_INI_USER, PHP_INI_STAGE_RUNTIME, 0) == SUCCESS) {
 		RETVAL_TRUE;
 	} else {
@@ -1441,9 +1516,10 @@ PHP_FUNCTION(set_time_limit)
 /* }}} */
 
 /* {{{ php_fopen_wrapper_for_zend */
-static FILE *php_fopen_wrapper_for_zend(const char *filename, zend_string **opened_path)
+static FILE *php_fopen_wrapper_for_zend(zend_string *filename, zend_string **opened_path)
 {
-	return php_stream_open_wrapper_as_file((char *)filename, "rb", USE_PATH|REPORT_ERRORS|STREAM_OPEN_FOR_INCLUDE, opened_path);
+	*opened_path = filename;
+	return php_stream_open_wrapper_as_file(ZSTR_VAL(filename), "rb", USE_PATH|REPORT_ERRORS|STREAM_OPEN_FOR_INCLUDE|STREAM_OPEN_FOR_ZEND_STREAM, opened_path);
 }
 /* }}} */
 
@@ -1471,20 +1547,25 @@ static size_t php_zend_stream_fsizer(void *handle) /* {{{ */
 }
 /* }}} */
 
-static zend_result php_stream_open_for_zend(const char *filename, zend_file_handle *handle) /* {{{ */
+static zend_result php_stream_open_for_zend(zend_file_handle *handle) /* {{{ */
 {
-	return php_stream_open_for_zend_ex(filename, handle, USE_PATH|REPORT_ERRORS|STREAM_OPEN_FOR_INCLUDE);
+	return php_stream_open_for_zend_ex(handle, USE_PATH|REPORT_ERRORS|STREAM_OPEN_FOR_INCLUDE);
 }
 /* }}} */
 
-PHPAPI zend_result php_stream_open_for_zend_ex(const char *filename, zend_file_handle *handle, int mode) /* {{{ */
+PHPAPI zend_result php_stream_open_for_zend_ex(zend_file_handle *handle, int mode) /* {{{ */
 {
 	zend_string *opened_path;
-	php_stream *stream = php_stream_open_wrapper((char *)filename, "rb", mode, &opened_path);
+	zend_string *filename;
+	php_stream *stream;
+
+	ZEND_ASSERT(handle->type == ZEND_HANDLE_FILENAME);
+	opened_path = filename = handle->filename;
+	stream = php_stream_open_wrapper((char *)ZSTR_VAL(filename), "rb", mode | STREAM_OPEN_FOR_ZEND_STREAM, &opened_path);
 	if (stream) {
 		memset(handle, 0, sizeof(zend_file_handle));
 		handle->type = ZEND_HANDLE_STREAM;
-		handle->filename = (char*)filename;
+		handle->filename = filename;
 		handle->opened_path = opened_path;
 		handle->handle.stream.handle  = stream;
 		handle->handle.stream.reader  = (zend_stream_reader_t)_php_stream_read;
@@ -1502,9 +1583,9 @@ PHPAPI zend_result php_stream_open_for_zend_ex(const char *filename, zend_file_h
 }
 /* }}} */
 
-static zend_string *php_resolve_path_for_zend(const char *filename, size_t filename_len) /* {{{ */
+static zend_string *php_resolve_path_for_zend(zend_string *filename) /* {{{ */
 {
-	return php_resolve_path(filename, filename_len, PG(include_path));
+	return php_resolve_path(ZSTR_VAL(filename), ZSTR_LEN(filename), PG(include_path));
 }
 /* }}} */
 
@@ -1523,6 +1604,9 @@ static void php_free_request_globals(void)
 		efree(PG(php_sys_temp_dir));
 		PG(php_sys_temp_dir) = NULL;
 	}
+
+	EG(filename_override) = NULL;
+	EG(lineno_override) = -1;
 }
 /* }}} */
 
@@ -1530,15 +1614,24 @@ static void php_free_request_globals(void)
 static ZEND_COLD void php_message_handler_for_zend(zend_long message, const void *data)
 {
 	switch (message) {
-		case ZMSG_FAILED_INCLUDE_FOPEN:
-			php_error_docref("function.include", E_WARNING, "Failed opening '%s' for inclusion (include_path='%s')", php_strip_url_passwd((char *) data), STR_PRINT(PG(include_path)));
+		case ZMSG_FAILED_INCLUDE_FOPEN: {
+			char *tmp = estrdup((char *) data);
+			php_error_docref("function.include", E_WARNING, "Failed opening '%s' for inclusion (include_path='%s')", php_strip_url_passwd(tmp), STR_PRINT(PG(include_path)));
+			efree(tmp);
 			break;
-		case ZMSG_FAILED_REQUIRE_FOPEN:
-			zend_throw_error(NULL, "Failed opening required '%s' (include_path='%s')", php_strip_url_passwd((char *) data), STR_PRINT(PG(include_path)));
+		}
+		case ZMSG_FAILED_REQUIRE_FOPEN: {
+			char *tmp = estrdup((char *) data);
+			zend_throw_error(NULL, "Failed opening required '%s' (include_path='%s')", php_strip_url_passwd(tmp), STR_PRINT(PG(include_path)));
+			efree(tmp);
 			break;
-		case ZMSG_FAILED_HIGHLIGHT_FOPEN:
-			php_error_docref(NULL, E_WARNING, "Failed opening '%s' for highlighting", php_strip_url_passwd((char *) data));
+		}
+		case ZMSG_FAILED_HIGHLIGHT_FOPEN: {
+			char *tmp = estrdup((char *) data);
+			php_error_docref(NULL, E_WARNING, "Failed opening '%s' for highlighting", php_strip_url_passwd(tmp));
+			efree(tmp);
 			break;
+		}
 		case ZMSG_MEMORY_LEAK_DETECTED:
 		case ZMSG_MEMORY_LEAK_REPEATED:
 #if ZEND_DEBUG
@@ -1556,7 +1649,7 @@ static ZEND_COLD void php_message_handler_for_zend(zend_long message, const void
 						strlcat(memory_leak_buf, relay_buf, sizeof(memory_leak_buf));
 					}
 				} else {
-					unsigned long leak_count = (zend_uintptr_t) data;
+					unsigned long leak_count = (uintptr_t) data;
 
 					snprintf(memory_leak_buf, 512, "Last leak repeated %lu time%s\n", leak_count, (leak_count>1?"s":""));
 				}
@@ -1641,9 +1734,9 @@ static void sigchld_handler(int apar)
 #endif
 
 /* {{{ php_request_startup */
-int php_request_startup(void)
+zend_result php_request_startup(void)
 {
-	int retval = SUCCESS;
+	zend_result retval = SUCCESS;
 
 	zend_interned_strings_activate();
 
@@ -1692,7 +1785,7 @@ int php_request_startup(void)
 			CWDG(realpath_cache_size_limit) = 0;
 		}
 
-		if (PG(expose_php)) {
+		if (PG(expose_php) && !SG(headers_sent)) {
 			sapi_add_header(SAPI_PHP_VERSION_HEADER, sizeof(SAPI_PHP_VERSION_HEADER)-1, 1);
 		}
 
@@ -1757,19 +1850,7 @@ void php_request_shutdown(void *dummy)
 
 	/* 3. Flush all output buffers */
 	zend_try {
-		bool send_buffer = SG(request_info).headers_only ? 0 : 1;
-
-		if (CG(unclean_shutdown) && PG(last_error_type) == E_ERROR &&
-			(size_t)PG(memory_limit) < zend_memory_usage(1)
-		) {
-			send_buffer = 0;
-		}
-
-		if (!send_buffer) {
-			php_output_discard_all();
-		} else {
-			php_output_end_all();
-		}
+		php_output_end_all();
 	} zend_end_try();
 
 	/* 4. Reset max_execution_time (no longer executing php code after response sent) */
@@ -1812,10 +1893,12 @@ void php_request_shutdown(void *dummy)
 		zend_post_deactivate_modules();
 	} zend_end_try();
 
-	/* 12. SAPI related shutdown (free stuff) */
+	/* 12. SAPI related shutdown*/
 	zend_try {
-		sapi_deactivate();
+		sapi_deactivate_module();
 	} zend_end_try();
+	/* free SAPI stuff */
+	sapi_deactivate_destroy();
 
 	/* 13. free virtual CWD memory */
 	virtual_cwd_deactivate();
@@ -1831,6 +1914,10 @@ void php_request_shutdown(void *dummy)
 	zend_try {
 		shutdown_memory_manager(CG(unclean_shutdown) || !report_memleaks, 0);
 	} zend_end_try();
+
+	/* Reset memory limit, as the reset during INI_STAGE_DEACTIVATE may have failed.
+	 * At this point, no memory beyond a single chunk should be in use. */
+	zend_set_memory_limit(PG(memory_limit));
 
 	/* 16. Deactivate Zend signals */
 #ifdef ZEND_SIGNALS
@@ -1887,7 +1974,7 @@ static void core_globals_dtor(php_core_globals *core_globals)
 		free(core_globals->php_binary);
 	}
 
-	php_shutdown_ticks();
+	php_shutdown_ticks(core_globals);
 }
 /* }}} */
 
@@ -1900,7 +1987,7 @@ PHP_MINFO_FUNCTION(php_core) { /* {{{ */
 /* }}} */
 
 /* {{{ php_register_extensions */
-int php_register_extensions(zend_module_entry * const * ptr, int count)
+zend_result php_register_extensions(zend_module_entry * const * ptr, int count)
 {
 	zend_module_entry * const * end = ptr + count;
 
@@ -1915,24 +2002,6 @@ int php_register_extensions(zend_module_entry * const * ptr, int count)
 	return SUCCESS;
 }
 
-/* A very long time ago php_module_startup() was refactored in a way
- * which broke calling it with more than one additional module.
- * This alternative to php_register_extensions() works around that
- * by walking the shallower structure.
- *
- * See algo: https://bugs.php.net/bug.php?id=63159
- */
-static int php_register_extensions_bc(zend_module_entry *ptr, int count)
-{
-	while (count--) {
-		if (zend_register_internal_module(ptr++) == NULL) {
-			return FAILURE;
- 		}
-	}
-	return SUCCESS;
-}
-/* }}} */
-
 #ifdef PHP_WIN32
 static _invalid_parameter_handler old_invalid_parameter_handler;
 
@@ -1941,7 +2010,7 @@ void dummy_invalid_parameter_handler(
 		const wchar_t *function,
 		const wchar_t *file,
 		unsigned int   line,
-		uintptr_t      pEwserved)
+		uintptr_t      pReserved)
 {
 	static int called = 0;
 	char buf[1024];
@@ -1967,19 +2036,17 @@ void dummy_invalid_parameter_handler(
 #endif
 
 /* {{{ php_module_startup */
-int php_module_startup(sapi_module_struct *sf, zend_module_entry *additional_modules, uint32_t num_additional_modules)
+zend_result php_module_startup(sapi_module_struct *sf, zend_module_entry *additional_module)
 {
 	zend_utility_functions zuf;
 	zend_utility_values zuv;
-	int retval = SUCCESS, module_number=0;	/* for REGISTER_INI_ENTRIES() */
-	char *php_os;
+	zend_result retval = SUCCESS;
+	int module_number = 0;
 	zend_module_entry *module;
 
 #ifdef PHP_WIN32
 	WORD wVersionRequested = MAKEWORD(2, 0);
 	WSADATA wsaData;
-
-	php_os = "WINNT";
 
 	old_invalid_parameter_handler =
 		_set_invalid_parameter_handler(dummy_invalid_parameter_handler);
@@ -1989,8 +2056,6 @@ int php_module_startup(sapi_module_struct *sf, zend_module_entry *additional_mod
 
 	/* Disable the message box for assertions.*/
 	_CrtSetReportMode(_CRT_ASSERT, 0);
-#else
-	php_os = PHP_OS;
 #endif
 
 #ifdef ZTS
@@ -2004,8 +2069,8 @@ int php_module_startup(sapi_module_struct *sf, zend_module_entry *additional_mod
 	}
 #endif
 
-	module_shutdown = 0;
-	module_startup = 1;
+	module_shutdown = false;
+	module_startup = true;
 	sapi_initialize_empty_request();
 	sapi_activate();
 
@@ -2042,6 +2107,7 @@ int php_module_startup(sapi_module_struct *sf, zend_module_entry *additional_mod
 	zuf.getenv_function = sapi_getenv;
 	zuf.resolve_path_function = php_resolve_path_for_zend;
 	zend_startup(&zuf);
+	zend_reset_lc_ctype_locale();
 	zend_update_current_locale();
 
 	zend_observer_startup();
@@ -2063,7 +2129,7 @@ int php_module_startup(sapi_module_struct *sf, zend_module_entry *additional_mod
 
 	/* start up winsock services */
 	if (WSAStartup(wVersionRequested, &wsaData) != 0) {
-		php_printf("\nwinsock.dll unusable. %d\n", WSAGetLastError());
+		fprintf(stderr, "\nwinsock.dll unusable. %d\n", WSAGetLastError());
 		return FAILURE;
 	}
 	php_win32_signal_ctrl_handler_init();
@@ -2071,82 +2137,20 @@ int php_module_startup(sapi_module_struct *sf, zend_module_entry *additional_mod
 
 	le_index_ptr = zend_register_list_destructors_ex(NULL, NULL, "index pointer", 0);
 
-	/* Register constants */
-	REGISTER_MAIN_STRINGL_CONSTANT("PHP_VERSION", PHP_VERSION, sizeof(PHP_VERSION)-1, CONST_PERSISTENT | CONST_CS);
-	REGISTER_MAIN_LONG_CONSTANT("PHP_MAJOR_VERSION", PHP_MAJOR_VERSION, CONST_PERSISTENT | CONST_CS);
-	REGISTER_MAIN_LONG_CONSTANT("PHP_MINOR_VERSION", PHP_MINOR_VERSION, CONST_PERSISTENT | CONST_CS);
-	REGISTER_MAIN_LONG_CONSTANT("PHP_RELEASE_VERSION", PHP_RELEASE_VERSION, CONST_PERSISTENT | CONST_CS);
-	REGISTER_MAIN_STRINGL_CONSTANT("PHP_EXTRA_VERSION", PHP_EXTRA_VERSION, sizeof(PHP_EXTRA_VERSION) - 1, CONST_PERSISTENT | CONST_CS);
-	REGISTER_MAIN_LONG_CONSTANT("PHP_VERSION_ID", PHP_VERSION_ID, CONST_PERSISTENT | CONST_CS);
-#ifdef ZTS
-	REGISTER_MAIN_LONG_CONSTANT("PHP_ZTS", 1, CONST_PERSISTENT | CONST_CS);
-#else
-	REGISTER_MAIN_LONG_CONSTANT("PHP_ZTS", 0, CONST_PERSISTENT | CONST_CS);
-#endif
-	REGISTER_MAIN_LONG_CONSTANT("PHP_DEBUG", PHP_DEBUG, CONST_PERSISTENT | CONST_CS);
-	REGISTER_MAIN_STRINGL_CONSTANT("PHP_OS", php_os, strlen(php_os), CONST_PERSISTENT | CONST_CS);
-	REGISTER_MAIN_STRINGL_CONSTANT("PHP_OS_FAMILY", PHP_OS_FAMILY, sizeof(PHP_OS_FAMILY)-1, CONST_PERSISTENT | CONST_CS);
-	REGISTER_MAIN_STRINGL_CONSTANT("PHP_SAPI", sapi_module.name, strlen(sapi_module.name), CONST_PERSISTENT | CONST_CS | CONST_NO_FILE_CACHE);
-	REGISTER_MAIN_STRINGL_CONSTANT("DEFAULT_INCLUDE_PATH", PHP_INCLUDE_PATH, sizeof(PHP_INCLUDE_PATH)-1, CONST_PERSISTENT | CONST_CS);
-	REGISTER_MAIN_STRINGL_CONSTANT("PEAR_INSTALL_DIR", PEAR_INSTALLDIR, sizeof(PEAR_INSTALLDIR)-1, CONST_PERSISTENT | CONST_CS);
-	REGISTER_MAIN_STRINGL_CONSTANT("PEAR_EXTENSION_DIR", PHP_EXTENSION_DIR, sizeof(PHP_EXTENSION_DIR)-1, CONST_PERSISTENT | CONST_CS);
-	REGISTER_MAIN_STRINGL_CONSTANT("PHP_EXTENSION_DIR", PHP_EXTENSION_DIR, sizeof(PHP_EXTENSION_DIR)-1, CONST_PERSISTENT | CONST_CS);
-	REGISTER_MAIN_STRINGL_CONSTANT("PHP_PREFIX", PHP_PREFIX, sizeof(PHP_PREFIX)-1, CONST_PERSISTENT | CONST_CS);
-	REGISTER_MAIN_STRINGL_CONSTANT("PHP_BINDIR", PHP_BINDIR, sizeof(PHP_BINDIR)-1, CONST_PERSISTENT | CONST_CS);
-#ifndef PHP_WIN32
-	REGISTER_MAIN_STRINGL_CONSTANT("PHP_MANDIR", PHP_MANDIR, sizeof(PHP_MANDIR)-1, CONST_PERSISTENT | CONST_CS);
-#endif
-	REGISTER_MAIN_STRINGL_CONSTANT("PHP_LIBDIR", PHP_LIBDIR, sizeof(PHP_LIBDIR)-1, CONST_PERSISTENT | CONST_CS);
-	REGISTER_MAIN_STRINGL_CONSTANT("PHP_DATADIR", PHP_DATADIR, sizeof(PHP_DATADIR)-1, CONST_PERSISTENT | CONST_CS);
-	REGISTER_MAIN_STRINGL_CONSTANT("PHP_SYSCONFDIR", PHP_SYSCONFDIR, sizeof(PHP_SYSCONFDIR)-1, CONST_PERSISTENT | CONST_CS);
-	REGISTER_MAIN_STRINGL_CONSTANT("PHP_LOCALSTATEDIR", PHP_LOCALSTATEDIR, sizeof(PHP_LOCALSTATEDIR)-1, CONST_PERSISTENT | CONST_CS);
-	REGISTER_MAIN_STRINGL_CONSTANT("PHP_CONFIG_FILE_PATH", PHP_CONFIG_FILE_PATH, strlen(PHP_CONFIG_FILE_PATH), CONST_PERSISTENT | CONST_CS);
-	REGISTER_MAIN_STRINGL_CONSTANT("PHP_CONFIG_FILE_SCAN_DIR", PHP_CONFIG_FILE_SCAN_DIR, sizeof(PHP_CONFIG_FILE_SCAN_DIR)-1, CONST_PERSISTENT | CONST_CS);
-	REGISTER_MAIN_STRINGL_CONSTANT("PHP_SHLIB_SUFFIX", PHP_SHLIB_SUFFIX, sizeof(PHP_SHLIB_SUFFIX)-1, CONST_PERSISTENT | CONST_CS);
-	REGISTER_MAIN_STRINGL_CONSTANT("PHP_EOL", PHP_EOL, sizeof(PHP_EOL)-1, CONST_PERSISTENT | CONST_CS);
-	REGISTER_MAIN_LONG_CONSTANT("PHP_MAXPATHLEN", MAXPATHLEN, CONST_PERSISTENT | CONST_CS);
-	REGISTER_MAIN_LONG_CONSTANT("PHP_INT_MAX", ZEND_LONG_MAX, CONST_PERSISTENT | CONST_CS);
-	REGISTER_MAIN_LONG_CONSTANT("PHP_INT_MIN", ZEND_LONG_MIN, CONST_PERSISTENT | CONST_CS);
-	REGISTER_MAIN_LONG_CONSTANT("PHP_INT_SIZE", SIZEOF_ZEND_LONG, CONST_PERSISTENT | CONST_CS);
-	REGISTER_MAIN_LONG_CONSTANT("PHP_FD_SETSIZE", FD_SETSIZE, CONST_PERSISTENT | CONST_CS);
-	REGISTER_MAIN_LONG_CONSTANT("PHP_FLOAT_DIG", DBL_DIG, CONST_PERSISTENT | CONST_CS);
-	REGISTER_MAIN_DOUBLE_CONSTANT("PHP_FLOAT_EPSILON", DBL_EPSILON, CONST_PERSISTENT | CONST_CS);
-	REGISTER_MAIN_DOUBLE_CONSTANT("PHP_FLOAT_MAX", DBL_MAX, CONST_PERSISTENT | CONST_CS);
-	REGISTER_MAIN_DOUBLE_CONSTANT("PHP_FLOAT_MIN", DBL_MIN, CONST_PERSISTENT | CONST_CS);
-
-#ifdef PHP_WIN32
-	REGISTER_MAIN_LONG_CONSTANT("PHP_WINDOWS_VERSION_MAJOR",      EG(windows_version_info).dwMajorVersion, CONST_PERSISTENT | CONST_CS);
-	REGISTER_MAIN_LONG_CONSTANT("PHP_WINDOWS_VERSION_MINOR",      EG(windows_version_info).dwMinorVersion, CONST_PERSISTENT | CONST_CS);
-	REGISTER_MAIN_LONG_CONSTANT("PHP_WINDOWS_VERSION_BUILD",      EG(windows_version_info).dwBuildNumber, CONST_PERSISTENT | CONST_CS);
-	REGISTER_MAIN_LONG_CONSTANT("PHP_WINDOWS_VERSION_PLATFORM",   EG(windows_version_info).dwPlatformId, CONST_PERSISTENT | CONST_CS);
-	REGISTER_MAIN_LONG_CONSTANT("PHP_WINDOWS_VERSION_SP_MAJOR",   EG(windows_version_info).wServicePackMajor, CONST_PERSISTENT | CONST_CS);
-	REGISTER_MAIN_LONG_CONSTANT("PHP_WINDOWS_VERSION_SP_MINOR",   EG(windows_version_info).wServicePackMinor, CONST_PERSISTENT | CONST_CS);
-	REGISTER_MAIN_LONG_CONSTANT("PHP_WINDOWS_VERSION_SUITEMASK",  EG(windows_version_info).wSuiteMask, CONST_PERSISTENT | CONST_CS);
-	REGISTER_MAIN_LONG_CONSTANT("PHP_WINDOWS_VERSION_PRODUCTTYPE", EG(windows_version_info).wProductType, CONST_PERSISTENT | CONST_CS);
-	REGISTER_MAIN_LONG_CONSTANT("PHP_WINDOWS_NT_DOMAIN_CONTROLLER", VER_NT_DOMAIN_CONTROLLER, CONST_PERSISTENT | CONST_CS);
-	REGISTER_MAIN_LONG_CONSTANT("PHP_WINDOWS_NT_SERVER", VER_NT_SERVER, CONST_PERSISTENT | CONST_CS);
-	REGISTER_MAIN_LONG_CONSTANT("PHP_WINDOWS_NT_WORKSTATION", VER_NT_WORKSTATION, CONST_PERSISTENT | CONST_CS);
-#endif
-
 	php_binary_init();
-	if (PG(php_binary)) {
-		REGISTER_MAIN_STRINGL_CONSTANT("PHP_BINARY", PG(php_binary), strlen(PG(php_binary)), CONST_PERSISTENT | CONST_CS | CONST_NO_FILE_CACHE);
-	} else {
-		REGISTER_MAIN_STRINGL_CONSTANT("PHP_BINARY", "", 0, CONST_PERSISTENT | CONST_CS | CONST_NO_FILE_CACHE);
-	}
-
-	php_output_register_constants();
-	php_rfc1867_register_constants();
+	register_main_symbols(module_number);
 
 	/* this will read in php.ini, set up the configuration parameters,
 	   load zend extensions and register php function extensions
 	   to be loaded later */
+	zend_stream_init();
 	if (php_init_config() == FAILURE) {
 		return FAILURE;
 	}
+	zend_stream_shutdown();
 
 	/* Register PHP core ini entries */
-	REGISTER_INI_ENTRIES();
+	zend_register_ini_entries_ex(ini_entries, module_number, MODULE_PERSISTENT);
 
 	/* Register Zend ini entries */
 	zend_register_standard_ini_entries();
@@ -2176,7 +2180,7 @@ int php_module_startup(sapi_module_struct *sf, zend_module_entry *additional_mod
 	 * (this uses configuration parameters from php.ini)
 	 */
 	if (php_init_stream_wrappers(module_number) == FAILURE)	{
-		php_printf("PHP:  Unable to initialize stream url wrappers.\n");
+		fprintf(stderr, "PHP:  Unable to initialize stream url wrappers.\n");
 		return FAILURE;
 	}
 
@@ -2190,12 +2194,14 @@ int php_module_startup(sapi_module_struct *sf, zend_module_entry *additional_mod
 
 	/* startup extensions statically compiled in */
 	if (php_register_internal_extensions_func() == FAILURE) {
-		php_printf("Unable to start builtin modules\n");
+		fprintf(stderr, "Unable to start builtin modules\n");
 		return FAILURE;
 	}
 
 	/* start additional PHP extensions */
-	php_register_extensions_bc(additional_modules, num_additional_modules);
+	if (additional_module && (zend_register_internal_module(additional_module) == NULL)) {
+		return FAILURE;
+	}
 
 	/* load and startup extensions compiled as shared objects (aka DLLs)
 	   as requested by php.ini entries
@@ -2231,10 +2237,13 @@ int php_module_startup(sapi_module_struct *sf, zend_module_entry *additional_mod
 		module->info_func = PHP_MINFO(php_core);
 	}
 
+	/* freeze the list of observer fcall_init handlers */
+	zend_observer_post_startup();
+
 	/* Extensions that add engine hooks after this point do so at their own peril */
 	zend_finalize_system_id();
 
-	module_initialized = 1;
+	module_initialized = true;
 
 	if (zend_post_startup() != SUCCESS) {
 		return FAILURE;
@@ -2307,17 +2316,19 @@ int php_module_startup(sapi_module_struct *sf, zend_module_entry *additional_mod
 	virtual_cwd_deactivate();
 
 	sapi_deactivate();
-	module_startup = 0;
+	module_startup = false;
 
 	/* Don't leak errors from startup into the per-request phase. */
 	clear_last_error();
 	shutdown_memory_manager(1, 0);
- 	virtual_cwd_activate();
+	virtual_cwd_activate();
 
 	zend_interned_strings_switch_storage(1);
 
 #if ZEND_RC_DEBUG
-	zend_rc_debug = 1;
+	if (retval == SUCCESS) {
+		zend_rc_debug = 1;
+	}
 #endif
 
 	/* we're done */
@@ -2336,9 +2347,9 @@ int php_module_shutdown_wrapper(sapi_module_struct *sapi_globals)
 /* {{{ php_module_shutdown */
 void php_module_shutdown(void)
 {
-	int module_number=0;	/* for UNREGISTER_INI_ENTRIES() */
+	int module_number=0;
 
-	module_shutdown = 1;
+	module_shutdown = true;
 
 	if (!module_initialized) {
 		return;
@@ -2367,7 +2378,7 @@ void php_module_shutdown(void)
 	/* Destroys filter & transport registries too */
 	php_shutdown_stream_wrappers(module_number);
 
-	UNREGISTER_INI_ENTRIES();
+	zend_unregister_ini_entries_ex(module_number, MODULE_PERSISTENT);
 
 	/* close down the ini config */
 	php_shutdown_config();
@@ -2393,7 +2404,7 @@ void php_module_shutdown(void)
 		cb();
 	}
 
-	module_initialized = 0;
+	module_initialized = false;
 
 #ifndef ZTS
 	core_globals_dtor(&core_globals);
@@ -2412,10 +2423,9 @@ void php_module_shutdown(void)
 }
 /* }}} */
 
-/* {{{ php_execute_script */
-PHPAPI int php_execute_script(zend_file_handle *primary_file)
+PHPAPI bool php_execute_script_ex(zend_file_handle *primary_file, zval *retval)
 {
-	zend_file_handle *prepend_file_p, *append_file_p;
+	zend_file_handle *prepend_file_p = NULL, *append_file_p = NULL;
 	zend_file_handle prepend_file, append_file;
 #ifdef HAVE_BROKEN_GETCWD
 	volatile int old_cwd_fd = -1;
@@ -2423,7 +2433,7 @@ PHPAPI int php_execute_script(zend_file_handle *primary_file)
 	char *old_cwd;
 	ALLOCA_FLAG(use_heap)
 #endif
-	int retval = 0;
+	bool result = true;
 
 #ifndef HAVE_BROKEN_GETCWD
 # define OLD_CWD_SIZE 4096
@@ -2436,7 +2446,7 @@ PHPAPI int php_execute_script(zend_file_handle *primary_file)
 
 #ifdef PHP_WIN32
 		if(primary_file->filename) {
-			UpdateIniFromRegistry((char*)primary_file->filename);
+			UpdateIniFromRegistry(ZSTR_VAL(primary_file->filename));
 		}
 #endif
 
@@ -2449,18 +2459,18 @@ PHPAPI int php_execute_script(zend_file_handle *primary_file)
 #else
 			php_ignore_value(VCWD_GETCWD(old_cwd, OLD_CWD_SIZE-1));
 #endif
-			VCWD_CHDIR_FILE(primary_file->filename);
+			VCWD_CHDIR_FILE(ZSTR_VAL(primary_file->filename));
 		}
 
- 		/* Only lookup the real file path and add it to the included_files list if already opened
+		/* Only lookup the real file path and add it to the included_files list if already opened
 		 *   otherwise it will get opened and added to the included_files list in zend_execute_scripts
 		 */
- 		if (primary_file->filename &&
- 		    strcmp("Standard input code", primary_file->filename) &&
- 			primary_file->opened_path == NULL &&
- 			primary_file->type != ZEND_HANDLE_FILENAME
+		if (primary_file->filename &&
+			!zend_string_equals_literal(primary_file->filename, "Standard input code") &&
+			primary_file->opened_path == NULL &&
+			primary_file->type != ZEND_HANDLE_FILENAME
 		) {
-			if (expand_filepath(primary_file->filename, realfile)) {
+			if (expand_filepath(ZSTR_VAL(primary_file->filename), realfile)) {
 				primary_file->opened_path = zend_string_init(realfile, strlen(realfile), 0);
 				zend_hash_add_empty_element(&EG(included_files), primary_file->opened_path);
 			}
@@ -2469,15 +2479,11 @@ PHPAPI int php_execute_script(zend_file_handle *primary_file)
 		if (PG(auto_prepend_file) && PG(auto_prepend_file)[0]) {
 			zend_stream_init_filename(&prepend_file, PG(auto_prepend_file));
 			prepend_file_p = &prepend_file;
-		} else {
-			prepend_file_p = NULL;
 		}
 
 		if (PG(auto_append_file) && PG(auto_append_file)[0]) {
 			zend_stream_init_filename(&append_file, PG(auto_append_file));
 			append_file_p = &append_file;
-		} else {
-			append_file_p = NULL;
 		}
 		if (PG(max_input_time) != -1) {
 #ifdef PHP_WIN32
@@ -2486,8 +2492,26 @@ PHPAPI int php_execute_script(zend_file_handle *primary_file)
 			zend_set_timeout(INI_INT("max_execution_time"), 0);
 		}
 
-		retval = (zend_execute_scripts(ZEND_REQUIRE, NULL, 3, prepend_file_p, primary_file, append_file_p) == SUCCESS);
+		if (prepend_file_p && result) {
+			result = zend_execute_script(ZEND_REQUIRE, NULL, prepend_file_p) == SUCCESS;
+		}
+		if (result) {
+			result = zend_execute_script(ZEND_REQUIRE, retval, primary_file) == SUCCESS;
+		}
+		if (append_file_p && result) {
+			result = zend_execute_script(ZEND_REQUIRE, NULL, append_file_p) == SUCCESS;
+		}
+	} zend_catch {
+		result = false;
 	} zend_end_try();
+
+	if (prepend_file_p) {
+		zend_destroy_file_handle(prepend_file_p);
+	}
+
+	if (append_file_p) {
+		zend_destroy_file_handle(append_file_p);
+	}
 
 	if (EG(exception)) {
 		zend_try {
@@ -2506,7 +2530,13 @@ PHPAPI int php_execute_script(zend_file_handle *primary_file)
 	}
 	free_alloca(old_cwd, use_heap);
 #endif
-	return retval;
+	return result;
+}
+
+/* {{{ php_execute_script */
+PHPAPI bool php_execute_script(zend_file_handle *primary_file)
+{
+	return php_execute_script_ex(primary_file, NULL);
 }
 /* }}} */
 
@@ -2524,7 +2554,7 @@ PHPAPI int php_execute_simple_script(zend_file_handle *primary_file, zval *ret)
 	zend_try {
 #ifdef PHP_WIN32
 		if(primary_file->filename) {
-			UpdateIniFromRegistry((char*)primary_file->filename);
+			UpdateIniFromRegistry(ZSTR_VAL(primary_file->filename));
 		}
 #endif
 
@@ -2532,7 +2562,7 @@ PHPAPI int php_execute_simple_script(zend_file_handle *primary_file, zval *ret)
 
 		if (primary_file->filename && !(SG(options) & SAPI_OPTION_NO_CHDIR)) {
 			php_ignore_value(VCWD_GETCWD(old_cwd, OLD_CWD_SIZE-1));
-			VCWD_CHDIR_FILE(primary_file->filename);
+			VCWD_CHDIR_FILE(ZSTR_VAL(primary_file->filename));
 		}
 		zend_execute_scripts(ZEND_REQUIRE, ret, 1, primary_file);
 	} zend_end_try();
@@ -2563,12 +2593,13 @@ PHPAPI void php_handle_aborted_connection(void)
 PHPAPI int php_handle_auth_data(const char *auth)
 {
 	int ret = -1;
+	size_t auth_len = auth != NULL ? strlen(auth) : 0;
 
-	if (auth && auth[0] != '\0' && strncmp(auth, "Basic ", 6) == 0) {
+	if (auth && auth_len > 0 && zend_binary_strncasecmp(auth, auth_len, "Basic ", sizeof("Basic ")-1, sizeof("Basic ")-1) == 0) {
 		char *pass;
 		zend_string *user;
 
-		user = php_base64_decode((const unsigned char*)auth + 6, strlen(auth) - 6);
+		user = php_base64_decode((const unsigned char*)auth + 6, auth_len - 6);
 		if (user) {
 			pass = strchr(ZSTR_VAL(user), ':');
 			if (pass) {
@@ -2587,7 +2618,7 @@ PHPAPI int php_handle_auth_data(const char *auth)
 		SG(request_info).auth_digest = NULL;
 	}
 
-	if (ret == -1 && auth && auth[0] != '\0' && strncmp(auth, "Digest ", 7) == 0) {
+	if (ret == -1 && auth && auth_len > 0 && zend_binary_strncasecmp(auth, auth_len, "Digest ", sizeof("Digest ")-1, sizeof("Digest ")-1) == 0) {
 		SG(request_info).auth_digest = estrdup(auth + 7);
 		ret = 0;
 	}
@@ -2601,14 +2632,13 @@ PHPAPI int php_handle_auth_data(const char *auth)
 /* }}} */
 
 /* {{{ php_lint_script */
-PHPAPI int php_lint_script(zend_file_handle *file)
+PHPAPI zend_result php_lint_script(zend_file_handle *file)
 {
 	zend_op_array *op_array;
-	int retval = FAILURE;
+	zend_result retval = FAILURE;
 
 	zend_try {
 		op_array = zend_compile_file(file, ZEND_INCLUDE);
-		zend_destroy_file_handle(file);
 
 		if (op_array) {
 			destroy_op_array(op_array);
@@ -2645,13 +2675,18 @@ PHPAPI void php_reserve_tsrm_memory(void)
 }
 /* }}} */
 
-/* {{{ php_tsrm_startup */
-PHPAPI int php_tsrm_startup(void)
+PHPAPI bool php_tsrm_startup_ex(int expected_threads)
 {
-	int ret = tsrm_startup(1, 1, 0, NULL);
+	bool ret = tsrm_startup(expected_threads, 1, 0, NULL);
 	php_reserve_tsrm_memory();
 	(void)ts_resource(0);
 	return ret;
+}
+
+/* {{{ php_tsrm_startup */
+PHPAPI bool php_tsrm_startup(void)
+{
+	return php_tsrm_startup_ex(1);
 }
 /* }}} */
 #endif

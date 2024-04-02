@@ -1,8 +1,12 @@
 --TEST--
 imagecopyresampled()
+--EXTENSIONS--
+gd
 --SKIPIF--
 <?php
-    if (!function_exists('imagecopyresampled')) die('skip imagecopyresampled() not available');
+if (!(imagetypes() & IMG_PNG)) {
+    die("skip No PNG support");
+}
 ?>
 --FILE--
 <?php

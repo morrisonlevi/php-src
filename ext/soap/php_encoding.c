@@ -5,7 +5,7 @@
   | This source file is subject to version 3.01 of the PHP license,      |
   | that is bundled with this package in the file LICENSE, and is        |
   | available through the world-wide-web at the following url:           |
-  | http://www.php.net/license/3_01.txt                                  |
+  | https://www.php.net/license/3_01.txt                                 |
   | If you did not receive a copy of the PHP license and are unable to   |
   | obtain it through the world-wide-web, please send a note to          |
   | license@php.net so we can mail you a copy immediately.               |
@@ -21,6 +21,7 @@
 #include "php_soap.h"
 #include "ext/libxml/php_libxml.h"
 #include "ext/standard/base64.h"
+#include "ext/date/php_date.h"
 #include <libxml/parserInternals.h>
 #include "zend_strtod.h"
 #include "zend_interfaces.h"
@@ -57,7 +58,7 @@ static xmlNodePtr to_xml_list(encodeTypePtr enc, zval *data, int style, xmlNodeP
 static xmlNodePtr to_xml_list1(encodeTypePtr enc, zval *data, int style, xmlNodePtr parent);
 
 /* Datetime encode/decode */
-static xmlNodePtr to_xml_datetime_ex(encodeTypePtr type, zval *data, char *format, int style, xmlNodePtr parent);
+static xmlNodePtr to_xml_datetime_ex(encodeTypePtr type, zval *data, char *format, const char *ext_date_format, size_t ext_date_format_len, int style, xmlNodePtr parent);
 static xmlNodePtr to_xml_datetime(encodeTypePtr type, zval *data, int style, xmlNodePtr parent);
 static xmlNodePtr to_xml_time(encodeTypePtr type, zval *data, int style, xmlNodePtr parent);
 static xmlNodePtr to_xml_date(encodeTypePtr type, zval *data, int style, xmlNodePtr parent);
@@ -137,94 +138,94 @@ static void set_ns_and_type(xmlNodePtr node, encodeTypePtr type);
 	} \
 }
 
-const encode defaultEncoding[] = {
-	{{UNKNOWN_TYPE, NULL, NULL, NULL, NULL}, guess_zval_convert, guess_xml_convert},
+encode defaultEncoding[] = {
+	{{UNKNOWN_TYPE, NULL, NULL, NULL, NULL, NULL}, guess_zval_convert, guess_xml_convert},
 
-	{{IS_NULL, "nil", XSI_NAMESPACE, NULL, NULL}, to_zval_null, to_xml_null},
-	{{IS_STRING, XSD_STRING_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_string, to_xml_string},
-	{{IS_LONG, XSD_INT_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_long, to_xml_long},
-	{{IS_DOUBLE, XSD_FLOAT_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_double, to_xml_double},
-	{{IS_FALSE, XSD_BOOLEAN_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_bool, to_xml_bool},
-	{{IS_TRUE, XSD_BOOLEAN_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_bool, to_xml_bool},
-	{{IS_ARRAY, SOAP_ENC_ARRAY_STRING, SOAP_1_1_ENC_NAMESPACE, NULL, NULL}, to_zval_array, guess_array_map},
-	{{IS_OBJECT, SOAP_ENC_OBJECT_STRING, SOAP_1_1_ENC_NAMESPACE, NULL, NULL}, to_zval_object, to_xml_object},
-	{{IS_ARRAY, SOAP_ENC_ARRAY_STRING, SOAP_1_2_ENC_NAMESPACE, NULL, NULL}, to_zval_array, guess_array_map},
-	{{IS_OBJECT, SOAP_ENC_OBJECT_STRING, SOAP_1_2_ENC_NAMESPACE, NULL, NULL}, to_zval_object, to_xml_object},
+	{{IS_NULL, "nil", XSI_NAMESPACE, NULL, NULL,NULL}, to_zval_null, to_xml_null},
+	{{IS_STRING, XSD_STRING_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_string, to_xml_string},
+	{{IS_LONG, XSD_INT_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_long, to_xml_long},
+	{{IS_DOUBLE, XSD_FLOAT_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_double, to_xml_double},
+	{{IS_FALSE, XSD_BOOLEAN_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_bool, to_xml_bool},
+	{{IS_TRUE, XSD_BOOLEAN_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_bool, to_xml_bool},
+	{{IS_ARRAY, SOAP_ENC_ARRAY_STRING, SOAP_1_1_ENC_NAMESPACE, NULL, NULL, NULL}, to_zval_array, guess_array_map},
+	{{IS_OBJECT, SOAP_ENC_OBJECT_STRING, SOAP_1_1_ENC_NAMESPACE, NULL, NULL, NULL}, to_zval_object, to_xml_object},
+	{{IS_ARRAY, SOAP_ENC_ARRAY_STRING, SOAP_1_2_ENC_NAMESPACE, NULL, NULL, NULL}, to_zval_array, guess_array_map},
+	{{IS_OBJECT, SOAP_ENC_OBJECT_STRING, SOAP_1_2_ENC_NAMESPACE, NULL, NULL, NULL}, to_zval_object, to_xml_object},
 
-	{{XSD_STRING, XSD_STRING_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_string, to_xml_string},
-	{{XSD_BOOLEAN, XSD_BOOLEAN_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_bool, to_xml_bool},
-	{{XSD_DECIMAL, XSD_DECIMAL_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_stringc, to_xml_string},
-	{{XSD_FLOAT, XSD_FLOAT_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_double, to_xml_double},
-	{{XSD_DOUBLE, XSD_DOUBLE_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_double, to_xml_double},
+	{{XSD_STRING, XSD_STRING_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_string, to_xml_string},
+	{{XSD_BOOLEAN, XSD_BOOLEAN_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_bool, to_xml_bool},
+	{{XSD_DECIMAL, XSD_DECIMAL_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_stringc, to_xml_string},
+	{{XSD_FLOAT, XSD_FLOAT_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_double, to_xml_double},
+	{{XSD_DOUBLE, XSD_DOUBLE_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_double, to_xml_double},
 
-	{{XSD_DATETIME, XSD_DATETIME_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_stringc, to_xml_datetime},
-	{{XSD_TIME, XSD_TIME_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_stringc, to_xml_time},
-	{{XSD_DATE, XSD_DATE_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_stringc, to_xml_date},
-	{{XSD_GYEARMONTH, XSD_GYEARMONTH_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_stringc, to_xml_gyearmonth},
-	{{XSD_GYEAR, XSD_GYEAR_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_stringc, to_xml_gyear},
-	{{XSD_GMONTHDAY, XSD_GMONTHDAY_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_stringc, to_xml_gmonthday},
-	{{XSD_GDAY, XSD_GDAY_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_stringc, to_xml_gday},
-	{{XSD_GMONTH, XSD_GMONTH_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_stringc, to_xml_gmonth},
-	{{XSD_DURATION, XSD_DURATION_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_stringc, to_xml_duration},
+	{{XSD_DATETIME, XSD_DATETIME_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_stringc, to_xml_datetime},
+	{{XSD_TIME, XSD_TIME_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_stringc, to_xml_time},
+	{{XSD_DATE, XSD_DATE_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_stringc, to_xml_date},
+	{{XSD_GYEARMONTH, XSD_GYEARMONTH_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_stringc, to_xml_gyearmonth},
+	{{XSD_GYEAR, XSD_GYEAR_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_stringc, to_xml_gyear},
+	{{XSD_GMONTHDAY, XSD_GMONTHDAY_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_stringc, to_xml_gmonthday},
+	{{XSD_GDAY, XSD_GDAY_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_stringc, to_xml_gday},
+	{{XSD_GMONTH, XSD_GMONTH_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_stringc, to_xml_gmonth},
+	{{XSD_DURATION, XSD_DURATION_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_stringc, to_xml_duration},
 
-	{{XSD_HEXBINARY, XSD_HEXBINARY_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_hexbin, to_xml_hexbin},
-	{{XSD_BASE64BINARY, XSD_BASE64BINARY_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_base64, to_xml_base64},
+	{{XSD_HEXBINARY, XSD_HEXBINARY_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_hexbin, to_xml_hexbin},
+	{{XSD_BASE64BINARY, XSD_BASE64BINARY_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_base64, to_xml_base64},
 
-	{{XSD_LONG, XSD_LONG_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_long, to_xml_long},
-	{{XSD_INT, XSD_INT_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_long, to_xml_long},
-	{{XSD_SHORT, XSD_SHORT_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_long, to_xml_long},
-	{{XSD_BYTE, XSD_BYTE_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_long, to_xml_long},
-	{{XSD_NONPOSITIVEINTEGER, XSD_NONPOSITIVEINTEGER_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_long, to_xml_long},
-	{{XSD_POSITIVEINTEGER, XSD_POSITIVEINTEGER_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_long, to_xml_long},
-	{{XSD_NONNEGATIVEINTEGER, XSD_NONNEGATIVEINTEGER_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_long, to_xml_long},
-	{{XSD_NEGATIVEINTEGER, XSD_NEGATIVEINTEGER_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_long, to_xml_long},
-	{{XSD_UNSIGNEDBYTE, XSD_UNSIGNEDBYTE_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_long, to_xml_long},
-	{{XSD_UNSIGNEDSHORT, XSD_UNSIGNEDSHORT_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_long, to_xml_long},
-	{{XSD_UNSIGNEDINT, XSD_UNSIGNEDINT_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_long, to_xml_long},
-	{{XSD_UNSIGNEDLONG, XSD_UNSIGNEDLONG_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_long, to_xml_long},
-	{{XSD_INTEGER, XSD_INTEGER_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_long, to_xml_long},
+	{{XSD_LONG, XSD_LONG_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_long, to_xml_long},
+	{{XSD_INT, XSD_INT_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_long, to_xml_long},
+	{{XSD_SHORT, XSD_SHORT_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_long, to_xml_long},
+	{{XSD_BYTE, XSD_BYTE_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_long, to_xml_long},
+	{{XSD_NONPOSITIVEINTEGER, XSD_NONPOSITIVEINTEGER_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_long, to_xml_long},
+	{{XSD_POSITIVEINTEGER, XSD_POSITIVEINTEGER_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_long, to_xml_long},
+	{{XSD_NONNEGATIVEINTEGER, XSD_NONNEGATIVEINTEGER_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_long, to_xml_long},
+	{{XSD_NEGATIVEINTEGER, XSD_NEGATIVEINTEGER_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_long, to_xml_long},
+	{{XSD_UNSIGNEDBYTE, XSD_UNSIGNEDBYTE_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_long, to_xml_long},
+	{{XSD_UNSIGNEDSHORT, XSD_UNSIGNEDSHORT_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_long, to_xml_long},
+	{{XSD_UNSIGNEDINT, XSD_UNSIGNEDINT_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_long, to_xml_long},
+	{{XSD_UNSIGNEDLONG, XSD_UNSIGNEDLONG_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_long, to_xml_long},
+	{{XSD_INTEGER, XSD_INTEGER_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_long, to_xml_long},
 
-	{{XSD_ANYTYPE, XSD_ANYTYPE_STRING, XSD_NAMESPACE, NULL, NULL}, guess_zval_convert, guess_xml_convert},
-	{{XSD_UR_TYPE, XSD_UR_TYPE_STRING, XSD_NAMESPACE, NULL, NULL}, guess_zval_convert, guess_xml_convert},
-	{{XSD_ANYURI, XSD_ANYURI_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_stringc, to_xml_string},
-	{{XSD_QNAME, XSD_QNAME_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_stringc, to_xml_string},
-	{{XSD_NOTATION, XSD_NOTATION_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_stringc, to_xml_string},
-	{{XSD_NORMALIZEDSTRING, XSD_NORMALIZEDSTRING_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_stringr, to_xml_string},
-	{{XSD_TOKEN, XSD_TOKEN_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_stringc, to_xml_string},
-	{{XSD_LANGUAGE, XSD_LANGUAGE_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_stringc, to_xml_string},
-	{{XSD_NMTOKEN, XSD_NMTOKEN_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_stringc, to_xml_string},
-	{{XSD_NMTOKENS, XSD_NMTOKENS_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_stringc, to_xml_list1},
-	{{XSD_NAME, XSD_NAME_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_stringc, to_xml_string},
-	{{XSD_NCNAME, XSD_NCNAME_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_stringc, to_xml_string},
-	{{XSD_ID, XSD_ID_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_stringc, to_xml_string},
-	{{XSD_IDREF, XSD_IDREF_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_stringc, to_xml_string},
-	{{XSD_IDREFS, XSD_IDREFS_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_stringc, to_xml_list1},
-	{{XSD_ENTITY, XSD_ENTITY_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_stringc, to_xml_string},
-	{{XSD_ENTITIES, XSD_ENTITIES_STRING, XSD_NAMESPACE, NULL, NULL}, to_zval_stringc, to_xml_list1},
+	{{XSD_ANYTYPE, XSD_ANYTYPE_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, guess_zval_convert, guess_xml_convert},
+	{{XSD_UR_TYPE, XSD_UR_TYPE_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, guess_zval_convert, guess_xml_convert},
+	{{XSD_ANYURI, XSD_ANYURI_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_stringc, to_xml_string},
+	{{XSD_QNAME, XSD_QNAME_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_stringc, to_xml_string},
+	{{XSD_NOTATION, XSD_NOTATION_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_stringc, to_xml_string},
+	{{XSD_NORMALIZEDSTRING, XSD_NORMALIZEDSTRING_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_stringr, to_xml_string},
+	{{XSD_TOKEN, XSD_TOKEN_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_stringc, to_xml_string},
+	{{XSD_LANGUAGE, XSD_LANGUAGE_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_stringc, to_xml_string},
+	{{XSD_NMTOKEN, XSD_NMTOKEN_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_stringc, to_xml_string},
+	{{XSD_NMTOKENS, XSD_NMTOKENS_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_stringc, to_xml_list1},
+	{{XSD_NAME, XSD_NAME_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_stringc, to_xml_string},
+	{{XSD_NCNAME, XSD_NCNAME_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_stringc, to_xml_string},
+	{{XSD_ID, XSD_ID_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_stringc, to_xml_string},
+	{{XSD_IDREF, XSD_IDREF_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_stringc, to_xml_string},
+	{{XSD_IDREFS, XSD_IDREFS_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_stringc, to_xml_list1},
+	{{XSD_ENTITY, XSD_ENTITY_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_stringc, to_xml_string},
+	{{XSD_ENTITIES, XSD_ENTITIES_STRING, XSD_NAMESPACE, NULL, NULL, NULL}, to_zval_stringc, to_xml_list1},
 
-	{{APACHE_MAP, APACHE_MAP_STRING, APACHE_NAMESPACE, NULL, NULL}, to_zval_map, to_xml_map},
+	{{APACHE_MAP, APACHE_MAP_STRING, APACHE_NAMESPACE, NULL, NULL, NULL}, to_zval_map, to_xml_map},
 
-	{{SOAP_ENC_OBJECT, SOAP_ENC_OBJECT_STRING, SOAP_1_1_ENC_NAMESPACE, NULL, NULL}, to_zval_object, to_xml_object},
-	{{SOAP_ENC_ARRAY, SOAP_ENC_ARRAY_STRING, SOAP_1_1_ENC_NAMESPACE, NULL, NULL}, to_zval_array, to_xml_array},
-	{{SOAP_ENC_OBJECT, SOAP_ENC_OBJECT_STRING, SOAP_1_2_ENC_NAMESPACE, NULL, NULL}, to_zval_object, to_xml_object},
-	{{SOAP_ENC_ARRAY, SOAP_ENC_ARRAY_STRING, SOAP_1_2_ENC_NAMESPACE, NULL, NULL}, to_zval_array, to_xml_array},
+	{{SOAP_ENC_OBJECT, SOAP_ENC_OBJECT_STRING, SOAP_1_1_ENC_NAMESPACE, NULL, NULL, NULL}, to_zval_object, to_xml_object},
+	{{SOAP_ENC_ARRAY, SOAP_ENC_ARRAY_STRING, SOAP_1_1_ENC_NAMESPACE, NULL, NULL, NULL}, to_zval_array, to_xml_array},
+	{{SOAP_ENC_OBJECT, SOAP_ENC_OBJECT_STRING, SOAP_1_2_ENC_NAMESPACE, NULL, NULL, NULL}, to_zval_object, to_xml_object},
+	{{SOAP_ENC_ARRAY, SOAP_ENC_ARRAY_STRING, SOAP_1_2_ENC_NAMESPACE, NULL, NULL, NULL}, to_zval_array, to_xml_array},
 
 	/* support some of the 1999 data types */
-	{{XSD_STRING, XSD_STRING_STRING, XSD_1999_NAMESPACE, NULL, NULL}, to_zval_string, to_xml_string},
-	{{XSD_BOOLEAN, XSD_BOOLEAN_STRING, XSD_1999_NAMESPACE, NULL, NULL}, to_zval_bool, to_xml_bool},
-	{{XSD_DECIMAL, XSD_DECIMAL_STRING, XSD_1999_NAMESPACE, NULL, NULL}, to_zval_stringc, to_xml_string},
-	{{XSD_FLOAT, XSD_FLOAT_STRING, XSD_1999_NAMESPACE, NULL, NULL}, to_zval_double, to_xml_double},
-	{{XSD_DOUBLE, XSD_DOUBLE_STRING, XSD_1999_NAMESPACE, NULL, NULL}, to_zval_double, to_xml_double},
+	{{XSD_STRING, XSD_STRING_STRING, XSD_1999_NAMESPACE, NULL, NULL, NULL}, to_zval_string, to_xml_string},
+	{{XSD_BOOLEAN, XSD_BOOLEAN_STRING, XSD_1999_NAMESPACE, NULL, NULL, NULL}, to_zval_bool, to_xml_bool},
+	{{XSD_DECIMAL, XSD_DECIMAL_STRING, XSD_1999_NAMESPACE, NULL, NULL, NULL}, to_zval_stringc, to_xml_string},
+	{{XSD_FLOAT, XSD_FLOAT_STRING, XSD_1999_NAMESPACE, NULL, NULL, NULL}, to_zval_double, to_xml_double},
+	{{XSD_DOUBLE, XSD_DOUBLE_STRING, XSD_1999_NAMESPACE, NULL, NULL, NULL}, to_zval_double, to_xml_double},
 
-	{{XSD_LONG, XSD_LONG_STRING, XSD_1999_NAMESPACE, NULL, NULL}, to_zval_long, to_xml_long},
-	{{XSD_INT, XSD_INT_STRING, XSD_1999_NAMESPACE, NULL, NULL}, to_zval_long, to_xml_long},
-	{{XSD_SHORT, XSD_SHORT_STRING, XSD_1999_NAMESPACE, NULL, NULL}, to_zval_long, to_xml_long},
-	{{XSD_BYTE, XSD_BYTE_STRING, XSD_1999_NAMESPACE, NULL, NULL}, to_zval_long, to_xml_long},
-	{{XSD_1999_TIMEINSTANT, XSD_1999_TIMEINSTANT_STRING, XSD_1999_NAMESPACE, NULL, NULL}, to_zval_stringc, to_xml_string},
+	{{XSD_LONG, XSD_LONG_STRING, XSD_1999_NAMESPACE, NULL, NULL, NULL}, to_zval_long, to_xml_long},
+	{{XSD_INT, XSD_INT_STRING, XSD_1999_NAMESPACE, NULL, NULL, NULL}, to_zval_long, to_xml_long},
+	{{XSD_SHORT, XSD_SHORT_STRING, XSD_1999_NAMESPACE, NULL, NULL, NULL}, to_zval_long, to_xml_long},
+	{{XSD_BYTE, XSD_BYTE_STRING, XSD_1999_NAMESPACE, NULL, NULL, NULL}, to_zval_long, to_xml_long},
+	{{XSD_1999_TIMEINSTANT, XSD_1999_TIMEINSTANT_STRING, XSD_1999_NAMESPACE, NULL, NULL, NULL}, to_zval_stringc, to_xml_string},
 
-	{{XSD_ANYXML, "<anyXML>", "<anyXML>", NULL, NULL}, to_zval_any, to_xml_any},
+	{{XSD_ANYXML, "<anyXML>", "<anyXML>", NULL, NULL, NULL}, to_zval_any, to_xml_any},
 
-	{{END_KNOWN_TYPES, NULL, NULL, NULL, NULL}, guess_zval_convert, guess_xml_convert}
+	{{END_KNOWN_TYPES, NULL, NULL, NULL, NULL, NULL}, guess_zval_convert, guess_xml_convert}
 };
 
 int numDefaultEncodings = sizeof(defaultEncoding)/sizeof(encode);
@@ -271,8 +272,15 @@ static encodePtr find_encoder_by_type_name(sdlPtr sdl, const char *type)
 		encodePtr enc;
 
 		ZEND_HASH_FOREACH_PTR(sdl->encoders, enc)  {
-		    if (strcmp(enc->details.type_str, type) == 0) {
-				return enc;
+			if (type[0] == '{') {
+				if (enc->details.clark_notation
+					&& strcmp(ZSTR_VAL(enc->details.clark_notation), type) == 0) {
+					return enc;
+				}
+			} else {
+				if (strcmp(enc->details.type_str, type) == 0) {
+					return enc;
+				}
 			}
 		} ZEND_HASH_FOREACH_END();
 	}
@@ -379,22 +387,18 @@ static xmlNodePtr master_to_xml_int(encodePtr encode, zval *data, int style, xml
 	}
 
 	/* Special handling of class SoapVar */
-	if (data &&
-	    Z_TYPE_P(data) == IS_OBJECT &&
-	    Z_OBJCE_P(data) == soap_var_class_entry) {
-		zval *ztype, *zdata, *zns, *zstype, *zname, *znamens;
+	if (data && Z_TYPE_P(data) == IS_OBJECT && Z_OBJCE_P(data) == soap_var_class_entry) {
 		encodePtr enc = NULL;
-		HashTable *ht = Z_OBJPROP_P(data);
 
-		if ((ztype = zend_hash_str_find_deref(ht, "enc_type", sizeof("enc_type")-1)) == NULL ||
-		    Z_TYPE_P(ztype) != IS_LONG) {
+		zval *ztype = Z_VAR_ENC_TYPE_P(data);
+		if (Z_TYPE_P(ztype) != IS_LONG) {
 			soap_error0(E_ERROR, "Encoding: SoapVar has no 'enc_type' property");
 		}
 
-		if ((zstype = zend_hash_str_find_deref(ht, "enc_stype", sizeof("enc_stype")-1)) != NULL &&
-		    Z_TYPE_P(zstype) == IS_STRING) {
-			if ((zns = zend_hash_str_find_deref(ht, "enc_ns", sizeof("enc_ns")-1)) != NULL &&
-			    Z_TYPE_P(zns) == IS_STRING) {
+		zval *zstype = Z_VAR_ENC_STYPE_P(data);
+		if (Z_TYPE_P(zstype) == IS_STRING) {
+			zval *zns = Z_VAR_ENC_NS_P(data);
+			if (Z_TYPE_P(zns) == IS_STRING) {
 				enc = get_encoder(SOAP_GLOBAL(sdl), Z_STRVAL_P(zns), Z_STRVAL_P(zstype));
 			} else {
 				zns = NULL;
@@ -404,10 +408,10 @@ static xmlNodePtr master_to_xml_int(encodePtr encode, zval *data, int style, xml
 				smart_str nscat = {0};
 
 				if (zns != NULL) {
-					smart_str_appendl(&nscat, Z_STRVAL_P(zns), Z_STRLEN_P(zns));
+					smart_str_append(&nscat, Z_STR_P(zns));
 					smart_str_appendc(&nscat, ':');
 				}
-				smart_str_appendl(&nscat, Z_STRVAL_P(zstype), Z_STRLEN_P(zstype));
+				smart_str_append(&nscat, Z_STR_P(zstype));
 				smart_str_0(&nscat);
 				enc = zend_hash_find_ptr(SOAP_GLOBAL(typemap), nscat.s);
 				smart_str_free(&nscat);
@@ -420,14 +424,13 @@ static xmlNodePtr master_to_xml_int(encodePtr encode, zval *data, int style, xml
 			enc = encode;
 		}
 
-		zdata = zend_hash_str_find_deref(ht, "enc_value", sizeof("enc_value")-1);
-		node = master_to_xml(enc, zdata, style, parent);
+		node = master_to_xml(enc, Z_VAR_ENC_VALUE_P(data), style, parent);
 
 		if (style == SOAP_ENCODED || (SOAP_GLOBAL(sdl) && encode != enc)) {
-			if ((zstype = zend_hash_str_find_deref(ht, "enc_stype", sizeof("enc_stype")-1)) != NULL &&
-			    Z_TYPE_P(zstype) == IS_STRING) {
-				if ((zns = zend_hash_str_find_deref(ht, "enc_ns", sizeof("enc_ns")-1)) != NULL &&
-				    Z_TYPE_P(zns) == IS_STRING) {
+			zval *zstype = Z_VAR_ENC_STYPE_P(data);
+			if (Z_TYPE_P(zstype) == IS_STRING) {
+				zval *zns = Z_VAR_ENC_NS_P(data);
+				if (Z_TYPE_P(zns) == IS_STRING) {
 					set_ns_and_type_ex(node, Z_STRVAL_P(zns), Z_STRVAL_P(zstype));
 				} else {
 					set_ns_and_type_ex(node, NULL, Z_STRVAL_P(zstype));
@@ -435,12 +438,13 @@ static xmlNodePtr master_to_xml_int(encodePtr encode, zval *data, int style, xml
 			}
 		}
 
-		if ((zname = zend_hash_str_find_deref(ht, "enc_name", sizeof("enc_name")-1)) != NULL &&
-		    Z_TYPE_P(zname) == IS_STRING) {
+		zval *zname = Z_VAR_ENC_NAME_P(data);
+		if (Z_TYPE_P(zname) == IS_STRING) {
 			xmlNodeSetName(node, BAD_CAST(Z_STRVAL_P(zname)));
 		}
-		if ((znamens = zend_hash_str_find_deref(ht, "enc_namens", sizeof("enc_namens")-1)) != NULL &&
-		    Z_TYPE_P(znamens) == IS_STRING) {
+
+		zval *znamens = Z_VAR_ENC_NAMENS_P(data);
+		if (Z_TYPE_P(znamens) == IS_STRING) {
 			xmlNsPtr nsp = encode_add_ns(node, Z_STRVAL_P(znamens));
 			xmlSetNs(node, nsp);
 		}
@@ -452,7 +456,7 @@ static xmlNodePtr master_to_xml_int(encodePtr encode, zval *data, int style, xml
 			zval *tmp;
 			zend_string *type_name;
 
-			ZEND_HASH_FOREACH_STR_KEY_VAL(SOAP_GLOBAL(class_map), type_name, tmp) {
+			ZEND_HASH_MAP_FOREACH_STR_KEY_VAL(SOAP_GLOBAL(class_map), type_name, tmp) {
 				ZVAL_DEREF(tmp);
 				if (Z_TYPE_P(tmp) == IS_STRING &&
 				    ZSTR_LEN(ce->name) == Z_STRLEN_P(tmp) &&
@@ -1083,7 +1087,7 @@ static xmlNodePtr to_xml_double(encodeTypePtr type, zval *data, int style, xmlNo
 	ZVAL_DOUBLE(&tmp, zval_get_double(data));
 
 	str = (char *) safe_emalloc(EG(precision) >= 0 ? EG(precision) : 17, 1, MAX_LENGTH_OF_DOUBLE + 1);
-	php_gcvt(Z_DVAL(tmp), EG(precision), '.', 'E', str);
+	zend_gcvt(Z_DVAL(tmp), EG(precision), '.', 'E', str);
 	xmlNodeSetContentLen(ret, BAD_CAST(str), strlen(str));
 	efree(str);
 
@@ -1382,10 +1386,15 @@ static zval *to_zval_object_ex(zval *ret, encodeTypePtr type, xmlNodePtr data, z
 	if (pce) {
 		ce = pce;
 	} else if (SOAP_GLOBAL(class_map) && type->type_str) {
-		zval              *classname;
+		zval              *classname = NULL;
 		zend_class_entry  *tmp;
-
-		if ((classname = zend_hash_str_find_deref(SOAP_GLOBAL(class_map), type->type_str, strlen(type->type_str))) != NULL &&
+		if (type->clark_notation != NULL) {
+			classname = zend_hash_find_deref(SOAP_GLOBAL(class_map), type->clark_notation);
+		}
+		if (classname == NULL) {
+			classname = zend_hash_str_find_deref(SOAP_GLOBAL(class_map), type->type_str, strlen(type->type_str));
+		}
+		if (classname != NULL &&
 		    Z_TYPE_P(classname) == IS_STRING &&
 		    (tmp = zend_fetch_class(Z_STR_P(classname), ZEND_FETCH_CLASS_AUTO)) != NULL) {
 			ce = tmp;
@@ -1565,10 +1574,12 @@ static zval *to_zval_object_ex(zval *ret, encodeTypePtr type, xmlNodePtr data, z
 					if (Z_TYPE_P(prop) != IS_ARRAY) {
 						/* Convert into array */
 						array_init(&arr);
-						Z_ADDREF_P(prop);
+						Z_TRY_ADDREF_P(prop);
 						add_next_index_zval(&arr, prop);
 						set_zval_property(ret, (char*)trav->name, &arr);
 						prop = &arr;
+					} else {
+						SEPARATE_ARRAY(prop);
 					}
 					/* Add array element */
 					add_next_index_zval(prop, &tmpVal);
@@ -1766,6 +1777,8 @@ static sdlTypePtr model_array_element(sdlContentModelPtr model)
 				return model_array_element(tmp);
 			} ZEND_HASH_FOREACH_END();
 		}
+		/* TODO Check this is correct */
+		ZEND_FALLTHROUGH;
 		case XSD_CONTENT_GROUP: {
 			return model_array_element(model->u.group->model);
 		}
@@ -2044,7 +2057,7 @@ static int calc_dimension(const char* str)
 	int i = 1;
 	while (*str != ']' && *str != '\0') {
 		if (*str == ',') {
-    		i++;
+			i++;
 		}
 		str++;
 	}
@@ -2095,26 +2108,26 @@ static void add_xml_array_elements(xmlNodePtr xmlParam,
 	 			break;
 	 		}
 			ZVAL_DEREF(zdata);
- 			if (dimension == 1) {
- 				if (enc == NULL) {
+			if (dimension == 1) {
+				if (enc == NULL) {
 					xparam = master_to_xml(get_conversion(Z_TYPE_P(zdata)), zdata, style, xmlParam);
 				} else {
 					xparam = master_to_xml(enc, zdata, style, xmlParam);
 	 			}
 
 	 			if (type) {
- 					xmlNodeSetName(xparam, BAD_CAST(type->name));
- 				} else if (style == SOAP_LITERAL && enc && enc->details.type_str) {
+					xmlNodeSetName(xparam, BAD_CAST(type->name));
+				} else if (style == SOAP_LITERAL && enc && enc->details.type_str) {
 					xmlNodeSetName(xparam, BAD_CAST(enc->details.type_str));
 					xmlSetNs(xparam, ns);
 				} else {
- 					xmlNodeSetName(xparam, BAD_CAST("item"));
- 				}
- 			} else {
- 				add_xml_array_elements(xmlParam, type, enc, ns, dimension-1, dims+1, zdata, style);
- 			}
- 			j++;
- 		} ZEND_HASH_FOREACH_END();
+					xmlNodeSetName(xparam, BAD_CAST("item"));
+				}
+			} else {
+				add_xml_array_elements(xmlParam, type, enc, ns, dimension-1, dims+1, zdata, style);
+			}
+			j++;
+		} ZEND_HASH_FOREACH_END();
 
 		if (dimension == 1) {
 	 		while (j < dims[0]) {
@@ -2122,42 +2135,42 @@ static void add_xml_array_elements(xmlNodePtr xmlParam,
 				xmlAddChild(xmlParam, xparam);
 
 	 			if (type) {
- 					xmlNodeSetName(xparam, BAD_CAST(type->name));
- 				} else if (style == SOAP_LITERAL && enc && enc->details.type_str) {
+					xmlNodeSetName(xparam, BAD_CAST(type->name));
+				} else if (style == SOAP_LITERAL && enc && enc->details.type_str) {
 					xmlNodeSetName(xparam, BAD_CAST(enc->details.type_str));
 					xmlSetNs(xparam, ns);
 				} else {
- 					xmlNodeSetName(xparam, BAD_CAST("item"));
- 				}
+					xmlNodeSetName(xparam, BAD_CAST("item"));
+				}
 
- 				j++;
- 			}
+				j++;
+			}
 		} else {
 	 		while (j < dims[0]) {
 				add_xml_array_elements(xmlParam, type, enc, ns, dimension-1, dims+1, NULL, style);
- 				j++;
- 			}
+				j++;
+			}
 		}
- 	} else {
+	} else {
 		for (j=0; j<dims[0]; j++) {
- 			if (dimension == 1) {
+			if (dimension == 1) {
 	 			xmlNodePtr xparam;
 
 				xparam = xmlNewNode(NULL, BAD_CAST("BOGUS"));
 				xmlAddChild(xmlParam, xparam);
 	 			if (type) {
- 					xmlNodeSetName(xparam, BAD_CAST(type->name));
- 				} else if (style == SOAP_LITERAL && enc && enc->details.type_str) {
+					xmlNodeSetName(xparam, BAD_CAST(type->name));
+				} else if (style == SOAP_LITERAL && enc && enc->details.type_str) {
 					xmlNodeSetName(xparam, BAD_CAST(enc->details.type_str));
 					xmlSetNs(xparam, ns);
 				} else {
- 					xmlNodeSetName(xparam, BAD_CAST("item"));
- 				}
- 			} else {
- 			  add_xml_array_elements(xmlParam, type, enc, ns, dimension-1, dims+1, NULL, style);
- 			}
+					xmlNodeSetName(xparam, BAD_CAST("item"));
+				}
+			} else {
+			  add_xml_array_elements(xmlParam, type, enc, ns, dimension-1, dims+1, NULL, style);
+			}
 		}
- 	}
+	}
 }
 
 static xmlNodePtr to_xml_array(encodeTypePtr type, zval *data, int style, xmlNodePtr parent)
@@ -2388,7 +2401,14 @@ iterator_done:
 		if (style == SOAP_ENCODED) {
 			if (soap_version == SOAP_1_1) {
 				smart_str_0(&array_type);
-				if (strcmp(ZSTR_VAL(array_type.s),"xsd:anyType") == 0) {
+#if defined(__GNUC__) && __GNUC__ >= 11
+				ZEND_DIAGNOSTIC_IGNORED_START("-Wstringop-overread")
+#endif
+				bool is_xsd_any_type = strcmp(ZSTR_VAL(array_type.s),"xsd:anyType") == 0;
+#if defined(__GNUC__) && __GNUC__ >= 11
+				ZEND_DIAGNOSTIC_IGNORED_END
+#endif
+				if (is_xsd_any_type) {
 					smart_str_free(&array_type);
 					smart_str_appendl(&array_type,"xsd:ur-type",sizeof("xsd:ur-type")-1);
 				}
@@ -2812,14 +2832,13 @@ static zval *guess_zval_convert(zval *ret, encodeTypePtr type, xmlNodePtr data)
 		xmlNsPtr nsptr;
 
 		object_init_ex(&soapvar, soap_var_class_entry);
-		add_property_long(&soapvar, "enc_type", enc->details.type);
-		Z_TRY_DELREF_P(ret);
-		add_property_zval(&soapvar, "enc_value", ret);
+		ZVAL_LONG(Z_VAR_ENC_TYPE_P(&soapvar), enc->details.type);
+		ZVAL_COPY_VALUE(Z_VAR_ENC_VALUE_P(&soapvar), ret);
 		parse_namespace(type_name, &cptype, &ns);
 		nsptr = xmlSearchNs(data->doc, data, BAD_CAST(ns));
-		add_property_string(&soapvar, "enc_stype", cptype);
+		ZVAL_STRING(Z_VAR_ENC_STYPE_P(&soapvar), cptype);
 		if (nsptr) {
-			add_property_string(&soapvar, "enc_ns", (char*)nsptr->href);
+			ZVAL_STRING(Z_VAR_ENC_NS_P(&soapvar), (char*)nsptr->href);
 		}
 		efree(cptype);
 		if (ns) {efree(ns);}
@@ -2829,7 +2848,7 @@ static zval *guess_zval_convert(zval *ret, encodeTypePtr type, xmlNodePtr data)
 }
 
 /* Time encode/decode */
-static xmlNodePtr to_xml_datetime_ex(encodeTypePtr type, zval *data, char *format, int style, xmlNodePtr parent)
+static xmlNodePtr to_xml_datetime_ex(encodeTypePtr type, zval *data, char *format, const char *ext_date_format, size_t ext_date_format_len, int style, xmlNodePtr parent)
 {
 	/* logic hacked from ext/standard/datetime.c */
 	struct tm *ta, tmbuf;
@@ -2887,6 +2906,17 @@ static xmlNodePtr to_xml_datetime_ex(encodeTypePtr type, zval *data, char *forma
 		efree(buf);
 	} else if (Z_TYPE_P(data) == IS_STRING) {
 		xmlNodeSetContentLen(xmlParam, BAD_CAST(Z_STRVAL_P(data)), Z_STRLEN_P(data));
+	} else if (Z_TYPE_P(data) == IS_OBJECT) {
+		if (instanceof_function_slow(Z_OBJCE_P(data), php_date_get_interface_ce())) {
+			php_date_obj *date_obj = Z_PHPDATE_P(data);
+			zend_string *formatted_date_string = php_format_date_obj(ext_date_format, ext_date_format_len, date_obj);
+			if (formatted_date_string) {
+				xmlNodeSetContentLen(xmlParam, BAD_CAST(ZSTR_VAL(formatted_date_string)), ZSTR_LEN(formatted_date_string));
+				zend_string_release_ex(formatted_date_string, false);
+			} else {
+				soap_error0(E_ERROR, "Encoding: Invalid DateTimeInterface");
+			}
+		}
 	}
 
 	if (style == SOAP_ENCODED) {
@@ -2901,45 +2931,47 @@ static xmlNodePtr to_xml_duration(encodeTypePtr type, zval *data, int style, xml
 	return to_xml_string(type, data, style, parent);
 }
 
+#define TO_XML_DATETIME_EX_HELPER(type, date, format, ext_date_format, style, parent) \
+	to_xml_datetime_ex(type, data, format, ext_date_format, strlen(ext_date_format), style, parent)
+
 static xmlNodePtr to_xml_datetime(encodeTypePtr type, zval *data, int style, xmlNodePtr parent)
 {
-	return to_xml_datetime_ex(type, data, "%Y-%m-%dT%H:%M:%S", style, parent);
+	return TO_XML_DATETIME_EX_HELPER(type, data, "%Y-%m-%dT%H:%M:%S", "Y-m-d\\TH:i:s.up", style, parent);
 }
 
 static xmlNodePtr to_xml_time(encodeTypePtr type, zval *data, int style, xmlNodePtr parent)
 {
-	/* TODO: microsecconds */
-	return to_xml_datetime_ex(type, data, "%H:%M:%S", style, parent);
+	return TO_XML_DATETIME_EX_HELPER(type, data, "%H:%M:%S", "H:i:s.up", style, parent);
 }
 
 static xmlNodePtr to_xml_date(encodeTypePtr type, zval *data, int style, xmlNodePtr parent)
 {
-	return to_xml_datetime_ex(type, data, "%Y-%m-%d", style, parent);
+	return TO_XML_DATETIME_EX_HELPER(type, data, "%Y-%m-%d", "Y-m-dp", style, parent);
 }
 
 static xmlNodePtr to_xml_gyearmonth(encodeTypePtr type, zval *data, int style, xmlNodePtr parent)
 {
-	return to_xml_datetime_ex(type, data, "%Y-%m", style, parent);
+	return TO_XML_DATETIME_EX_HELPER(type, data, "%Y-%m", "Y-mp", style, parent);
 }
 
 static xmlNodePtr to_xml_gyear(encodeTypePtr type, zval *data, int style, xmlNodePtr parent)
 {
-	return to_xml_datetime_ex(type, data, "%Y", style, parent);
+	return TO_XML_DATETIME_EX_HELPER(type, data, "%Y", "Yp", style, parent);
 }
 
 static xmlNodePtr to_xml_gmonthday(encodeTypePtr type, zval *data, int style, xmlNodePtr parent)
 {
-	return to_xml_datetime_ex(type, data, "--%m-%d", style, parent);
+	return TO_XML_DATETIME_EX_HELPER(type, data, "--%m-%d", "--m-dp", style, parent);
 }
 
 static xmlNodePtr to_xml_gday(encodeTypePtr type, zval *data, int style, xmlNodePtr parent)
 {
-	return to_xml_datetime_ex(type, data, "---%d", style, parent);
+	return TO_XML_DATETIME_EX_HELPER(type, data, "---%d", "---dp", style, parent);
 }
 
 static xmlNodePtr to_xml_gmonth(encodeTypePtr type, zval *data, int style, xmlNodePtr parent)
 {
-	return to_xml_datetime_ex(type, data, "--%m--", style, parent);
+	return TO_XML_DATETIME_EX_HELPER(type, data, "--%m--", "--m--p", style, parent);
 }
 
 static zval* to_zval_list(zval *ret, encodeTypePtr enc, xmlNodePtr data) {
@@ -3379,6 +3411,7 @@ xmlNsPtr encode_add_ns(xmlNodePtr node, const char* ns)
 		} else {
 			smart_str prefix = {0};
 			int num = ++SOAP_GLOBAL(cur_uniq_ns);
+			xmlChar *enc_ns;
 
 			while (1) {
 				smart_str_appendl(&prefix, "ns", 2);
@@ -3392,7 +3425,9 @@ xmlNsPtr encode_add_ns(xmlNodePtr node, const char* ns)
 				num = ++SOAP_GLOBAL(cur_uniq_ns);
 			}
 
-			xmlns = xmlNewNs(node->doc->children, BAD_CAST(ns), BAD_CAST(prefix.s ? ZSTR_VAL(prefix.s) : ""));
+			enc_ns = xmlEncodeSpecialChars(node->doc, BAD_CAST(ns));
+			xmlns = xmlNewNs(node->doc->children, enc_ns, BAD_CAST(prefix.s ? ZSTR_VAL(prefix.s) : ""));
+			xmlFree(enc_ns);
 			smart_str_free(&prefix);
 		}
 	}
@@ -3414,7 +3449,7 @@ static void set_xsi_type(xmlNodePtr node, char *type)
 	set_ns_prop(node, XSI_NAMESPACE, "type", type);
 }
 
-void encode_reset_ns()
+void encode_reset_ns(void)
 {
 	SOAP_GLOBAL(cur_uniq_ns) = 0;
 	SOAP_GLOBAL(cur_uniq_ref) = 0;
@@ -3426,7 +3461,7 @@ void encode_reset_ns()
 	zend_hash_init(SOAP_GLOBAL(ref_map), 0, NULL, NULL, 0);
 }
 
-void encode_finish()
+void encode_finish(void)
 {
 	SOAP_GLOBAL(cur_uniq_ns) = 0;
 	SOAP_GLOBAL(cur_uniq_ref) = 0;
@@ -3489,24 +3524,22 @@ static encodePtr get_array_type(xmlNodePtr node, zval *array, smart_str *type)
 		ZVAL_DEREF(tmp);
 		if (Z_TYPE_P(tmp) == IS_OBJECT &&
 		    Z_OBJCE_P(tmp) == soap_var_class_entry) {
-			zval *ztype;
-
-			if ((ztype = zend_hash_str_find_deref(Z_OBJPROP_P(tmp), "enc_type", sizeof("enc_type")-1)) == NULL ||
-			    Z_TYPE_P(ztype) != IS_LONG) {
+			zval *ztype = Z_VAR_ENC_TYPE_P(tmp);
+			if (Z_TYPE_P(ztype) != IS_LONG) {
 				soap_error0(E_ERROR,  "Encoding: SoapVar has no 'enc_type' property");
 			}
 			cur_type = Z_LVAL_P(ztype);
 
-			if ((ztype = zend_hash_str_find_deref(Z_OBJPROP_P(tmp), "enc_stype", sizeof("enc_stype")-1)) != NULL &&
-			    Z_TYPE_P(ztype) == IS_STRING) {
-				cur_stype = Z_STRVAL_P(ztype);
+			zval *zstype = Z_VAR_ENC_STYPE_P(tmp);
+			if (Z_TYPE_P(zstype) == IS_STRING) {
+				cur_stype = Z_STRVAL_P(zstype);
 			} else {
 				cur_stype = NULL;
 			}
 
-			if ((ztype = zend_hash_str_find_deref(Z_OBJPROP_P(tmp), "enc_ns", sizeof("enc_ns")-1)) != NULL &&
-			    Z_TYPE_P(ztype) == IS_STRING) {
-				cur_ns = Z_STRVAL_P(ztype);
+			zval *zns = Z_VAR_ENC_NS_P(tmp);
+			if (Z_TYPE_P(zns) == IS_STRING) {
+				cur_ns = Z_STRVAL_P(zns);
 			} else {
 				cur_ns = NULL;
 			}
@@ -3613,6 +3646,9 @@ void delete_encoder(zval *zv)
 	if (t->details.map) {
 		delete_mapping(t->details.map);
 	}
+	if (t->details.clark_notation) {
+		zend_string_release_ex(t->details.clark_notation, 0);
+	}
 	efree(t);
 }
 
@@ -3624,6 +3660,9 @@ void delete_encoder_persistent(zval *zv)
 	}
 	if (t->details.type_str) {
 		free(t->details.type_str);
+	}
+	if (t->details.clark_notation) {
+		zend_string_release_ex(t->details.clark_notation, 1);
 	}
 	/* we should never have mapping in persistent encoder */
 	assert(t->details.map == NULL);

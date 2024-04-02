@@ -162,13 +162,20 @@ AC_PROG_LIBTOOL
 
 all_targets='$(PHP_MODULES) $(PHP_ZEND_EX)'
 install_targets="install-modules install-headers"
-phplibdir="`pwd`/modules"
 CPPFLAGS="$CPPFLAGS -DHAVE_CONFIG_H"
-CFLAGS_CLEAN='$(CFLAGS)'
+CFLAGS_CLEAN='$(CFLAGS) -D_GNU_SOURCE'
 CXXFLAGS_CLEAN='$(CXXFLAGS)'
 
 test "$prefix" = "NONE" && prefix="/usr/local"
 test "$exec_prefix" = "NONE" && exec_prefix='$(prefix)'
+
+if test "$cross_compiling" = yes ; then
+  AC_MSG_CHECKING(for native build C compiler)
+  AC_CHECK_PROGS(BUILD_CC, [gcc clang c99 c89 cc cl],none)
+  AC_MSG_RESULT($BUILD_CC)
+else
+  BUILD_CC=$CC
+fi
 
 PHP_SUBST(PHP_MODULES)
 PHP_SUBST(PHP_ZEND_EX)
@@ -180,7 +187,6 @@ PHP_SUBST(prefix)
 PHP_SUBST(exec_prefix)
 PHP_SUBST(libdir)
 PHP_SUBST(prefix)
-PHP_SUBST(phplibdir)
 PHP_SUBST(phpincludedir)
 
 PHP_SUBST(CC)
@@ -196,17 +202,11 @@ PHP_SUBST(PHP_EXECUTABLE)
 PHP_SUBST(EXTRA_LDFLAGS)
 PHP_SUBST(EXTRA_LIBS)
 PHP_SUBST(INCLUDES)
-PHP_SUBST(LFLAGS)
 PHP_SUBST(LDFLAGS)
-PHP_SUBST(SHARED_LIBTOOL)
 PHP_SUBST(LIBTOOL)
 PHP_SUBST(SHELL)
 PHP_SUBST(INSTALL_HEADERS)
-
-PHP_GEN_BUILD_DIRS
-PHP_GEN_GLOBAL_MAKEFILE
-
-test -d modules || $php_shtool mkdir modules
+PHP_SUBST(BUILD_CC)
 
 AC_CONFIG_HEADERS([config.h])
 

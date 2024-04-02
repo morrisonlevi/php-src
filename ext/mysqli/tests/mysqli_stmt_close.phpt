@@ -1,20 +1,19 @@
 --TEST--
 mysqli_stmt_close()
+--EXTENSIONS--
+mysqli
 --SKIPIF--
 <?php
-require_once('skipif.inc');
-require_once('skipifconnectfailure.inc');
+require_once 'skipifconnectfailure.inc';
 ?>
 --FILE--
 <?php
-    require_once("connect.inc");
-
-    require('table.inc');
+    require 'table.inc';
 
     if (!$stmt = mysqli_stmt_init($link))
         printf("[003] [%d] %s\n", mysqli_errno($link), mysqli_error($link));
 
-    // Yes, amazing, eh? AFAIK a work around of a constructor bug...
+    // Yes, amazing, eh? AFAIK a workaround of a constructor bug...
     try {
         mysqli_stmt_close($stmt);
     } catch (Error $exception) {
@@ -54,7 +53,7 @@ require_once('skipifconnectfailure.inc');
 
     mysqli_close($link);
 
-    require('table.inc');
+    require 'table.inc';
     if (!$stmt = mysqli_stmt_init($link))
         printf("[013] [%d] %s\n", mysqli_errno($link), mysqli_error($link));
 
@@ -77,7 +76,7 @@ require_once('skipifconnectfailure.inc');
 ?>
 --CLEAN--
 <?php
-    require_once("clean_table.inc");
+    require_once 'clean_table.inc';
 ?>
 --EXPECT--
 mysqli_stmt object is not fully initialized

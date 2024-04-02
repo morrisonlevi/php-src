@@ -5,7 +5,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -156,7 +156,7 @@ PHPAPI void php_output_shutdown(void)
 /* }}} */
 
 /* {{{ SUCCESS|FAILURE php_output_activate(void)
- * Reset output globals and setup the output handler stack */
+ * Reset output globals and set up the output handler stack */
 PHPAPI int php_output_activate(void)
 {
 #ifdef ZTS
@@ -199,26 +199,6 @@ PHPAPI void php_output_deactivate(void)
 		zend_string_release(OG(output_start_filename));
 		OG(output_start_filename) = NULL;
 	}
-}
-/* }}} */
-
-/* {{{ void php_output_register_constants() */
-PHPAPI void php_output_register_constants(void)
-{
-	REGISTER_MAIN_LONG_CONSTANT("PHP_OUTPUT_HANDLER_START", PHP_OUTPUT_HANDLER_START, CONST_CS | CONST_PERSISTENT);
-	REGISTER_MAIN_LONG_CONSTANT("PHP_OUTPUT_HANDLER_WRITE", PHP_OUTPUT_HANDLER_WRITE, CONST_CS | CONST_PERSISTENT);
-	REGISTER_MAIN_LONG_CONSTANT("PHP_OUTPUT_HANDLER_FLUSH", PHP_OUTPUT_HANDLER_FLUSH, CONST_CS | CONST_PERSISTENT);
-	REGISTER_MAIN_LONG_CONSTANT("PHP_OUTPUT_HANDLER_CLEAN", PHP_OUTPUT_HANDLER_CLEAN, CONST_CS | CONST_PERSISTENT);
-	REGISTER_MAIN_LONG_CONSTANT("PHP_OUTPUT_HANDLER_FINAL", PHP_OUTPUT_HANDLER_FINAL, CONST_CS | CONST_PERSISTENT);
-	REGISTER_MAIN_LONG_CONSTANT("PHP_OUTPUT_HANDLER_CONT", PHP_OUTPUT_HANDLER_WRITE, CONST_CS | CONST_PERSISTENT);
-	REGISTER_MAIN_LONG_CONSTANT("PHP_OUTPUT_HANDLER_END", PHP_OUTPUT_HANDLER_FINAL, CONST_CS | CONST_PERSISTENT);
-
-	REGISTER_MAIN_LONG_CONSTANT("PHP_OUTPUT_HANDLER_CLEANABLE", PHP_OUTPUT_HANDLER_CLEANABLE, CONST_CS | CONST_PERSISTENT);
-	REGISTER_MAIN_LONG_CONSTANT("PHP_OUTPUT_HANDLER_FLUSHABLE", PHP_OUTPUT_HANDLER_FLUSHABLE, CONST_CS | CONST_PERSISTENT);
-	REGISTER_MAIN_LONG_CONSTANT("PHP_OUTPUT_HANDLER_REMOVABLE", PHP_OUTPUT_HANDLER_REMOVABLE, CONST_CS | CONST_PERSISTENT);
-	REGISTER_MAIN_LONG_CONSTANT("PHP_OUTPUT_HANDLER_STDFLAGS", PHP_OUTPUT_HANDLER_STDFLAGS, CONST_CS | CONST_PERSISTENT);
-	REGISTER_MAIN_LONG_CONSTANT("PHP_OUTPUT_HANDLER_STARTED", PHP_OUTPUT_HANDLER_STARTED, CONST_CS | CONST_PERSISTENT);
-	REGISTER_MAIN_LONG_CONSTANT("PHP_OUTPUT_HANDLER_DISABLED", PHP_OUTPUT_HANDLER_DISABLED, CONST_CS | CONST_PERSISTENT);
 }
 /* }}} */
 
@@ -368,7 +348,7 @@ PHPAPI void php_output_discard_all(void)
 /* }}} */
 
 /* {{{ int php_output_get_level(void)
- * Get output buffering level, ie. how many output handlers the stack contains */
+ * Get output buffering level, i.e. how many output handlers the stack contains */
 PHPAPI int php_output_get_level(void)
 {
 	return OG(active) ? zend_stack_count(&OG(handlers)) : 0;
@@ -494,10 +474,11 @@ PHPAPI php_output_handler *php_output_handler_create_user(zval *output_handler, 
 				handler = alias(Z_STRVAL_P(output_handler), Z_STRLEN_P(output_handler), chunk_size, flags);
 				break;
 			}
+			ZEND_FALLTHROUGH;
 		default:
 			user = ecalloc(1, sizeof(php_output_handler_user_func_t));
 			if (SUCCESS == zend_fcall_info_init(output_handler, 0, &user->fci, &user->fcc, &handler_name, &error)) {
-				handler = php_output_handler_init(handler_name, chunk_size, (flags & ~0xf) | PHP_OUTPUT_HANDLER_USER);
+				handler = php_output_handler_init(handler_name, chunk_size, PHP_OUTPUT_HANDLER_ABILITY_FLAGS(flags) | PHP_OUTPUT_HANDLER_USER);
 				ZVAL_COPY(&user->zoh, output_handler);
 				handler->func.user = user;
 			} else {
@@ -523,7 +504,7 @@ PHPAPI php_output_handler *php_output_handler_create_internal(const char *name, 
 	php_output_handler *handler;
 	zend_string *str = zend_string_init(name, name_len, 0);
 
-	handler = php_output_handler_init(str, chunk_size, (flags & ~0xf) | PHP_OUTPUT_HANDLER_INTERNAL);
+	handler = php_output_handler_init(str, chunk_size, PHP_OUTPUT_HANDLER_ABILITY_FLAGS(flags) | PHP_OUTPUT_HANDLER_INTERNAL);
 	handler->func.internal = output_handler;
 	zend_string_release_ex(str, 0);
 
@@ -559,7 +540,7 @@ PHPAPI int php_output_handler_start(php_output_handler *handler)
 		}
 	}
 	if (NULL != (rconflicts = zend_hash_find_ptr(&php_output_handler_reverse_conflicts, handler->name))) {
-		ZEND_HASH_FOREACH_PTR(rconflicts, conflict) {
+		ZEND_HASH_PACKED_FOREACH_PTR(rconflicts, conflict) {
 			if (SUCCESS != conflict(ZSTR_VAL(handler->name), ZSTR_LEN(handler->name))) {
 				return FAILURE;
 			}
@@ -583,7 +564,7 @@ PHPAPI int php_output_handler_started(const char *name, size_t name_len)
 		handlers = (php_output_handler **) zend_stack_base(&OG(handlers));
 
 		for (i = 0; i < count; ++i) {
-			if (name_len == ZSTR_LEN(handlers[i]->name) && !memcmp(ZSTR_VAL(handlers[i]->name), name, name_len)) {
+			if (zend_string_equals_cstr(handlers[i]->name, name, name_len)) {
 				return 1;
 			}
 		}
@@ -616,7 +597,7 @@ PHPAPI int php_output_handler_conflict_register(const char *name, size_t name_le
 	zend_string *str;
 
 	if (!EG(current_module)) {
-		zend_error(E_ERROR, "Cannot register an output handler conflict outside of MINIT");
+		zend_error_noreturn(E_ERROR, "Cannot register an output handler conflict outside of MINIT");
 		return FAILURE;
 	}
 	str = zend_string_init_interned(name, name_len, 1);
@@ -633,7 +614,7 @@ PHPAPI int php_output_handler_reverse_conflict_register(const char *name, size_t
 	HashTable rev, *rev_ptr = NULL;
 
 	if (!EG(current_module)) {
-		zend_error(E_ERROR, "Cannot register a reverse output handler conflict outside of MINIT");
+		zend_error_noreturn(E_ERROR, "Cannot register a reverse output handler conflict outside of MINIT");
 		return FAILURE;
 	}
 
@@ -670,7 +651,7 @@ PHPAPI int php_output_handler_alias_register(const char *name, size_t name_len, 
 	zend_string *str;
 
 	if (!EG(current_module)) {
-		zend_error(E_ERROR, "Cannot register an output handler alias outside of MINIT");
+		zend_error_noreturn(E_ERROR, "Cannot register an output handler alias outside of MINIT");
 		return FAILURE;
 	}
 	str = zend_string_init_interned(name, name_len, 1);
@@ -694,7 +675,7 @@ PHPAPI int php_output_handler_hook(php_output_handler_hook_t type, void *arg)
 				return SUCCESS;
 			case PHP_OUTPUT_HANDLER_HOOK_GET_LEVEL:
 				*(int *) arg = OG(running)->level;
-                return SUCCESS;
+				return SUCCESS;
 			case PHP_OUTPUT_HANDLER_HOOK_IMMUTABLE:
 				OG(running)->flags &= ~(PHP_OUTPUT_HANDLER_REMOVABLE|PHP_OUTPUT_HANDLER_CLEANABLE);
 				return SUCCESS;
@@ -884,7 +865,7 @@ static inline php_output_handler *php_output_handler_init(zend_string *name, siz
 }
 /* }}} */
 
-/* {{{ static int php_output_handler_appen(php_output_handler *handler, const php_output_buffer *buf)
+/* {{{ static int php_output_handler_append(php_output_handler *handler, const php_output_buffer *buf)
  * Appends input to the output handlers buffer and indicates whether the buffer does not have to be processed by the output handler */
 static inline int php_output_handler_append(php_output_handler *handler, const php_output_buffer *buf)
 {
@@ -896,7 +877,7 @@ static inline int php_output_handler_append(php_output_handler *handler, const p
 			size_t grow_buf = PHP_OUTPUT_HANDLER_INITBUF_SIZE(buf->used - (handler->buffer.size - handler->buffer.used));
 			size_t grow_max = MAX(grow_int, grow_buf);
 
-			handler->buffer.data = erealloc(handler->buffer.data, handler->buffer.size + grow_max);
+			handler->buffer.data = safe_erealloc(handler->buffer.data, 1, handler->buffer.size, grow_max);
 			handler->buffer.size += grow_max;
 		}
 		memcpy(handler->buffer.data + handler->buffer.used, buf->data, buf->used);
@@ -958,15 +939,21 @@ static inline php_output_handler_status_t php_output_handler_op(php_output_handl
 
 		OG(running) = handler;
 		if (handler->flags & PHP_OUTPUT_HANDLER_USER) {
-			zval retval, ob_data, ob_mode;
+			zval ob_args[2];
+			zval retval;
 
-			ZVAL_STRINGL(&ob_data, handler->buffer.data, handler->buffer.used);
-			ZVAL_LONG(&ob_mode, (zend_long) context->op);
-			zend_fcall_info_argn(&handler->func.user->fci, 2, &ob_data, &ob_mode);
-			zval_ptr_dtor(&ob_data);
+			/* ob_data */
+			ZVAL_STRINGL(&ob_args[0], handler->buffer.data, handler->buffer.used);
+			/* ob_mode */
+			ZVAL_LONG(&ob_args[1], (zend_long) context->op);
+
+			/* Set FCI info */
+			handler->func.user->fci.param_count = 2;
+			handler->func.user->fci.params = ob_args;
+			handler->func.user->fci.retval = &retval;
 
 #define PHP_OUTPUT_USER_SUCCESS(retval) ((Z_TYPE(retval) != IS_UNDEF) && !(Z_TYPE(retval) == IS_FALSE))
-			if (SUCCESS == zend_fcall_info_call(&handler->func.user->fci, &handler->func.user->fcc, &retval, NULL) && PHP_OUTPUT_USER_SUCCESS(retval)) {
+			if (SUCCESS == zend_call_function(&handler->func.user->fci, &handler->func.user->fcc) && PHP_OUTPUT_USER_SUCCESS(retval)) {
 				/* user handler may have returned TRUE */
 				status = PHP_OUTPUT_HANDLER_NO_DATA;
 				if (Z_TYPE(retval) != IS_FALSE && Z_TYPE(retval) != IS_TRUE) {
@@ -983,7 +970,9 @@ static inline php_output_handler_status_t php_output_handler_op(php_output_handl
 				status = PHP_OUTPUT_HANDLER_FAILURE;
 			}
 
-			zend_fcall_info_argn(&handler->func.user->fci, 0);
+			/* Free arguments and return value */
+			zval_ptr_dtor(&ob_args[0]);
+			zval_ptr_dtor(&ob_args[1]);
 			zval_ptr_dtor(&retval);
 
 		} else {
@@ -1023,7 +1012,7 @@ static inline php_output_handler_status_t php_output_handler_op(php_output_handl
 		case PHP_OUTPUT_HANDLER_NO_DATA:
 			/* handler ate all */
 			php_output_context_reset(context);
-			/* no break */
+			ZEND_FALLTHROUGH;
 		case PHP_OUTPUT_HANDLER_SUCCESS:
 			/* no more buffered data */
 			handler->buffer.used = 0;

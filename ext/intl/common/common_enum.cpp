@@ -3,7 +3,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -56,7 +56,7 @@ void zoi_with_current_dtor(zend_object_iterator *iter)
 	}
 }
 
-U_CFUNC int zoi_with_current_valid(zend_object_iterator *iter)
+U_CFUNC zend_result zoi_with_current_valid(zend_object_iterator *iter)
 {
 	return Z_ISUNDEF(((zoi_with_current*)iter)->current)? FAILURE : SUCCESS;
 }
@@ -133,7 +133,8 @@ static const zend_object_iterator_funcs string_enum_object_iterator_funcs = {
 	NULL,
 	string_enum_current_move_forward,
 	string_enum_rewind,
-	zoi_with_current_invalidate_current
+	zoi_with_current_invalidate_current,
+	NULL, /* get_gc */
 };
 
 U_CFUNC void IntlIterator_from_StringEnumeration(StringEnumeration *se, zval *object)
@@ -199,8 +200,6 @@ static zend_object *IntlIterator_object_create(zend_class_entry *ce)
 
 	intern->iterator = NULL;
 
-	intern->zo.handlers = &IntlIterator_handlers;
-
 	return &intern->zo;
 }
 
@@ -216,7 +215,7 @@ PHP_METHOD(IntlIterator, current)
 	INTLITERATOR_METHOD_FETCH_OBJECT;
 	data = ii->iterator->funcs->get_current_data(ii->iterator);
 	if (data) {
-		ZVAL_COPY_DEREF(return_value, data);
+		RETURN_COPY_DEREF(data);
 	}
 }
 
@@ -281,21 +280,19 @@ PHP_METHOD(IntlIterator, valid)
 	RETURN_BOOL(ii->iterator->funcs->valid(ii->iterator) == SUCCESS);
 }
 
-/* {{{ intl_register_IntlIterator_class
- * Initialize 'IntlIterator' class
- */
-U_CFUNC void intl_register_IntlIterator_class(void)
+U_CFUNC void intl_register_common_symbols(int module_number)
 {
 	/* Create and register 'IntlIterator' class. */
 	IntlIterator_ce_ptr = register_class_IntlIterator(zend_ce_iterator);
 	IntlIterator_ce_ptr->create_object = IntlIterator_object_create;
+	IntlIterator_ce_ptr->default_object_handlers = &IntlIterator_handlers;
 	IntlIterator_ce_ptr->get_iterator = IntlIterator_get_iterator;
 
 	memcpy(&IntlIterator_handlers, &std_object_handlers,
 		sizeof IntlIterator_handlers);
 	IntlIterator_handlers.offset = XtOffsetOf(IntlIterator_object, zo);
 	IntlIterator_handlers.clone_obj = NULL;
-	IntlIterator_handlers.dtor_obj = zend_objects_destroy_object;
 	IntlIterator_handlers.free_obj = IntlIterator_objects_free;
 
+	register_common_symbols(module_number);
 }

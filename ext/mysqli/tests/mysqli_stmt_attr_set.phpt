@@ -1,15 +1,14 @@
 --TEST--
 mysqli_stmt_attr_set() - mysqlnd does not check for invalid codes
+--EXTENSIONS--
+mysqli
 --SKIPIF--
 <?php
-require_once('skipif.inc');
-require_once('skipifconnectfailure.inc');
+require_once 'skipifconnectfailure.inc';
 ?>
 --FILE--
 <?php
-require_once("connect.inc");
-
-    require('table.inc');
+    require 'table.inc';
 
     $valid_attr = array(MYSQLI_STMT_ATTR_UPDATE_MAX_LENGTH);
     $valid_attr[] = MYSQLI_STMT_ATTR_CURSOR_TYPE;
@@ -238,7 +237,7 @@ require_once("connect.inc");
 ?>
 --CLEAN--
 <?php
-    require_once("clean_table.inc");
+    require_once 'clean_table.inc';
 ?>
 --EXPECT--
 Error: mysqli_stmt object is not fully initialized

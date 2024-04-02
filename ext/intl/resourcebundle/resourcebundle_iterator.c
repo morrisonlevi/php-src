@@ -3,7 +3,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -77,7 +77,7 @@ static void resourcebundle_iterator_dtor( zend_object_iterator *iter )
 /* }}} */
 
 /* {{{ resourcebundle_iterator_has_more */
-static int resourcebundle_iterator_has_more( zend_object_iterator *iter )
+static zend_result resourcebundle_iterator_has_more( zend_object_iterator *iter )
 {
 	ResourceBundle_iterator *iterator = (ResourceBundle_iterator *) iter;
 	return (iterator->i < iterator->length) ? SUCCESS : FAILURE;

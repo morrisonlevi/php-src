@@ -58,22 +58,13 @@ TODO:
 #include <string.h>
 #include <math.h>
 
-#include <gd.h>
+#include "gd.h"
 #include "gdhelpers.h"
+#include "gd_intern.h"
 
 #ifdef _MSC_VER
 # pragma optimize("t", on)
 # include <emmintrin.h>
-#endif
-
-#ifndef HAVE_FLOORF
-# define HAVE_FLOORF 0
-#endif
-#if HAVE_FLOORF == 0
-# ifndef floorf
-/* float floorf(float x);*/
-#  define floorf(x) ((float)(floor(x)))
-# endif
 #endif
 
 #ifndef MIN
@@ -84,8 +75,6 @@ TODO:
 #define MAX(a,b) ((a)<(b)?(b):(a))
 #endif
 #define MAX3(a,b,c) ((a)<(b)?(MAX(b,c)):(MAX(a,c)))
-
-#define CLAMP(x, low, high)  (((x) > (high)) ? (high) : (((x) < (low)) ? (low) : (x)))
 
 /* only used here, let do a generic fixed point integers later if required by other
    part of GD */
@@ -2465,6 +2454,7 @@ int gdImageSetInterpolationMethod(gdImagePtr im, gdInterpolationMethod id)
 	switch (id) {
 		case GD_DEFAULT:
 			id = GD_BILINEAR_FIXED;
+			ZEND_FALLTHROUGH;
 		/* Optimized versions */
 		case GD_BILINEAR_FIXED:
 		case GD_BICUBIC_FIXED:

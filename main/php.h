@@ -5,7 +5,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -22,7 +22,7 @@
 #include <dmalloc.h>
 #endif
 
-#define PHP_API_VERSION 20201009
+#define PHP_API_VERSION 20230901
 #define PHP_HAVE_STREAMS
 #define YYDEBUG 0
 #define PHP_DEFAULT_CHARSET "UTF-8"
@@ -70,7 +70,6 @@
 #	else
 #		define PHPAPI
 #	endif
-#	define THREAD_LS
 #	define PHP_DIR_SEPARATOR '/'
 #	define PHP_EOL "\n"
 #endif
@@ -94,13 +93,6 @@ typedef int uid_t;
 typedef int gid_t;
 typedef char * caddr_t;
 typedef int pid_t;
-
-# ifndef PHP_DEBUG
-#  ifdef inline
-#   undef inline
-#  endif
-#  define inline		__inline
-# endif
 
 # define M_TWOPI        (M_PI * 2.0)
 # define off_t			_off_t
@@ -187,6 +179,10 @@ END_EXTERN_C()
 #define explicit_bzero php_explicit_bzero
 #endif
 
+BEGIN_EXTERN_C()
+PHPAPI int php_safe_bcmp(const zend_string *a, const zend_string *b);
+END_EXTERN_C()
+
 #ifndef HAVE_STRTOK_R
 BEGIN_EXTERN_C()
 char *strtok_r(char *s, const char *delim, char **last);
@@ -218,8 +214,6 @@ typedef unsigned int socklen_t;
 #endif
 
 #include <stdarg.h>
-
-#include "php_stdint.h"
 
 #include "zend_hash.h"
 #include "zend_alloc.h"
@@ -253,13 +247,7 @@ typedef unsigned int socklen_t;
 #define INT_MIN (- INT_MAX - 1)
 #endif
 
-/* double limits */
-#include <float.h>
-#if defined(DBL_MANT_DIG) && defined(DBL_MIN_EXP)
-#define PHP_DOUBLE_MAX_LENGTH (3 + DBL_MANT_DIG - DBL_MIN_EXP)
-#else
-#define PHP_DOUBLE_MAX_LENGTH 1080
-#endif
+#define PHP_DOUBLE_MAX_LENGTH ZEND_DOUBLE_MAX_LENGTH
 
 #define PHP_GCC_VERSION ZEND_GCC_VERSION
 #define PHP_ATTRIBUTE_MALLOC ZEND_ATTRIBUTE_MALLOC
@@ -311,9 +299,9 @@ void phperror(char *error);
 PHPAPI size_t php_write(void *buf, size_t size);
 PHPAPI size_t php_printf(const char *format, ...) PHP_ATTRIBUTE_FORMAT(printf, 1, 2);
 PHPAPI size_t php_printf_unchecked(const char *format, ...);
-PHPAPI int php_during_module_startup(void);
-PHPAPI int php_during_module_shutdown(void);
-PHPAPI int php_get_module_initialized(void);
+PHPAPI bool php_during_module_startup(void);
+PHPAPI bool php_during_module_shutdown(void);
+PHPAPI bool php_get_module_initialized(void);
 #ifdef HAVE_SYSLOG_H
 #include "php_syslog.h"
 #define php_log_err(msg) php_log_err_with_severity(msg, LOG_NOTICE)
@@ -333,18 +321,20 @@ static inline ZEND_ATTRIBUTE_DEPRECATED void php_set_error_handling(error_handli
 {
 	zend_replace_error_handling(error_handling, exception_class, NULL);
 }
-static inline ZEND_ATTRIBUTE_DEPRECATED void php_std_error_handling() {}
+static inline ZEND_ATTRIBUTE_DEPRECATED void php_std_error_handling(void) {}
 
 PHPAPI ZEND_COLD void php_verror(const char *docref, const char *params, int type, const char *format, va_list args) PHP_ATTRIBUTE_FORMAT(printf, 4, 0);
 
 /* PHPAPI void php_error(int type, const char *format, ...); */
 PHPAPI ZEND_COLD void php_error_docref(const char *docref, int type, const char *format, ...)
 	PHP_ATTRIBUTE_FORMAT(printf, 3, 4);
+PHPAPI ZEND_COLD void php_error_docref_unchecked(const char *docref, int type, const char *format, ...);
 PHPAPI ZEND_COLD void php_error_docref1(const char *docref, const char *param1, int type, const char *format, ...)
 	PHP_ATTRIBUTE_FORMAT(printf, 4, 5);
 PHPAPI ZEND_COLD void php_error_docref2(const char *docref, const char *param1, const char *param2, int type, const char *format, ...)
 	PHP_ATTRIBUTE_FORMAT(printf, 5, 6);
 #ifdef PHP_WIN32
+PHPAPI ZEND_COLD void php_win32_docref1_from_error(DWORD error, const char *param1);
 PHPAPI ZEND_COLD void php_win32_docref2_from_error(DWORD error, const char *param1, const char *param2);
 #endif
 END_EXTERN_C()
@@ -357,6 +347,7 @@ END_EXTERN_C()
 #define phpin zendin
 
 #define php_memnstr zend_memnstr
+#define php_memnistr zend_memnistr
 
 /* functions */
 BEGIN_EXTERN_C()
@@ -443,5 +434,11 @@ END_EXTERN_C()
 #define PHP_CONNECTION_TIMEOUT 2
 
 #include "php_reentrancy.h"
+
+/* the following typedefs are deprecated and will be removed in PHP
+ * 9.0; use the standard C99 types instead */
+typedef bool zend_bool;
+typedef intptr_t zend_intptr_t;
+typedef uintptr_t zend_uintptr_t;
 
 #endif

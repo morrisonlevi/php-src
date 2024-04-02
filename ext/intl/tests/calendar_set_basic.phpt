@@ -2,10 +2,8 @@
 IntlCalendar::set() basic test
 --INI--
 date.timezone=Atlantic/Azores
---SKIPIF--
-<?php
-if (!extension_loaded('intl'))
-    die('skip intl extension not enabled');
+--EXTENSIONS--
+intl
 --FILE--
 <?php
 ini_set("intl.error_level", E_WARNING);
@@ -18,8 +16,10 @@ var_dump(intlcal_set($intlcal, IntlCalendar::FIELD_DAY_OF_MONTH, 3));
 var_dump($intlcal->get(IntlCalendar::FIELD_DAY_OF_MONTH));
 
 ?>
---EXPECT--
+--EXPECTF--
 bool(true)
 int(2)
+
+Deprecated: Function intlcal_set() is deprecated in %s on line %d
 bool(true)
-int(3)
+int(3)

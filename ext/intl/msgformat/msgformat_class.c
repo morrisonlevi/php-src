@@ -3,7 +3,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -49,8 +49,6 @@ zend_object *MessageFormatter_object_create(zend_class_entry *ce)
 	zend_object_std_init( &intern->zo, ce );
 	object_properties_init(&intern->zo, ce);
 
-	intern->zo.handlers = &MessageFormatter_handlers;
-
 	return &intern->zo;
 }
 /* }}} */
@@ -62,6 +60,8 @@ zend_object *MessageFormatter_object_clone(zend_object *object)
 	zend_object *new_obj;
 
 	mfo = php_intl_messageformatter_fetch_object(object);
+	intl_error_reset(INTL_DATA_ERROR_P(mfo));
+
 	new_obj = MessageFormatter_ce_ptr->create_object(object->ce);
 	new_mfo = php_intl_messageformatter_fetch_object(new_obj);
 	/* clone standard parts */
@@ -96,6 +96,7 @@ void msgformat_register_class( void )
 	/* Create and register 'MessageFormatter' class. */
 	MessageFormatter_ce_ptr = register_class_MessageFormatter();
 	MessageFormatter_ce_ptr->create_object = MessageFormatter_object_create;
+	MessageFormatter_ce_ptr->default_object_handlers = &MessageFormatter_handlers;
 
 	memcpy(&MessageFormatter_handlers, &std_object_handlers,
 		sizeof MessageFormatter_handlers);

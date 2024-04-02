@@ -5,7 +5,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -24,6 +24,7 @@
 #if defined(HAVE_LIBXML) && defined(HAVE_DOM)
 
 #include "php_dom.h"
+#include "dom_properties.h"
 
 /*
 * class DOMAttr extends DOMNode
@@ -47,22 +48,22 @@ PHP_METHOD(DOMAttr, __construct)
 
 	intern = Z_DOMOBJ_P(ZEND_THIS);
 
-	name_valid = xmlValidateName((xmlChar *) name, 0);
+	name_valid = xmlValidateName(BAD_CAST name, 0);
 	if (name_valid != 0) {
-		php_dom_throw_error(INVALID_CHARACTER_ERR, 1);
+		php_dom_throw_error(INVALID_CHARACTER_ERR, true);
 		RETURN_THROWS();
 	}
 
-	nodep = xmlNewProp(NULL, (xmlChar *) name, (xmlChar *) value);
+	nodep = xmlNewProp(NULL, BAD_CAST name, BAD_CAST value);
 
 	if (!nodep) {
-		php_dom_throw_error(INVALID_STATE_ERR, 1);
+		php_dom_throw_error(INVALID_STATE_ERR, true);
 		RETURN_THROWS();
 	}
 
 	oldnode = dom_object_get_node(intern);
 	if (oldnode != NULL) {
-		php_libxml_node_free_resource(oldnode );
+		php_libxml_node_decrement_resource((php_libxml_node_object *)intern);
 	}
 	php_libxml_increment_node_ptr((php_libxml_node_object *)intern, (xmlNodePtr)nodep, (void *)intern);
 }
@@ -72,20 +73,19 @@ PHP_METHOD(DOMAttr, __construct)
 /* {{{ name	string
 readonly=yes
 URL: http://www.w3.org/TR/2003/WD-DOM-Level-3-Core-20030226/DOM3-Core.html#ID-1112119403
+Modern spec URL: https://dom.spec.whatwg.org/#dom-attr-name
 Since:
 */
-int dom_attr_name_read(dom_object *obj, zval *retval)
+zend_result dom_attr_name_read(dom_object *obj, zval *retval)
 {
-	xmlAttrPtr attrp;
+	DOM_PROP_NODE(xmlAttrPtr, attrp, obj);
 
-	attrp = (xmlAttrPtr) dom_object_get_node(obj);
-
-	if (attrp == NULL) {
-		php_dom_throw_error(INVALID_STATE_ERR, 0);
-		return FAILURE;
+	if (php_dom_follow_spec_intern(obj)) {
+		zend_string *str = dom_node_get_node_name_attribute_or_element((xmlNodePtr) attrp, false);
+		ZVAL_NEW_STR(retval, str);
+	} else {
+		ZVAL_STRING(retval, (char *) attrp->name);
 	}
-
-	ZVAL_STRING(retval, (char *) attrp->name);
 
 	return SUCCESS;
 }
@@ -97,9 +97,9 @@ readonly=yes
 URL: http://www.w3.org/TR/2003/WD-DOM-Level-3-Core-20030226/DOM3-Core.html#ID-862529273
 Since:
 */
-int dom_attr_specified_read(dom_object *obj, zval *retval)
+zend_result dom_attr_specified_read(dom_object *obj, zval *retval)
 {
-	/* TODO */
+	/* From spec: "useless; always returns true" */
 	ZVAL_TRUE(retval);
 	return SUCCESS;
 }
@@ -111,16 +111,12 @@ readonly=no
 URL: http://www.w3.org/TR/2003/WD-DOM-Level-3-Core-20030226/DOM3-Core.html#ID-221662474
 Since:
 */
-int dom_attr_value_read(dom_object *obj, zval *retval)
+zend_result dom_attr_value_read(dom_object *obj, zval *retval)
 {
-	xmlAttrPtr attrp = (xmlAttrPtr) dom_object_get_node(obj);
+	DOM_PROP_NODE(xmlAttrPtr, attrp, obj);
 	xmlChar *content;
 
-	if (attrp == NULL) {
-		php_dom_throw_error(INVALID_STATE_ERR, 0);
-		return FAILURE;
-	}
-
+	/* Can't avoid a content copy because it's an attribute node */
 	if ((content = xmlNodeGetContent((xmlNodePtr) attrp)) != NULL) {
 		ZVAL_STRING(retval, (char *) content);
 		xmlFree(content);
@@ -132,28 +128,23 @@ int dom_attr_value_read(dom_object *obj, zval *retval)
 
 }
 
-int dom_attr_value_write(dom_object *obj, zval *newval)
+zend_result dom_attr_value_write(dom_object *obj, zval *newval)
 {
-	zend_string *str;
-	xmlAttrPtr attrp = (xmlAttrPtr) dom_object_get_node(obj);
+	DOM_PROP_NODE(xmlAttrPtr, attrp, obj);
 
-	if (attrp == NULL) {
-		php_dom_throw_error(INVALID_STATE_ERR, 0);
-		return FAILURE;
+	/* Typed property, this is already a string */
+	ZEND_ASSERT(Z_TYPE_P(newval) == IS_STRING);
+	zend_string *str = Z_STR_P(newval);
+
+	dom_remove_all_children((xmlNodePtr) attrp);
+
+	if (php_dom_follow_spec_intern(obj)) {
+		xmlNodePtr node = xmlNewDocTextLen(attrp->doc, BAD_CAST ZSTR_VAL(str), ZSTR_LEN(str));
+		xmlAddChild((xmlNodePtr) attrp, node);
+	} else {
+		xmlNodeSetContentLen((xmlNodePtr) attrp, BAD_CAST ZSTR_VAL(str), ZSTR_LEN(str));
 	}
 
-	str = zval_try_get_string(newval);
-	if (UNEXPECTED(!str)) {
-		return FAILURE;
-	}
-
-	if (attrp->children) {
-		node_list_unlink(attrp->children);
-	}
-
-	xmlNodeSetContentLen((xmlNodePtr) attrp, (xmlChar *) ZSTR_VAL(str), ZSTR_LEN(str) + 1);
-
-	zend_string_release_ex(str, 0);
 	return SUCCESS;
 }
 
@@ -164,18 +155,11 @@ readonly=yes
 URL: http://www.w3.org/TR/2003/WD-DOM-Level-3-Core-20030226/DOM3-Core.html#Attr-ownerElement
 Since: DOM Level 2
 */
-int dom_attr_owner_element_read(dom_object *obj, zval *retval)
+zend_result dom_attr_owner_element_read(dom_object *obj, zval *retval)
 {
-	xmlNodePtr nodep, nodeparent;
+	DOM_PROP_NODE(xmlNodePtr, nodep, obj);
 
-	nodep = dom_object_get_node(obj);
-
-	if (nodep == NULL) {
-		php_dom_throw_error(INVALID_STATE_ERR, 0);
-		return FAILURE;
-	}
-
-	nodeparent = nodep->parent;
+	xmlNodePtr nodeparent = nodep->parent;
 	if (!nodeparent) {
 		ZVAL_NULL(retval);
 		return SUCCESS;
@@ -183,7 +167,6 @@ int dom_attr_owner_element_read(dom_object *obj, zval *retval)
 
 	php_dom_create_object(nodeparent, retval, obj);
 	return SUCCESS;
-
 }
 
 /* }}} */
@@ -193,7 +176,7 @@ readonly=yes
 URL: http://www.w3.org/TR/2003/WD-DOM-Level-3-Core-20030226/DOM3-Core.html#Attr-schemaTypeInfo
 Since: DOM Level 3
 */
-int dom_attr_schema_type_info_read(dom_object *obj, zval *retval)
+zend_result dom_attr_schema_type_info_read(dom_object *obj, zval *retval)
 {
 	/* TODO */
 	ZVAL_NULL(retval);

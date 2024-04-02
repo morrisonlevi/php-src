@@ -4,8 +4,8 @@ Nullsafe e-ssa pi node placement
 opcache.enable=1
 opcache.enable_cli=1
 opcache.opt_debug_level=0x200000
---SKIPIF--
-<?php require_once(__DIR__ . '/../skipif.inc'); ?>
+--EXTENSIONS--
+opcache
 --FILE--
 <?php
 
@@ -30,7 +30,7 @@ BB0:
 0000 RETURN int(1)
 
 test:
-     ; (lines=7, args=1, vars=1, tmps=1, ssa_vars=6, no_loops)
+     ; (lines=7, args=1, vars=1, tmps=2, ssa_vars=6, no_loops)
      ; (before dfa pass)
      ; %s
      ; return  [null] RANGE[0..0]

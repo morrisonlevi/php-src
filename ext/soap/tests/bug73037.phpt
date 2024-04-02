@@ -1,12 +1,10 @@
 --TEST--
 Bug #73037 SoapServer reports Bad Request when gzipped, var 0
+--EXTENSIONS--
+soap
+zlib
 --SKIPIF--
 <?php
-    require_once('skipif.inc');
-    if (!extension_loaded("zlib")) {
-        echo "skip zlib is required for this test";
-    }
-
     if (!file_exists(__DIR__ . "/../../../sapi/cli/tests/php_cli_server.inc")) {
         echo "skip sapi/cli/tests/php_cli_server.inc required but not found";
     }
@@ -61,8 +59,12 @@ function get_data($max)
 }
 
 $router = "bug73037_server.php";
-$args = substr(PHP_OS, 0, 3) == 'WIN'
-    ? ["-d", "extension_dir=" . ini_get("extension_dir"), "-d", "extension=php_soap.dll"] : [];
+$args = ["-d", "extension_dir=" . ini_get("extension_dir"), "-d", "extension=" . (substr(PHP_OS, 0, 3) == "WIN" ? "php_" : "") . "soap." . PHP_SHLIB_SUFFIX];
+if (php_ini_loaded_file()) {
+    // Necessary such that it works from a development directory in which case extension_dir might not be the real extension dir
+    $args[] = "-c";
+    $args[] = php_ini_loaded_file();
+}
 $code = <<<'PHP'
 $s = new SoapServer(NULL, array('uri' => 'http://here'));
 $s->setObject(new stdclass());
@@ -90,7 +92,7 @@ Content-Type: application/soap+xml; charset=UTF-8
 Accept: application/soap+xml, application/dime, multipart/related, text/*
 SOAPAction: "urn:adressen#adressen#SetAda"
 Expect: 100-continue
-Content-Length: ${len}
+Content-Length: {$len}
 HDRS;
         if ($b) {
             $hdrs .="\nContent-Encoding: gzip";
@@ -129,10 +131,6 @@ cleanup:
         }
 }
 
-?>
---CLEAN--
-<?php
-unlink(__DIR__ . DIRECTORY_SEPARATOR . "bug73037_server.php");
 ?>
 --EXPECT--
 Iteration 0

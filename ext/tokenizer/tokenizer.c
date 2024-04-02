@@ -5,7 +5,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -22,7 +22,6 @@
 #include "php_ini.h"
 #include "ext/standard/info.h"
 #include "php_tokenizer.h"
-#include "tokenizer_arginfo.h"
 
 #include "zend.h"
 #include "zend_exceptions.h"
@@ -31,18 +30,15 @@
 #include <zend_language_parser.h>
 #include "zend_interfaces.h"
 
+#include "tokenizer_data_arginfo.h"
+#include "tokenizer_arginfo.h"
+
 #define zendtext   LANG_SCNG(yy_text)
 #define zendleng   LANG_SCNG(yy_leng)
 #define zendcursor LANG_SCNG(yy_cursor)
 #define zendlimit  LANG_SCNG(yy_limit)
 
-#define TOKEN_PARSE (1 << 0)
-
 zend_class_entry *php_token_ce;
-
-void tokenizer_token_get_all_register_constants(INIT_FUNC_ARGS) {
-	REGISTER_LONG_CONSTANT("TOKEN_PARSE", TOKEN_PARSE, CONST_CS|CONST_PERSISTENT);
-}
 
 /* {{{ tokenizer_module_entry */
 zend_module_entry tokenizer_module_entry = {
@@ -191,13 +187,13 @@ PHP_METHOD(PhpToken, is)
 					RETURN_TRUE;
 				}
 			} else {
-				zend_argument_type_error(1, "must only have elements of type string|int, %s given", zend_zval_type_name(entry));
+				zend_argument_type_error(1, "must only have elements of type string|int, %s given", zend_zval_value_name(entry));
 				RETURN_THROWS();
 			}
 		} ZEND_HASH_FOREACH_END();
 		RETURN_FALSE;
 	} else {
-		zend_argument_type_error(1, "must be of type string|int|array, %s given", zend_zval_type_name(kind));
+		zend_argument_type_error(1, "must be of type string|int|array, %s given", zend_zval_value_name(kind));
 		RETURN_THROWS();
 	}
 }
@@ -251,8 +247,8 @@ PHP_METHOD(PhpToken, __toString)
 /* {{{ PHP_MINIT_FUNCTION */
 PHP_MINIT_FUNCTION(tokenizer)
 {
-	tokenizer_register_constants(INIT_FUNC_ARGS_PASSTHRU);
-	tokenizer_token_get_all_register_constants(INIT_FUNC_ARGS_PASSTHRU);
+	register_tokenizer_data_symbols(module_number);
+	register_tokenizer_symbols(module_number);
 	php_token_ce = register_class_PhpToken(zend_ce_stringable);
 
 	return SUCCESS;
@@ -307,10 +303,16 @@ static void add_token(
 			}
 		}
 	} else if (token_type >= 256) {
-		array_init(&token);
-		add_next_index_long(&token, token_type);
-		add_next_index_str(&token, make_str(text, leng, interned_strings));
-		add_next_index_long(&token, lineno);
+		array_init_size(&token, 3);
+		zend_hash_real_init_packed(Z_ARRVAL(token));
+		ZEND_HASH_FILL_PACKED(Z_ARRVAL(token)) {
+			ZEND_HASH_FILL_SET_LONG(token_type);
+			ZEND_HASH_FILL_NEXT();
+			ZEND_HASH_FILL_SET_STR(make_str(text, leng, interned_strings));
+			ZEND_HASH_FILL_NEXT();
+			ZEND_HASH_FILL_SET_LONG(lineno);
+			ZEND_HASH_FILL_NEXT();
+		} ZEND_HASH_FILL_END();
 	} else {
 		ZVAL_STR(&token, make_str(text, leng, interned_strings));
 	}

@@ -1,3 +1,7 @@
+#ifdef __sun
+/* to enable 'new' ancillary data layout instead */
+# define _XPG4_2
+#endif
 #include "sockaddr_conv.h"
 #include "conversions.h"
 #include "sendrecvmsg.h" /* for ancillary registry */
@@ -55,6 +59,14 @@ struct _WSAMSG {
 
 #define MAX_USER_BUFF_SIZE ((size_t)(100*1024*1024))
 #define DEFAULT_BUFF_SIZE 8192
+
+/* The CMSG_DATA macro does pointer arithmetics on NULL which triggers errors in the Clang UBSAN build */
+#ifdef __has_feature
+# if __has_feature(undefined_behavior_sanitizer)
+#  undef CMSG_DATA
+#  define CMSG_DATA(cmsg) ((unsigned char *) ((uintptr_t) (cmsg) + sizeof(struct cmsghdr)))
+# endif
+#endif
 
 struct _ser_context {
 	HashTable		params; /* stores pointers; has to be first */
@@ -226,9 +238,9 @@ static unsigned from_array_iterate(const zval *arr,
 			break;
 		}
 		i++;
-    } ZEND_HASH_FOREACH_END();
+	} ZEND_HASH_FOREACH_END();
 
-    return i -1;
+	return i -1;
 }
 
 /* Generic Aggregated conversions */
@@ -431,7 +443,7 @@ static void from_zval_write_sa_family(const zval *arr_value, char *field, ser_co
 	memcpy(field, &ival, sizeof(ival));
 }
 
-#ifdef SO_PASSCRED
+#if defined(SO_PASSCRED) || defined(LOCAL_CREDS_PERSISTENT) || defined(LOCAL_CREDS)
 static void from_zval_write_pid_t(const zval *arr_value, char *field, ser_context *ctx)
 {
 	zend_long lval;
@@ -502,7 +514,7 @@ static void to_zval_read_sa_family(const char *data, zval *zv, res_context *ctx)
 
 	ZVAL_LONG(zv, (zend_long)ival);
 }
-#if HAVE_IPV6
+#ifdef HAVE_IPV6
 static void to_zval_read_unsigned(const char *data, zval *zv, res_context *ctx)
 {
 	unsigned ival;
@@ -518,7 +530,7 @@ static void to_zval_read_uint32(const char *data, zval *zv, res_context *ctx)
 	ZVAL_LONG(zv, (zend_long)ival);
 }
 #endif
-#ifdef SO_PASSCRED
+#if defined(SO_PASSCRED) || defined(LOCAL_CREDS_PERSISTENT) || defined(LOCAL_CREDS)
 static void to_zval_read_pid_t(const char *data, zval *zv, res_context *ctx)
 {
 	pid_t ival;
@@ -585,7 +597,7 @@ static void to_zval_read_sockaddr_in(const char *data, zval *zv, res_context *ct
 {
 	to_zval_read_aggregation(data, zv, descriptors_sockaddr_in, ctx);
 }
-#if HAVE_IPV6
+#ifdef HAVE_IPV6
 static void from_zval_write_sin6_addr(const zval *zaddr_str, char *addr6, ser_context *ctx)
 {
 	int					res;
@@ -714,8 +726,13 @@ static void from_zval_write_sockaddr_aux(const zval *container,
 			&& Z_TYPE_P(elem) != IS_NULL) {
 		const char *node = "family";
 		zend_llist_add_element(&ctx->keys, &node);
+		family = 0; /* Silence compiler warning */
 		from_zval_write_int(elem, (char*)&family, ctx);
 		zend_llist_remove_tail(&ctx->keys);
+
+		if (UNEXPECTED(ctx->err.has_error)) {
+			return;
+		}
 	} else {
 		family = ctx->sock->type;
 	}
@@ -736,7 +753,7 @@ static void from_zval_write_sockaddr_aux(const zval *container,
 		}
 		break;
 
-#if HAVE_IPV6
+#ifdef HAVE_IPV6
 	case AF_INET6:
 		if (ctx->sock->type != AF_INET6) {
 			do_from_zval_err(ctx, "the specified family (AF_INET6) is not "
@@ -800,7 +817,7 @@ static void to_zval_read_sockaddr_aux(const char *sockaddr_c, zval *zv, res_cont
 		to_zval_read_sockaddr_in(sockaddr_c, zv, ctx);
 		break;
 
-#if HAVE_IPV6
+#ifdef HAVE_IPV6
 	case AF_INET6:
 		to_zval_read_sockaddr_in6(sockaddr_c, zv, ctx);
 		break;
@@ -951,8 +968,8 @@ static void from_zval_write_control_array(const zval *arr, char *msghdr_c, ser_c
 		zend_llist_remove_tail(&ctx->keys);
 	} ZEND_HASH_FOREACH_END();
 
-    msg->msg_control = control_buf;
-    msg->msg_controllen = cur_offset; /* not control_len, which may be larger */
+	msg->msg_control = control_buf;
+	msg->msg_controllen = cur_offset; /* not control_len, which may be larger */
 }
 static void to_zval_read_cmsg_data(const char *cmsghdr_c, zval *zv, res_context *ctx)
 {
@@ -1100,18 +1117,21 @@ static void from_zval_write_iov_array(const zval *arr, char *msghdr_c, ser_conte
 	msg->msg_iov = accounted_safe_ecalloc(num_elem, sizeof *msg->msg_iov, 0, ctx);
 	msg->msg_iovlen = (size_t)num_elem;
 
-    from_array_iterate(arr, from_zval_write_iov_array_aux, (void**)&msg, ctx);
+	from_array_iterate(arr, from_zval_write_iov_array_aux, (void**)&msg, ctx);
 }
 static void from_zval_write_controllen(const zval *elem, char *msghdr_c, ser_context *ctx)
 {
 	struct msghdr *msghdr = (struct msghdr *)msghdr_c;
-	uint32_t len;
+	uint32_t len = 0; /* Silence compiler warning */
 
 	/* controllen should be an unsigned with at least 32-bit. Let's assume
 	 * this least common denominator
 	 */
 	from_zval_write_uint32(elem, (char*)&len, ctx);
-	if (!ctx->err.has_error && len == 0) {
+	if (ctx->err.has_error) {
+		return;
+	}
+	if (len == 0) {
 		do_from_zval_err(ctx, "controllen cannot be 0");
 		return;
 	}
@@ -1298,12 +1318,29 @@ void to_zval_read_in6_pktinfo(const char *data, zval *zv, res_context *ctx)
 #endif
 
 /* CONVERSIONS for struct ucred */
-#ifdef SO_PASSCRED
+#if defined(SO_PASSCRED) || defined(LOCAL_CREDS_PERSISTENT) || defined(LOCAL_CREDS)
 static const field_descriptor descriptors_ucred[] = {
+#if defined(LOCAL_CREDS_PERSISTENT)
+		{"pid", sizeof("pid"), 1, offsetof(struct sockcred2, sc_pid), from_zval_write_pid_t, to_zval_read_pid_t},
+		{"uid", sizeof("uid"), 1, offsetof(struct sockcred2, sc_euid), from_zval_write_uid_t, to_zval_read_uid_t},
+		/* the type gid_t is the same as uid_t: */
+		{"gid", sizeof("gid"), 1, offsetof(struct sockcred2, sc_egid), from_zval_write_uid_t, to_zval_read_uid_t},
+#elif defined(LOCAL_CREDS)
+		{"pid", sizeof("pid"), 1, offsetof(struct sockcred, sc_pid), from_zval_write_pid_t, to_zval_read_pid_t},
+		{"uid", sizeof("uid"), 1, offsetof(struct sockcred, sc_euid), from_zval_write_uid_t, to_zval_read_uid_t},
+		/* the type gid_t is the same as uid_t: */
+		{"gid", sizeof("gid"), 1, offsetof(struct sockcred, sc_egid), from_zval_write_uid_t, to_zval_read_uid_t},
+#elif defined(HAVE_STRUCT_CMSGCRED)
+		{"pid", sizeof("pid"), 1, offsetof(struct cmsgcred, cmcred_pid), from_zval_write_pid_t, to_zval_read_pid_t},
+		{"uid", sizeof("uid"), 1, offsetof(struct cmsgcred, cmcred_uid), from_zval_write_uid_t, to_zval_read_uid_t},
+		/* assume the type gid_t is the same as uid_t: */
+		{"gid", sizeof("gid"), 1, offsetof(struct cmsgcred, cmcred_gid), from_zval_write_uid_t, to_zval_read_uid_t},
+#elif defined(SO_PASSCRED)
 		{"pid", sizeof("pid"), 1, offsetof(struct ucred, pid), from_zval_write_pid_t, to_zval_read_pid_t},
 		{"uid", sizeof("uid"), 1, offsetof(struct ucred, uid), from_zval_write_uid_t, to_zval_read_uid_t},
 		/* assume the type gid_t is the same as uid_t: */
 		{"gid", sizeof("gid"), 1, offsetof(struct ucred, gid), from_zval_write_uid_t, to_zval_read_uid_t},
+#endif
 		{0}
 };
 void from_zval_write_ucred(const zval *container, char *ucred_c, ser_context *ctx)
@@ -1376,7 +1413,7 @@ void from_zval_write_fd_array(const zval *arr, char *int_arr, ser_context *ctx)
 		return;
 	}
 
-   from_array_iterate(arr, &from_zval_write_fd_array_aux, (void**)&int_arr, ctx);
+	from_array_iterate(arr, &from_zval_write_fd_array_aux, (void**)&int_arr, ctx);
 }
 void to_zval_read_fd_array(const char *data, zval *zv, res_context *ctx)
 {

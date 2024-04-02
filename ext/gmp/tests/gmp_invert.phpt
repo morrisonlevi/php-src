@@ -1,7 +1,7 @@
 --TEST--
 gmp_invert() basic tests
---SKIPIF--
-<?php if (!extension_loaded("gmp")) print "skip"; ?>
+--EXTENSIONS--
+gmp
 --FILE--
 <?php
 
@@ -11,6 +11,13 @@ var_dump(gmp_strval(gmp_invert("12312323213123123",7624)));
 
 try {
     var_dump(gmp_strval(gmp_invert(444,0)));
+} catch (\DivisionByZeroError $e) {
+    echo $e->getMessage() . \PHP_EOL;
+}
+
+try {
+    $zero = new GMP(0);
+    var_dump(gmp_invert(5, $zero));
 } catch (\DivisionByZeroError $e) {
     echo $e->getMessage() . \PHP_EOL;
 }
@@ -47,6 +54,7 @@ echo "Done\n";
 string(7) "2293131"
 string(1) "0"
 string(4) "5827"
+Division by zero
 Division by zero
 string(1) "0"
 string(1) "0"

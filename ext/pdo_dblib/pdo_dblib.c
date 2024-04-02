@@ -5,7 +5,7 @@
   | This source file is subject to version 3.01 of the PHP license,      |
   | that is bundled with this package in the file LICENSE, and is        |
   | available through the world-wide-web at the following url:           |
-  | http://www.php.net/license/3_01.txt                                  |
+  | https://www.php.net/license/3_01.txt                                 |
   | If you did not receive a copy of the PHP license and are unable to   |
   | obtain it through the world-wide-web, please send a note to          |
   | license@php.net so we can mail you a copy immediately.               |
@@ -27,9 +27,12 @@
 #include "php_pdo_dblib.h"
 #include "php_pdo_dblib_int.h"
 #include "zend_exceptions.h"
+#include "pdo_dblib_arginfo.h"
 
 ZEND_DECLARE_MODULE_GLOBALS(dblib)
 static PHP_GINIT_FUNCTION(dblib);
+
+static zend_class_entry *PdoDblib_ce;
 
 static const zend_module_dep pdo_dblib_deps[] = {
 	ZEND_MOD_REQUIRED("pdo")
@@ -201,6 +204,9 @@ PHP_MINIT_FUNCTION(pdo_dblib)
 		return FAILURE;
 	}
 
+	PdoDblib_ce = register_class_PdoDblib(pdo_dbh_ce);
+	PdoDblib_ce->create_object = pdo_dbh_new;
+
 	if (FAILURE == php_pdo_register_driver(&pdo_dblib_driver)) {
 		return FAILURE;
 	}
@@ -210,7 +216,7 @@ PHP_MINIT_FUNCTION(pdo_dblib)
 	dbmsghandle((MHANDLEFUNC) pdo_dblib_msg_handler);
 #endif
 
-	return SUCCESS;
+	return php_pdo_register_driver_specific_ce(&pdo_dblib_driver, PdoDblib_ce);
 }
 
 PHP_MSHUTDOWN_FUNCTION(pdo_dblib)
@@ -223,7 +229,7 @@ PHP_MSHUTDOWN_FUNCTION(pdo_dblib)
 PHP_MINFO_FUNCTION(pdo_dblib)
 {
 	php_info_print_table_start();
-	php_info_print_table_header(2, "PDO Driver for "
+	php_info_print_table_row(2, "PDO Driver for "
 #ifdef PDO_DBLIB_IS_MSSQL
 		"MSSQL"
 #elif defined(PHP_WIN32)

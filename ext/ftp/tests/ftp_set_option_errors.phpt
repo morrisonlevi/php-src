@@ -2,8 +2,9 @@
 Testing ftp_set_option errors while setting up
 --CREDITS--
 Gabriel Caruso (carusogabriel34@gmail.com)
---SKIPIF--
-<?php require 'skipif.inc'; ?>
+--EXTENSIONS--
+ftp
+pcntl
 --FILE--
 <?php
 require 'server.inc';
@@ -26,6 +27,7 @@ foreach ($options as $option) try {
 	echo "Exception: ", $ex->getMessage(), "\n";
 }
 
+?>
 --EXPECT--
 Exception: ftp_set_option(): Argument #3 ($value) must be greater than 0 for the FTP_TIMEOUT_SEC option
 Exception: ftp_set_option(): Argument #3 ($value) must be of type int for the FTP_TIMEOUT_SEC option, string given

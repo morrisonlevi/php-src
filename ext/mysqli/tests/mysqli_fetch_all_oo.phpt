@@ -1,24 +1,15 @@
 --TEST--
 $mysqli->fetch_all() (introduced with mysqlnd)
+--EXTENSIONS--
+mysqli
 --SKIPIF--
 <?php
-require_once('skipif.inc');
-require_once('skipifconnectfailure.inc');
+require_once 'skipifconnectfailure.inc';
 ?>
 --FILE--
 <?php
-    require_once("connect.inc");
-
-    $tmp    = NULL;
-    $link   = NULL;
-
-    $mysqli = new mysqli();
-
-    if (!$mysqli = new my_mysqli($host, $user, $passwd, $db, $port, $socket))
-        printf("[002] Cannot connect to the server using host=%s, user=%s, passwd=***, dbname=%s, port=%s, socket=%s\n",
-            $host, $user, $db, $port, $socket);
-
-    require('table.inc');
+    require 'table.inc';
+    $mysqli = $link;
     if (!$res = $mysqli->query("SELECT * FROM test ORDER BY id LIMIT 2")) {
         printf("[004] [%d] %s\n", $mysqli->errno, $mysqli->error);
     }
@@ -304,9 +295,9 @@ require_once('skipifconnectfailure.inc');
 ?>
 --CLEAN--
 <?php
-    require_once("clean_table.inc");
+    require_once 'clean_table.inc';
 ?>
---EXPECTF--
+--EXPECT--
 [005]
 array(2) {
   [0]=>
@@ -432,6 +423,6 @@ array(1) {
     string(1) "1"
   }
 }
-mysqli_result::fetch_all(): Argument #1 ($mode) must be one of MYSQLI_FETCH_NUM, MYSQLI_FETCH_ASSOC, or MYSQLI_FETCH_BOTH
+mysqli_result::fetch_all(): Argument #1 ($mode) must be one of MYSQLI_NUM, MYSQLI_ASSOC, or MYSQLI_BOTH
 mysqli_result object is already closed
 done!

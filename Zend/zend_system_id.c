@@ -5,7 +5,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -63,7 +63,7 @@ void zend_startup_system_id(void)
 void zend_finalize_system_id(void)
 {
 	unsigned char digest[16];
-	zend_uchar hooks = 0;
+	uint8_t hooks = 0;
 
 	if (zend_ast_process) {
 		hooks |= ZEND_HOOK_AST_PROCESS;
@@ -80,7 +80,7 @@ void zend_finalize_system_id(void)
 	PHP_MD5Update(&context, &hooks, sizeof hooks);
 
 	for (int16_t i = 0; i < 256; i++) {
-		if (zend_get_user_opcode_handler((zend_uchar) i) != NULL) {
+		if (zend_get_user_opcode_handler((uint8_t) i) != NULL) {
 			PHP_MD5Update(&context, &i, sizeof i);
 		}
 	}

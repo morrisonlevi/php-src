@@ -1,13 +1,13 @@
 --TEST--
 mysqli_fetch_assoc() - utf8
+--EXTENSIONS--
+mysqli
 --SKIPIF--
 <?php
-    require_once('skipif.inc');
-    require_once('skipifconnectfailure.inc');
-    require_once("connect.inc");
+    require_once 'connect.inc';
 
-    if (!$link = mysqli_connect($host, $user, $passwd, $db, $port, $socket))
-        die("skip Cannot connect to server to check charsets");
+    if (!$link = @mysqli_connect($host, $user, $passwd, $db, $port, $socket))
+        die(sprintf("skip Can't connect to MySQL Server - [%d] %s", mysqli_connect_errno(), mysqli_connect_error()));
 
     if (!$res = mysqli_query($link, "SHOW CHARACTER SET LIKE 'UTF8'"))
         die("skip Cannot run SHOW CHARACTER SET to check charsets");
@@ -34,7 +34,12 @@ mysqli_fetch_assoc() - utf8
 ?>
 --FILE--
 <?php
-    require('table.inc');
+    require_once 'connect.inc';
+    if (!$link = my_mysqli_connect($host, $user, $passwd, $db, $port, $socket)) {
+        printf("Cannot connect to the server using host=%s, user=%s, passwd=***, dbname=%s, port=%s, socket=%s\n",
+            $host, $user, $db, $port, $socket);
+        exit(1);
+    }
 
     /* some cyrillic (utf8) comes here */
     if (!$res = mysqli_query($link, "SET NAMES UTF8")) {

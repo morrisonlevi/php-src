@@ -1,13 +1,14 @@
 --TEST--
 mysqli_dump_debug_info()
+--EXTENSIONS--
+mysqli
 --SKIPIF--
 <?php
-require_once('skipif.inc');
-require_once('skipifconnectfailure.inc');
+require_once 'skipifconnectfailure.inc';
 ?>
 --FILE--
 <?php
-    require_once("connect.inc");
+    require_once 'connect.inc';
 
     $tmp	= NULL;
     $link	= NULL;

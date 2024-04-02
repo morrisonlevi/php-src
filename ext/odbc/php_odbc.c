@@ -5,7 +5,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -24,6 +24,7 @@
 
 #include "php.h"
 #include "php_globals.h"
+#include "zend_attributes.h"
 
 #include "ext/standard/info.h"
 #include "ext/standard/php_string.h"
@@ -32,7 +33,9 @@
 #include "php_odbc.h"
 #include "php_odbc_includes.h"
 #include "php_globals.h"
-#include "odbc_arginfo.h"
+
+/* actually lives in main/ */
+#include "php_odbc_utils.h"
 
 #ifdef HAVE_UODBC
 
@@ -40,13 +43,11 @@
 #include "ext/standard/head.h"
 #include "php_ini.h"
 
-#ifdef PHP_WIN32
-#include <winsock2.h>
+#define PHP_ODBC_BINMODE_PASSTHRU 0
+#define PHP_ODBC_BINMODE_RETURN 1
+#define PHP_ODBC_BINMODE_CONVERT 2
 
-#define ODBC_TYPE "Win32"
-#define PHP_ODBC_TYPE ODBC_TYPE
-
-#endif
+#include "odbc_arginfo.h"
 
 /*
  * not defined elsewhere
@@ -348,7 +349,7 @@ static PHP_INI_DISP(display_cursortype)
 
 /* {{{ PHP_INI_BEGIN */
 PHP_INI_BEGIN()
-	STD_PHP_INI_BOOLEAN("odbc.allow_persistent", "1", PHP_INI_SYSTEM, OnUpdateLong,
+	STD_PHP_INI_BOOLEAN("odbc.allow_persistent", "1", PHP_INI_SYSTEM, OnUpdateBool,
 			allow_persistent, zend_odbc_globals, odbc_globals)
 	STD_PHP_INI_ENTRY_EX("odbc.max_persistent",  "-1", PHP_INI_SYSTEM, OnUpdateLong,
 			max_persistent, zend_odbc_globals, odbc_globals, display_link_nums)
@@ -364,7 +365,7 @@ PHP_INI_BEGIN()
 			defaultlrl, zend_odbc_globals, odbc_globals, display_lrl)
 	STD_PHP_INI_ENTRY_EX("odbc.defaultbinmode", "1", PHP_INI_ALL, OnUpdateLong,
 			defaultbinmode, zend_odbc_globals, odbc_globals, display_binmode)
-	STD_PHP_INI_BOOLEAN("odbc.check_persistent", "1", PHP_INI_SYSTEM, OnUpdateLong,
+	STD_PHP_INI_BOOLEAN("odbc.check_persistent", "1", PHP_INI_SYSTEM, OnUpdateBool,
 			check_persistent, zend_odbc_globals, odbc_globals)
 	STD_PHP_INI_ENTRY_EX("odbc.default_cursortype", "3", PHP_INI_ALL, OnUpdateLong,
 			default_cursortype, zend_odbc_globals, odbc_globals, display_cursortype)
@@ -393,92 +394,13 @@ PHP_MINIT_FUNCTION(odbc)
 	le_pconn = zend_register_list_destructors_ex(NULL, _close_odbc_pconn, "odbc link persistent", module_number);
 	odbc_module_entry.type = type;
 
-	REGISTER_STRING_CONSTANT("ODBC_TYPE", PHP_ODBC_TYPE, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("ODBC_BINMODE_PASSTHRU", 0, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("ODBC_BINMODE_RETURN", 1, CONST_CS | CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("ODBC_BINMODE_CONVERT", 2, CONST_CS | CONST_PERSISTENT);
-	/* Define Constants for options
-	   these Constants are defined in <sqlext.h>
-	*/
-	REGISTER_LONG_CONSTANT("SQL_ODBC_CURSORS", SQL_ODBC_CURSORS, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_CUR_USE_DRIVER", SQL_CUR_USE_DRIVER, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_CUR_USE_IF_NEEDED", SQL_CUR_USE_IF_NEEDED, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_CUR_USE_ODBC", SQL_CUR_USE_ODBC, CONST_PERSISTENT | CONST_CS);
-
-
-	REGISTER_LONG_CONSTANT("SQL_CONCURRENCY", SQL_CONCURRENCY, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_CONCUR_READ_ONLY", SQL_CONCUR_READ_ONLY, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_CONCUR_LOCK", SQL_CONCUR_LOCK, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_CONCUR_ROWVER", SQL_CONCUR_ROWVER, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_CONCUR_VALUES", SQL_CONCUR_VALUES, CONST_PERSISTENT | CONST_CS);
-
-	REGISTER_LONG_CONSTANT("SQL_CURSOR_TYPE", SQL_CURSOR_TYPE, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_CURSOR_FORWARD_ONLY", SQL_CURSOR_FORWARD_ONLY, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_CURSOR_KEYSET_DRIVEN", SQL_CURSOR_KEYSET_DRIVEN, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_CURSOR_DYNAMIC", SQL_CURSOR_DYNAMIC, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_CURSOR_STATIC", SQL_CURSOR_STATIC, CONST_PERSISTENT | CONST_CS);
-
-	REGISTER_LONG_CONSTANT("SQL_KEYSET_SIZE", SQL_KEYSET_SIZE, CONST_PERSISTENT | CONST_CS);
-
-	/* these are for the Data Source type */
-	REGISTER_LONG_CONSTANT("SQL_FETCH_FIRST", SQL_FETCH_FIRST, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_FETCH_NEXT", SQL_FETCH_NEXT, CONST_PERSISTENT | CONST_CS);
-
-	/*
-	 * register the standard data types
-	 */
-	REGISTER_LONG_CONSTANT("SQL_CHAR", SQL_CHAR, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_VARCHAR", SQL_VARCHAR, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_LONGVARCHAR", SQL_LONGVARCHAR, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_DECIMAL", SQL_DECIMAL, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_NUMERIC", SQL_NUMERIC, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_BIT", SQL_BIT, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_TINYINT", SQL_TINYINT, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_SMALLINT", SQL_SMALLINT, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_INTEGER", SQL_INTEGER, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_BIGINT", SQL_BIGINT, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_REAL", SQL_REAL, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_FLOAT", SQL_FLOAT, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_DOUBLE", SQL_DOUBLE, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_BINARY", SQL_BINARY, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_VARBINARY", SQL_VARBINARY, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_LONGVARBINARY", SQL_LONGVARBINARY, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_DATE", SQL_DATE, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_TIME", SQL_TIME, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_TIMESTAMP", SQL_TIMESTAMP, CONST_PERSISTENT | CONST_CS);
-#if defined(ODBCVER) && (ODBCVER >= 0x0300)
-	REGISTER_LONG_CONSTANT("SQL_TYPE_DATE", SQL_TYPE_DATE, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_TYPE_TIME", SQL_TYPE_TIME, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_TYPE_TIMESTAMP", SQL_TYPE_TIMESTAMP, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_WCHAR", SQL_WCHAR, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_WVARCHAR", SQL_WVARCHAR, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_WLONGVARCHAR", SQL_WLONGVARCHAR, CONST_PERSISTENT | CONST_CS);
-
-	/*
-	 * SQLSpecialColumns values
-	 */
-	REGISTER_LONG_CONSTANT("SQL_BEST_ROWID", SQL_BEST_ROWID, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_ROWVER", SQL_ROWVER, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_SCOPE_CURROW", SQL_SCOPE_CURROW, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_SCOPE_TRANSACTION", SQL_SCOPE_TRANSACTION, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_SCOPE_SESSION", SQL_SCOPE_SESSION, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_NO_NULLS", SQL_NO_NULLS, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_NULLABLE", SQL_NULLABLE, CONST_PERSISTENT | CONST_CS);
-
-	/*
-	 * SQLStatistics values
-	 */
-	REGISTER_LONG_CONSTANT("SQL_INDEX_UNIQUE", SQL_INDEX_UNIQUE, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_INDEX_ALL", SQL_INDEX_ALL, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_ENSURE", SQL_ENSURE, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("SQL_QUICK", SQL_QUICK, CONST_PERSISTENT | CONST_CS);
-#endif
-
 #if defined(HAVE_IBMDB2) && defined(_AIX)
 	/* atexit() handler in the DB2/AIX library segfaults in PHP CLI */
 	/* DB2NOEXITLIST env variable prevents DB2 from invoking atexit() */
 	putenv("DB2NOEXITLIST=TRUE");
 #endif
+
+	register_odbc_symbols(module_number);
 
 	return SUCCESS;
 }
@@ -516,7 +438,7 @@ PHP_MINFO_FUNCTION(odbc)
 	char buf[32];
 
 	php_info_print_table_start();
-	php_info_print_table_header(2, "ODBC Support", "enabled");
+	php_info_print_table_row(2, "ODBC Support", "enabled");
 	snprintf(buf, sizeof(buf), ZEND_LONG_FMT, ODBCG(num_persistent));
 	php_info_print_table_row(2, "Active Persistent Links", buf);
 	snprintf(buf, sizeof(buf), ZEND_LONG_FMT, ODBCG(num_links));
@@ -662,6 +584,8 @@ int odbc_bindcols(odbc_result *result)
 #else
 				charextraalloc = 1;
 #endif
+				/* TODO: Check this is the intended behaviour */
+				ZEND_FALLTHROUGH;
 			default:
 				rc = PHP_ODBC_SQLCOLATTRIBUTE(result->stmt, (SQLUSMALLINT)(i+1), colfieldid,
 								NULL, 0, NULL, &displaysize);
@@ -751,12 +675,14 @@ void odbc_transact(INTERNAL_FUNCTION_PARAMETERS, int type)
 /* }}} */
 
 /* {{{ _close_pconn_with_res */
-static int _close_pconn_with_res(zend_resource *le, zend_resource *res)
+static int _close_pconn_with_res(zval *zv, void *p)
 {
-	if (le->type == le_pconn && (((odbc_connection *)(le->ptr))->res == res)){
-		return 1;
-	}else{
-		return 0;
+	zend_resource *le = Z_RES_P(zv);
+	zend_resource *res = (zend_resource*)p;
+	if (le->type == le_pconn && (((odbc_connection *)(le->ptr))->res == res)) {
+		return ZEND_HASH_APPLY_REMOVE;
+	} else {
+		return ZEND_HASH_APPLY_KEEP;
 	}
 }
 /* }}} */
@@ -835,7 +761,7 @@ PHP_FUNCTION(odbc_close_all)
 				zend_list_close(p);
 				/* Delete the persistent connection */
 				zend_hash_apply_with_argument(&EG(persistent_list),
-					(apply_func_arg_t) _close_pconn_with_res, (void *)p);
+					_close_pconn_with_res, (void *)p);
 			}
 		}
 	} ZEND_HASH_FOREACH_END();
@@ -921,6 +847,7 @@ PHP_FUNCTION(odbc_prepare)
 			break;
 		default:
 			odbc_sql_error(conn, result->stmt, "SQLPrepare");
+			efree(result);
 			RETURN_FALSE;
 	}
 
@@ -1148,7 +1075,7 @@ PHP_FUNCTION(odbc_cursor)
 	SQLUSMALLINT max_len;
 	SQLSMALLINT len;
 	char *cursorname;
-   	odbc_result *result;
+	odbc_result *result;
 	RETCODE rc;
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS(), "r", &pv_res) == FAILURE) {
@@ -1419,6 +1346,7 @@ static void php_odbc_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int result_type)
 				if (result->binmode == 1) {
 					sql_c_type = SQL_C_BINARY;
 				}
+				ZEND_FALLTHROUGH;
 			case SQL_LONGVARCHAR:
 #if defined(ODBCVER) && (ODBCVER >= 0x0300)
 			case SQL_WLONGVARCHAR:
@@ -1447,6 +1375,9 @@ static void php_odbc_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int result_type)
 				} else if (result->values[i].vallen == SQL_NULL_DATA) {
 					ZVAL_NULL(&tmp);
 					break;
+				} else if (result->values[i].vallen == SQL_NO_TOTAL) {
+					php_error_docref(NULL, E_WARNING, "Cannot get data of column #%d (driver cannot determine length)", i + 1);
+					ZVAL_FALSE(&tmp);
 				} else {
 					ZVAL_STRINGL(&tmp, buf, result->values[i].vallen);
 				}
@@ -1455,6 +1386,10 @@ static void php_odbc_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int result_type)
 			default:
 				if (result->values[i].vallen == SQL_NULL_DATA) {
 					ZVAL_NULL(&tmp);
+					break;
+				} else if (result->values[i].vallen == SQL_NO_TOTAL) {
+					php_error_docref(NULL, E_WARNING, "Cannot get data of column #%d (driver cannot determine length)", i + 1);
+					ZVAL_FALSE(&tmp);
 					break;
 				}
 				ZVAL_STRINGL(&tmp, result->values[i].value, result->values[i].vallen);
@@ -1573,6 +1508,8 @@ PHP_FUNCTION(odbc_fetch_into)
 				}
 				if (result->binmode == 1) sql_c_type = SQL_C_BINARY;
 
+				/* TODO: Check this is the intended behaviour */
+				ZEND_FALLTHROUGH;
 			case SQL_LONGVARCHAR:
 #if defined(ODBCVER) && (ODBCVER >= 0x0300)
 			case SQL_WLONGVARCHAR:
@@ -1600,6 +1537,9 @@ PHP_FUNCTION(odbc_fetch_into)
 				} else if (result->values[i].vallen == SQL_NULL_DATA) {
 					ZVAL_NULL(&tmp);
 					break;
+				} else if (result->values[i].vallen == SQL_NO_TOTAL) {
+					php_error_docref(NULL, E_WARNING, "Cannot get data of column #%d (driver cannot determine length)", i + 1);
+					ZVAL_FALSE(&tmp);
 				} else {
 					ZVAL_STRINGL(&tmp, buf, result->values[i].vallen);
 				}
@@ -1608,6 +1548,10 @@ PHP_FUNCTION(odbc_fetch_into)
 			default:
 				if (result->values[i].vallen == SQL_NULL_DATA) {
 					ZVAL_NULL(&tmp);
+					break;
+				} else if (result->values[i].vallen == SQL_NO_TOTAL) {
+					php_error_docref(NULL, E_WARNING, "Cannot get data of column #%d (driver cannot determine length)", i + 1);
+					ZVAL_FALSE(&tmp);
 					break;
 				}
 				ZVAL_STRINGL(&tmp, result->values[i].value, result->values[i].vallen);
@@ -1740,7 +1684,7 @@ PHP_FUNCTION(odbc_result)
 		RETURN_THROWS();
 	}
 
-	if ((result->numcols == 0)) {
+	if (result->numcols == 0) {
 		php_error_docref(NULL, E_WARNING, "No tuples available at this result index");
 		RETURN_FALSE;
 	}
@@ -1797,6 +1741,9 @@ PHP_FUNCTION(odbc_result)
 			if (result->binmode <= 0) {
 				break;
 			}
+			/* TODO: Check this is the intended behaviour */
+			ZEND_FALLTHROUGH;
+
 		case SQL_LONGVARCHAR:
 #if defined(ODBCVER) && (ODBCVER >= 0x0300)
 		case SQL_WLONGVARCHAR:
@@ -1836,6 +1783,10 @@ PHP_FUNCTION(odbc_result)
 			} else if (result->values[field_ind].vallen == SQL_NULL_DATA) {
 				zend_string_efree(field_str);
 				RETURN_NULL();
+			} else if (result->values[field_ind].vallen == SQL_NO_TOTAL) {
+				zend_string_efree(field_str);
+				php_error_docref(NULL, E_WARNING, "Cannot get data of column #%d (driver cannot determine length)", field_ind + 1);
+				RETURN_FALSE;
 			}
 			/* Reduce fieldlen by 1 if we have char data. One day we might
 			   have binary strings... */
@@ -1859,6 +1810,9 @@ PHP_FUNCTION(odbc_result)
 		default:
 			if (result->values[field_ind].vallen == SQL_NULL_DATA) {
 				RETURN_NULL();
+			} else if (result->values[field_ind].vallen == SQL_NO_TOTAL) {
+				php_error_docref(NULL, E_WARNING, "Cannot get data of column #%d (driver cannot determine length)", field_ind + 1);
+				RETURN_FALSE;
 			} else {
 				RETURN_STRINGL(result->values[field_ind].value, result->values[field_ind].vallen);
 			}
@@ -1890,6 +1844,10 @@ PHP_FUNCTION(odbc_result)
 		if (result->values[field_ind].vallen == SQL_NULL_DATA) {
 			efree(field);
 			RETURN_NULL();
+		} else if (result->values[field_ind].vallen == SQL_NO_TOTAL) {
+			php_error_docref(NULL, E_WARNING, "Cannot get data of column #%d (driver cannot determine length)", field_ind + 1);
+			efree(field);
+			RETURN_FALSE;
 		}
 		/* chop the trailing \0 by outputting only 4095 bytes */
 		PHPWRITE(field,(rc == SQL_SUCCESS_WITH_INFO) ? 4095 : result->values[field_ind].vallen);
@@ -1969,6 +1927,9 @@ PHP_FUNCTION(odbc_result_all)
 						break;
 					}
 					if (result->binmode <= 1) sql_c_type = SQL_C_BINARY;
+
+					/* TODO: Check this is the intended behaviour */
+					ZEND_FALLTHROUGH;
 				case SQL_LONGVARCHAR:
 #if defined(ODBCVER) && (ODBCVER >= 0x0300)
 				case SQL_WLONGVARCHAR:
@@ -1994,7 +1955,14 @@ PHP_FUNCTION(odbc_result_all)
 						RETURN_FALSE;
 					}
 					if (rc == SQL_SUCCESS_WITH_INFO) {
-						PHPWRITE(buf, result->longreadlen);
+						if (result->values[i].vallen == SQL_NO_TOTAL) {
+							php_printf("</td></tr></table>");
+							php_error_docref(NULL, E_WARNING, "Cannot get data of column #%zu (driver cannot determine length)", i + 1);
+							efree(buf);
+							RETURN_FALSE;
+						} else {
+							PHPWRITE(buf, result->longreadlen);
+						}
 					} else if (rc != SQL_SUCCESS) {
 						php_printf("</td></tr></table>");
 						php_error_docref(NULL, E_WARNING, "Cannot get data of column #%zu (retcode %u)", i + 1, rc);
@@ -2011,13 +1979,16 @@ PHP_FUNCTION(odbc_result_all)
 				default:
 					if (result->values[i].vallen == SQL_NULL_DATA) {
 						php_printf("<td>NULL</td>");
+					} else if (result->values[i].vallen == SQL_NO_TOTAL) {
+						php_error_docref(NULL, E_WARNING, "Cannot get data of column #%zu (driver cannot determine length)", i + 1);
+						php_printf("<td>FALSE</td>");
 					} else {
 						php_printf("<td>%s</td>", result->values[i].value);
 					}
 					break;
 			}
 		}
-   		php_printf("</tr>\n");
+		php_printf("</tr>\n");
 
 #ifdef HAVE_SQL_EXTENDED_FETCH
 		if (result->fetch_abs)
@@ -2121,10 +2092,65 @@ int odbc_sqlconnect(odbc_connection **conn, char *db, char *uid, char *pwd, int 
 		char    *ldb = 0;
 		int		ldb_len = 0;
 
-		if (strstr((char*)db, ";")) {
+		/* a connection string may have = but not ; - i.e. "DSN=PHP" */
+		if (strstr((char*)db, "=")) {
 			direct = 1;
-			if (uid && !strstr ((char*)db, "uid") && !strstr((char*)db, "UID")) {
-				spprintf(&ldb, 0, "%s;UID=%s;PWD=%s", db, uid, pwd);
+
+			/* This should be identical to the code in the PDO driver and vice versa. */
+			size_t db_len = strlen(db);
+			char *db_end = db + db_len;
+			bool use_uid_arg = uid != NULL && !php_memnistr(db, "uid=", strlen("uid="), db_end);
+			bool use_pwd_arg = pwd != NULL && !php_memnistr(db, "pwd=", strlen("pwd="), db_end);
+
+			/* Force UID and PWD to be set in the DSN */
+			if (use_uid_arg || use_pwd_arg) {
+				db_end--;
+				if ((unsigned char)*(db_end) == ';') {
+					*db_end = '\0';
+				}
+
+				char *uid_quoted = NULL, *pwd_quoted = NULL;
+				bool should_quote_uid, should_quote_pwd;
+				if (use_uid_arg) {
+					should_quote_uid = !php_odbc_connstr_is_quoted(uid) && php_odbc_connstr_should_quote(uid);
+					if (should_quote_uid) {
+						size_t estimated_length = php_odbc_connstr_estimate_quote_length(uid);
+						uid_quoted = emalloc(estimated_length);
+						php_odbc_connstr_quote(uid_quoted, uid, estimated_length);
+					} else {
+						uid_quoted = uid;
+					}
+
+					if (!use_pwd_arg) {
+						spprintf(&ldb, 0, "%s;UID=%s;", db, uid_quoted);
+					}
+				}
+
+				if (use_pwd_arg) {
+					should_quote_pwd = !php_odbc_connstr_is_quoted(pwd) && php_odbc_connstr_should_quote(pwd);
+					if (should_quote_pwd) {
+						size_t estimated_length = php_odbc_connstr_estimate_quote_length(pwd);
+						pwd_quoted = emalloc(estimated_length);
+						php_odbc_connstr_quote(pwd_quoted, pwd, estimated_length);
+					} else {
+						pwd_quoted = pwd;
+					}
+
+					if (!use_uid_arg) {
+						spprintf(&ldb, 0, "%s;PWD=%s;", db, pwd_quoted);
+					}
+				}
+
+				if (use_uid_arg && use_pwd_arg) {
+					spprintf(&ldb, 0, "%s;UID=%s;PWD=%s;", db, uid_quoted, pwd_quoted);
+				}
+
+				if (uid_quoted && should_quote_uid) {
+					efree(uid_quoted);
+				}
+				if (pwd_quoted && should_quote_pwd) {
+					efree(pwd_quoted);
+				}
 			} else {
 				ldb_len = strlen(db)+1;
 				ldb = (char*) emalloc(ldb_len);
@@ -2165,18 +2191,19 @@ int odbc_sqlconnect(odbc_connection **conn, char *db, char *uid, char *pwd, int 
 /* {{{ odbc_do_connect */
 void odbc_do_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent)
 {
-	char *db, *uid, *pwd;
+	char *db, *uid=NULL, *pwd=NULL;
 	size_t db_len, uid_len, pwd_len;
 	zend_long pv_opt = SQL_CUR_DEFAULT;
 	odbc_connection *db_conn;
 	int cur_opt;
 
-	/*  Now an optional 4th parameter specifying the cursor type
-	 *  defaulting to the cursors default
-	 */
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "sss|l", &db, &db_len, &uid, &uid_len, &pwd, &pwd_len, &pv_opt) == FAILURE) {
-		RETURN_THROWS();
-	}
+	ZEND_PARSE_PARAMETERS_START(1, 4)
+		Z_PARAM_STRING(db, db_len)
+		Z_PARAM_OPTIONAL
+		Z_PARAM_STRING_OR_NULL(uid, uid_len)
+		Z_PARAM_STRING_OR_NULL(pwd, pwd_len)
+		Z_PARAM_LONG(pv_opt)
+	ZEND_PARSE_PARAMETERS_END();
 
 	cur_opt = pv_opt;
 
@@ -2192,7 +2219,7 @@ void odbc_do_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent)
 		}
 	}
 
-	if (ODBCG(allow_persistent) <= 0) {
+	if (!ODBCG(allow_persistent)) {
 		persistent = 0;
 	}
 
@@ -2208,12 +2235,12 @@ try_and_get_another_connection:
 		/* the link is not in the persistent list */
 		if ((le = zend_hash_str_find_ptr(&EG(persistent_list), hashed_details, hashed_len)) == NULL) {
 			if (ODBCG(max_links) != -1 && ODBCG(num_links) >= ODBCG(max_links)) {
-				php_error_docref(NULL, E_WARNING, "Too many open links (%ld)", ODBCG(num_links));
+				php_error_docref(NULL, E_WARNING, "Too many open links (" ZEND_LONG_FMT ")", ODBCG(num_links));
 				efree(hashed_details);
 				RETURN_FALSE;
 			}
 			if (ODBCG(max_persistent) != -1 && ODBCG(num_persistent) >= ODBCG(max_persistent)) {
-				php_error_docref(NULL, E_WARNING,"Too many open persistent links (%ld)", ODBCG(num_persistent));
+				php_error_docref(NULL, E_WARNING,"Too many open persistent links (" ZEND_LONG_FMT ")", ODBCG(num_persistent));
 				efree(hashed_details);
 				RETURN_FALSE;
 			}
@@ -2247,7 +2274,20 @@ try_and_get_another_connection:
 				RETCODE ret;
 				UCHAR d_name[32];
 				SQLSMALLINT len;
+				SQLUINTEGER dead = SQL_CD_FALSE;
 
+				ret = SQLGetConnectAttr(db_conn->hdbc,
+					SQL_ATTR_CONNECTION_DEAD,
+					&dead, 0, NULL);
+				if (ret == SQL_SUCCESS && dead == SQL_CD_TRUE) {
+					/* Bail early here, since we know it's gone */
+					zend_hash_str_del(&EG(persistent_list), hashed_details, hashed_len);
+					goto try_and_get_another_connection;
+				}
+				/* If the driver doesn't support it, or returns
+				 * false (could be a false positive), fall back
+				 * to the old heuristic.
+				 */
 				ret = SQLGetInfo(db_conn->hdbc,
 					SQL_DATA_SOURCE_READ_ONLY,
 					d_name, sizeof(d_name), &len);
@@ -2270,7 +2310,7 @@ try_and_get_another_connection:
 		RETVAL_RES(db_conn->res);
 	} else { /* non persistent */
 		if (ODBCG(max_links) != -1 && ODBCG(num_links) >= ODBCG(max_links)) {
-			php_error_docref(NULL, E_WARNING,"Too many open connections (%ld)",ODBCG(num_links));
+			php_error_docref(NULL, E_WARNING,"Too many open connections (" ZEND_LONG_FMT ")",ODBCG(num_links));
 			RETURN_FALSE;
 		}
 
@@ -2317,7 +2357,7 @@ PHP_FUNCTION(odbc_close)
 	zend_list_close(Z_RES_P(pv_conn));
 
 	if(is_pconn){
-		zend_hash_apply_with_argument(&EG(persistent_list),	(apply_func_arg_t) _close_pconn_with_res, (void *) Z_RES_P(pv_conn));
+		zend_hash_apply_with_argument(&EG(persistent_list), _close_pconn_with_res, (void *) Z_RES_P(pv_conn));
 	}
 }
 /* }}} */
@@ -2541,8 +2581,9 @@ PHP_FUNCTION(odbc_autocommit)
 	RETCODE rc;
 	zval *pv_conn;
 	bool pv_onoff = 0;
+	bool pv_onoff_is_null = true;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "r|b", &pv_conn, &pv_onoff) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "r|b!", &pv_conn, &pv_onoff, &pv_onoff_is_null) == FAILURE) {
 		RETURN_THROWS();
 	}
 
@@ -2550,13 +2591,13 @@ PHP_FUNCTION(odbc_autocommit)
 		RETURN_THROWS();
 	}
 
-	if (ZEND_NUM_ARGS() > 1) {
+	if (!pv_onoff_is_null) {
 		rc = SQLSetConnectOption(conn->hdbc, SQL_AUTOCOMMIT, pv_onoff ? SQL_AUTOCOMMIT_ON : SQL_AUTOCOMMIT_OFF);
 		if (rc != SQL_SUCCESS && rc != SQL_SUCCESS_WITH_INFO) {
 			odbc_sql_error(conn, SQL_NULL_HSTMT, "Set autocommit");
 			RETURN_FALSE;
 		}
-		RETVAL_TRUE;
+		RETURN_TRUE;
 	} else {
 		SQLINTEGER status;
 
@@ -2565,7 +2606,7 @@ PHP_FUNCTION(odbc_autocommit)
 			odbc_sql_error(conn, SQL_NULL_HSTMT, "Get commit status");
 			RETURN_FALSE;
 		}
-		RETVAL_LONG((zend_long)status);
+		RETURN_LONG((zend_long)status);
 	}
 }
 /* }}} */

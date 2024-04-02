@@ -5,7 +5,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -21,6 +21,7 @@
 PHPAPI double _php_math_round(double value, int places, int mode);
 PHPAPI zend_string *_php_math_number_format(double d, int dec, char dec_point, char thousand_sep);
 PHPAPI zend_string *_php_math_number_format_ex(double d, int dec, const char *dec_point, size_t dec_point_len, const char *thousand_sep, size_t thousand_sep_len);
+PHPAPI zend_string *_php_math_number_format_long(zend_long num, zend_long dec, const char *dec_point, size_t dec_point_len, const char *thousand_sep, size_t thousand_sep_len);
 PHPAPI zend_string * _php_math_longtobase(zend_long arg, int base);
 PHPAPI zend_long _php_math_basetolong(zval *arg, int base);
 PHPAPI void _php_math_basetozval(zend_string *str, int base, zval *ret);
@@ -102,7 +103,7 @@ PHPAPI zend_string * _php_math_zvaltobase(zval *arg, int base);
 #endif
 
 #ifndef PHP_ROUND_HALF_DOWN
-#define PHP_ROUND_HALF_DOWN      0x02    /* Down == towards zero */
+#define PHP_ROUND_HALF_DOWN      0x02    /* Arithmetic rounding, down == towards zero */
 #endif
 
 #ifndef PHP_ROUND_HALF_EVEN
@@ -111,6 +112,22 @@ PHPAPI zend_string * _php_math_zvaltobase(zval *arg, int base);
 
 #ifndef PHP_ROUND_HALF_ODD
 #define PHP_ROUND_HALF_ODD       0x04
+#endif
+
+#ifndef PHP_ROUND_CEILING
+#define PHP_ROUND_CEILING        0x05
+#endif
+
+#ifndef PHP_ROUND_FLOOR
+#define PHP_ROUND_FLOOR          0x06
+#endif
+
+#ifndef PHP_ROUND_TOWARD_ZERO
+#define PHP_ROUND_TOWARD_ZERO    0x07
+#endif
+
+#ifndef PHP_ROUND_AWAY_FROM_ZERO
+#define PHP_ROUND_AWAY_FROM_ZERO 0x08
 #endif
 
 #endif /* PHP_MATH_H */

@@ -38,11 +38,13 @@ try {
 bool(true)
 bool(true)
 bool(true)
+
+Deprecated: Implicit conversion from float 0.6 to int loses precision in %s on line %d
 bool(true)
 bool(false)
 bool(false)
 
 Warning: Resource ID#%d used as offset, casting to integer (%d) in %s on line %d
 bool(false)
-Illegal offset type in isset or empty
-Illegal offset type in isset or empty
+Cannot access offset of type array in isset or empty
+Cannot access offset of type stdClass in isset or empty

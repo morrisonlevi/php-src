@@ -3,7 +3,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -49,6 +49,7 @@ PHP_METHOD(Spoofchecker, __construct)
 	 uspoof_check2 APIs when it became stable, to use extended check result APIs.
 	 Subsequent changes in the unicode security algos are to be watched.*/
 	uspoof_setRestrictionLevel(co->uspoof, SPOOFCHECKER_DEFAULT_RESTRICTION_LEVEL);
+	co->uspoofres = uspoof_openCheckResult(SPOOFCHECKER_ERROR_CODE_P(co));
 #else
 	/* Single-script enforcement is on by default. This fails for languages
 	 like Japanese that legally use multiple scripts within a single word,

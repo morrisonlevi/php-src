@@ -1,8 +1,9 @@
 --TEST--
 Test posix_getgrnam() function : basic functionality
+--EXTENSIONS--
+posix
 --SKIPIF--
 <?php
-    if (!extension_loaded('posix')) die('skip - POSIX extension not loaded');
     if (!posix_getgroups()) die('skip - groups unavailable (ci)');
 ?>
 --FILE--
@@ -19,7 +20,7 @@ array(4) {
   ["name"]=>
   string(%d) "%s"
   ["passwd"]=>
-  string(1) "%s"
+  string(%d) "%S"
   ["members"]=>
 %a
   ["gid"]=>

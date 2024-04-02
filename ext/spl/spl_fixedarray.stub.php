@@ -1,52 +1,58 @@
 <?php
 
-/** @generate-function-entries */
+/** @generate-class-entries */
 
-class SplFixedArray implements IteratorAggregate, ArrayAccess, Countable
+class SplFixedArray implements IteratorAggregate, ArrayAccess, Countable, JsonSerializable
 {
     public function __construct(int $size = 0) {}
 
-    /** @return void */
-    public function __wakeup() {}
+    /** @tentative-return-type */
+    public function __wakeup(): void {}
 
-    /** @return int */
-    public function count() {}
+    public function __serialize(): array {}
 
-    /** @return array */
-    public function toArray() {}
+    public function __unserialize(array $data): void {}
 
-    /** @return SplFixedArray */
-    public static function fromArray(array $array, bool $preserveKeys = true) {}
+    /** @tentative-return-type */
+    public function count(): int {}
 
-    /** @return int */
-    public function getSize() {}
+    /** @tentative-return-type */
+    public function toArray(): array {}
 
-    /** @return bool */
-    public function setSize(int $size) {}
+    /** @tentative-return-type */
+    public static function fromArray(array $array, bool $preserveKeys = true): SplFixedArray {}
 
-    /**
-     * @param int $index
-     * @return bool
-     */
-    public function offsetExists($index) {}
+    /** @tentative-return-type */
+    public function getSize(): int {}
+
+    /** @tentative-return-type */
+    public function setSize(int $size): true {}
 
     /**
      * @param int $index
-     * @return mixed
+     * @tentative-return-type
      */
-    public function offsetGet($index) {}
+    public function offsetExists($index): bool {}
 
     /**
      * @param int $index
-     * @return void
+     * @tentative-return-type
      */
-    public function offsetSet($index, mixed $value) {}
+    public function offsetGet($index): mixed {}
 
     /**
      * @param int $index
-     * @return void
+     * @tentative-return-type
      */
-    public function offsetUnset($index) {}
+    public function offsetSet($index, mixed $value): void {}
+
+    /**
+     * @param int $index
+     * @tentative-return-type
+     */
+    public function offsetUnset($index): void {}
 
     public function getIterator(): Iterator {}
+
+    public function jsonSerialize(): array {}
 }

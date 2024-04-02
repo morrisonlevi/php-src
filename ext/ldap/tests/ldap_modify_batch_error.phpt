@@ -3,14 +3,15 @@ ldap_modify_batch() - Batch modify operations that should fail
 --CREDITS--
 Patrick Allaert <patrickallaert@php.net>
 Ondřej Hošek <ondra.hosek@gmail.com>
+--EXTENSIONS--
+ldap
 --SKIPIF--
-<?php require_once('skipif.inc'); ?>
 <?php require_once('skipifbindfailure.inc'); ?>
 --FILE--
 <?php
 require "connect.inc";
 
-$link = ldap_connect_and_bind($host, $port, $user, $passwd, $protocol_version);
+$link = ldap_connect_and_bind($uri, $user, $passwd, $protocol_version);
 
 $addGivenName = array(
     array(
@@ -64,7 +65,7 @@ var_dump(ldap_modify_batch($link, "dc=my-domain,$base", $mods));
 <?php
 require "connect.inc";
 
-$link = ldap_connect_and_bind($host, $port, $user, $passwd, $protocol_version);
+$link = ldap_connect_and_bind($uri, $user, $passwd, $protocol_version);
 
 ldap_delete($link, "dc=my-domain,$base");
 ?>

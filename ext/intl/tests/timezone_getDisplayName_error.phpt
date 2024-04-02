@@ -1,9 +1,7 @@
 --TEST--
 IntlTimeZone::getDisplayName(): errors
---SKIPIF--
-<?php
-if (!extension_loaded('intl'))
-    die('skip intl extension not enabled');
+--EXTENSIONS--
+intl
 --FILE--
 <?php
 ini_set("intl.error_level", E_WARNING);
@@ -14,7 +12,7 @@ var_dump($tz->getDisplayName(false, -1));
 var_dump(intltz_get_display_name(null, IntlTimeZone::DISPLAY_SHORT, false, 'pt_PT'));
 ?>
 --EXPECTF--
-Warning: IntlTimeZone::getDisplayName(): intltz_get_display_name: wrong display type in %s on line %d
+Warning: IntlTimeZone::getDisplayName(): wrong display type in %s on line %d
 bool(false)
 
 Fatal error: Uncaught TypeError: intltz_get_display_name(): Argument #1 ($timezone) must be of type IntlTimeZone, null given in %s:%d

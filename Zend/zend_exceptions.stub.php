@@ -2,12 +2,14 @@
 
 /** @generate-class-entries */
 
+require "zend_constants.stub.php";
+
 interface Throwable extends Stringable
 {
     public function getMessage(): string;
 
     /** @return int */
-    public function getCode();
+    public function getCode(); // TODO add proper type (i.e. int|string)
 
     public function getFile(): string;
 
@@ -22,30 +24,33 @@ interface Throwable extends Stringable
 
 class Exception implements Throwable
 {
-    /** @var string */
+    /**
+     * Intentionally left untyped for BC reasons
+     * @var string
+     */
     protected $message = "";
-    /** @var string */
-    private $string = "";
-    /** @var int */
-    protected $code = 0;
-    /** @var string|null */
-    protected $file = null;
-    /** @var int|null */
-    protected $line = null;
+    private string $string = "";
+    /**
+     * Intentionally left untyped for BC reasons
+     * @var int
+     */
+    protected $code = 0;  // TODO add proper type (i.e. int|string)
+    protected string $file = "";
+    protected int $line = 0;
     private array $trace = [];
     private ?Throwable $previous = null;
 
-    final private function __clone(): void {}
+    private function __clone(): void {}
 
     public function __construct(string $message = "", int $code = 0, ?Throwable $previous = null) {}
 
-    /** @return void */
-    public function __wakeup() {}
+    /** @tentative-return-type */
+    public function __wakeup(): void {}
 
     final public function getMessage(): string {}
 
     /** @return int */
-    final public function getCode() {}
+    final public function getCode() {} // TODO add proper type (i.e. int|string)
 
     final public function getFile(): string {}
 
@@ -62,8 +67,7 @@ class Exception implements Throwable
 
 class ErrorException extends Exception
 {
-    /** @var int */
-    protected $severity = E_ERROR;
+    protected int $severity = E_ERROR;
 
     public function __construct(
         string $message = "",
@@ -79,30 +83,33 @@ class ErrorException extends Exception
 
 class Error implements Throwable
 {
-    /** @var string */
+    /**
+     * Intentionally left untyped for BC reasons
+     * @var string
+     */
     protected $message = "";
-    /** @var string */
-    private $string = "";
-    /** @var int */
-    protected $code = 0;
-    /** @var string|null */
-    protected $file = null;
-    /** @var int|null */
-    protected $line = null;
+    private string $string = "";
+    /**
+     * Intentionally left untyped for BC reasons
+     * @var int
+     */
+    protected $code = 0; // TODO add proper type (i.e. int|string)
+    protected string $file = "";
+    protected int $line;
     private array $trace = [];
     private ?Throwable $previous = null;
 
     /** @implementation-alias Exception::__clone */
-    final private function __clone(): void {}
+    private function __clone(): void {}
 
     /** @implementation-alias Exception::__construct */
     public function __construct(string $message = "", int $code = 0, ?Throwable $previous = null) {}
 
     /**
-     * @return void
+     * @tentative-return-type
      * @implementation-alias Exception::__wakeup
      */
-    public function __wakeup() {}
+    public function __wakeup(): void {}
 
     /** @implementation-alias Exception::getMessage */
     final public function getMessage(): string {}
@@ -161,5 +168,9 @@ class DivisionByZeroError extends ArithmeticError
 }
 
 class UnhandledMatchError extends Error
+{
+}
+
+class RequestParseBodyException extends Exception
 {
 }

@@ -1,12 +1,10 @@
 --TEST--
 mysqli_stmt_get_result()
+--EXTENSIONS--
+mysqli
 --SKIPIF--
 <?php
-require_once('skipif.inc');
-require_once('skipifconnectfailure.inc');
-
-if (!function_exists('mysqli_stmt_get_result'))
-    die('skip mysqli_stmt_get_result not available');
+require_once 'skipifconnectfailure.inc';
 ?>
 --FILE--
 <?php
@@ -15,9 +13,7 @@ if (!function_exists('mysqli_stmt_get_result'))
     mysqli_stmt_bind_result.phpt already. Restrict
     this test case to the basics.
     */
-    require_once("connect.inc");
-
-    require('table.inc');
+    require 'table.inc';
 
     if (!$stmt = mysqli_stmt_init($link))
         printf("[003] [%d] %s\n", mysqli_errno($link), mysqli_error($link));
@@ -177,7 +173,7 @@ if (!function_exists('mysqli_stmt_get_result'))
 ?>
 --CLEAN--
 <?php
-    require_once("clean_table.inc");
+    require_once 'clean_table.inc';
 ?>
 --EXPECTF--
 mysqli_stmt object is not fully initialized

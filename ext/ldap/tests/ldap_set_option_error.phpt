@@ -3,13 +3,13 @@ ldap_set_option() - ldap_set_option() operation that should fail
 --CREDITS--
 Patrick Allaert <patrickallaert@php.net>
 # Belgian PHP Testfest 2009
---SKIPIF--
-<?php require_once('skipif.inc'); ?>
+--EXTENSIONS--
+ldap
 --FILE--
 <?php
 require "connect.inc";
 
-$link = ldap_connect($host, $port);
+$link = ldap_connect($uri);
 $controls = array(
     array(
         array("xid" => "1.2.752.58.10.1", "iscritical" => true),

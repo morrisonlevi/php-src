@@ -3,7 +3,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -114,10 +114,8 @@ static zend_object *Transliterator_object_create( zend_class_entry *ce )
 	intern = zend_object_alloc(sizeof(Transliterator_object), ce);
 
 	zend_object_std_init( &intern->zo, ce );
-    object_properties_init( &intern->zo, ce );
+	object_properties_init( &intern->zo, ce );
 	transliterator_object_init( intern );
-
-	intern->zo.handlers = &Transliterator_handlers;
 
 	return &intern->zo;
 }
@@ -144,22 +142,11 @@ static zend_object *Transliterator_clone_obj( zend_object *object )
 
 	if( to_orig->utrans != NULL )
 	{
-		zval			tempz; /* dummy zval to pass to transliterator_object_construct */
-
 		/* guaranteed to return NULL if it fails */
 		UTransliterator *utrans = utrans_clone( to_orig->utrans, TRANSLITERATOR_ERROR_CODE_P( to_orig ) );
 
-		if( U_FAILURE( TRANSLITERATOR_ERROR_CODE( to_orig ) ) )
-			goto err;
-
-		ZVAL_OBJ(&tempz, ret_val);
-		transliterator_object_construct( &tempz, utrans,
-			TRANSLITERATOR_ERROR_CODE_P( to_orig ) );
-
-		if( U_FAILURE( TRANSLITERATOR_ERROR_CODE( to_orig ) ) )
-		{
+		if( U_FAILURE( TRANSLITERATOR_ERROR_CODE( to_orig ) ) ) {
 			zend_string *err_msg;
-err:
 
 			if( utrans != NULL )
 				transliterator_object_destroy( to_new );
@@ -173,7 +160,8 @@ err:
 			err_msg = intl_error_get_message( TRANSLITERATOR_ERROR_P( to_orig ) );
 			zend_throw_error( NULL, "%s", ZSTR_VAL(err_msg) );
 			zend_string_free( err_msg ); /* if it's changed into a warning */
-			/* do not destroy tempz; we need to return something */
+		} else {
+			to_new->utrans = utrans;
 		}
 	}
 	else
@@ -186,73 +174,6 @@ err:
 }
 /* }}} */
 
-/* {{{ get_property_ptr_ptr handler */
-static zval *Transliterator_get_property_ptr_ptr( zend_object *object, zend_string *name, int type, void **cache_slot )
-{
-	zval *retval;
-
-	if(zend_binary_strcmp( "id", sizeof( "id" ) - 1,
-		ZSTR_VAL( name ), ZSTR_LEN( name ) ) == 0 )
-	{
-		retval = NULL; /* fallback to read_property */
-	}
-	else
-	{
-		retval = zend_std_get_property_ptr_ptr( object, name, type, cache_slot );
-	}
-
-	return retval;
-}
-/* }}} */
-
-/* {{{ read_property handler */
-static zval *Transliterator_read_property( zend_object *object, zend_string *name, int type, void **cache_slot, zval *rv )
-{
-	zval *retval;
-
-	if( ( type != BP_VAR_R && type != BP_VAR_IS ) &&
-		( zend_binary_strcmp( "id", sizeof( "id" ) - 1,
-		ZSTR_VAL( name ), ZSTR_LEN( name ) ) == 0 ) )
-	{
-		zend_throw_error(NULL, "Transliterator::$id is read-only");
-		retval = &EG( uninitialized_zval );
-	}
-	else
-	{
-		retval = zend_std_read_property( object, name, type, cache_slot, rv );
-	}
-
-	return retval;
-}
-
-/* }}} */
-
-/* {{{ write_property handler */
-static zval *Transliterator_write_property( zend_object *object, zend_string *name, zval *value,
-	void **cache_slot )
-{
-	zend_class_entry *scope;
-
-	if (EG(fake_scope)) {
-		scope = EG(fake_scope);
-	} else {
-		scope = zend_get_executed_scope();
-	}
-	if( ( scope != Transliterator_ce_ptr ) &&
-		( zend_binary_strcmp( "id", sizeof( "id" ) - 1,
-		ZSTR_VAL( name ), ZSTR_LEN( name ) ) == 0 ) )
-	{
-		zend_throw_error(NULL, "Transliterator::$id is read-only");
-	}
-	else
-	{
-		value = zend_std_write_property( object, name, value, cache_slot );
-	}
-
-	return value;
-}
-/* }}} */
-
 /* {{{ transliterator_register_Transliterator_class
  * Initialize 'Transliterator' class
  */
@@ -261,15 +182,10 @@ void transliterator_register_Transliterator_class( void )
 	/* Create and register 'Transliterator' class. */
 	Transliterator_ce_ptr = register_class_Transliterator();
 	Transliterator_ce_ptr->create_object = Transliterator_object_create;
+	Transliterator_ce_ptr->default_object_handlers = &Transliterator_handlers;
 	memcpy( &Transliterator_handlers, &std_object_handlers, sizeof Transliterator_handlers );
 	Transliterator_handlers.offset = XtOffsetOf(Transliterator_object, zo);
 	Transliterator_handlers.free_obj = Transliterator_objects_free;
 	Transliterator_handlers.clone_obj = Transliterator_clone_obj;
-	Transliterator_handlers.get_property_ptr_ptr = Transliterator_get_property_ptr_ptr;
-	Transliterator_handlers.read_property = Transliterator_read_property;
-	Transliterator_handlers.write_property = Transliterator_write_property;
-
-	/* constants are declared in transliterator_register_constants, called from MINIT */
-
 }
 /* }}} */

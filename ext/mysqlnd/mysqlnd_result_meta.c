@@ -5,7 +5,7 @@
   | This source file is subject to version 3.01 of the PHP license,      |
   | that is bundled with this package in the file LICENSE, and is        |
   | available through the world-wide-web at the following url:           |
-  | http://www.php.net/license/3_01.txt                                  |
+  | https://www.php.net/license/3_01.txt                                 |
   | If you did not receive a copy of the PHP license and are unable to   |
   | obtain it through the world-wide-web, please send a note to          |
   | license@php.net so we can mail you a copy immediately.               |
@@ -259,7 +259,7 @@ static MYSQLND_FIELD_OFFSET
 MYSQLND_METHOD(mysqlnd_res_meta, field_seek)(MYSQLND_RES_METADATA * const meta, const MYSQLND_FIELD_OFFSET field_offset)
 {
 	MYSQLND_FIELD_OFFSET return_value = 0;
-	DBG_ENTER("mysqlnd_res_meta::fetch_fields");
+	DBG_ENTER("mysqlnd_res_meta::field_seek");
 	return_value = meta->current_field;
 	meta->current_field = field_offset;
 	DBG_RETURN(return_value);

@@ -3,7 +3,7 @@
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | http://www.php.net/license/3_01.txt                                  |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -85,8 +85,18 @@ PHP_FUNCTION( numfmt_parse )
 			val_double = unum_parseDouble(FORMATTER_OBJECT(nfo), sstr, sstr_len, position_p, &INTL_DATA_ERROR_CODE(nfo));
 			RETVAL_DOUBLE(val_double);
 			break;
+		case FORMAT_TYPE_CURRENCY:
+			if (getThis()) {
+				const char *space;
+				const char *class_name = get_active_class_name(&space);
+				zend_argument_value_error(2, "cannot be NumberFormatter::TYPE_CURRENCY constant, "
+					"use %s%sparseCurrency() method instead", class_name, space);
+			} else {
+				zend_argument_value_error(3, "cannot be NumberFormatter::TYPE_CURRENCY constant, use numfmt_parse_currency() function instead");
+			}
+			goto cleanup;
 		default:
-			zend_argument_value_error(3, "must be a NumberFormatter::TYPE_* constant");
+			zend_argument_value_error(getThis() ? 2 : 3, "must be a NumberFormatter::TYPE_* constant");
 			goto cleanup;
 	}
 

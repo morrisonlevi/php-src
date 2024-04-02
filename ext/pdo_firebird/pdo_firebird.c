@@ -5,7 +5,7 @@
   | This source file is subject to version 3.01 of the PHP license,      |
   | that is bundled with this package in the file LICENSE, and is        |
   | available through the world-wide-web at the following url:           |
-  | http://www.php.net/license/3_01.txt                                  |
+  | https://www.php.net/license/3_01.txt                                 |
   | If you did not receive a copy of the PHP license and are unable to   |
   | obtain it through the world-wide-web, please send a note to          |
   | license@php.net so we can mail you a copy immediately.               |
@@ -25,6 +25,9 @@
 #include "pdo/php_pdo_driver.h"
 #include "php_pdo_firebird.h"
 #include "php_pdo_firebird_int.h"
+#include "pdo_firebird_arginfo.h"
+
+static zend_class_entry *PdoFirebird_ce;
 
 /* {{{ pdo_firebird_deps */
 static const zend_module_dep pdo_firebird_deps[] = {
@@ -57,17 +60,25 @@ PHP_MINIT_FUNCTION(pdo_firebird) /* {{{ */
 	REGISTER_PDO_CLASS_CONST_LONG("FB_ATTR_DATE_FORMAT", (zend_long) PDO_FB_ATTR_DATE_FORMAT);
 	REGISTER_PDO_CLASS_CONST_LONG("FB_ATTR_TIME_FORMAT", (zend_long) PDO_FB_ATTR_TIME_FORMAT);
 	REGISTER_PDO_CLASS_CONST_LONG("FB_ATTR_TIMESTAMP_FORMAT", (zend_long) PDO_FB_ATTR_TIMESTAMP_FORMAT);
+	REGISTER_PDO_CLASS_CONST_LONG("FB_TRANSACTION_ISOLATION_LEVEL", (zend_long) PDO_FB_TRANSACTION_ISOLATION_LEVEL);
+	REGISTER_PDO_CLASS_CONST_LONG("FB_READ_COMMITTED", (zend_long) PDO_FB_READ_COMMITTED);
+	REGISTER_PDO_CLASS_CONST_LONG("FB_REPEATABLE_READ", (zend_long) PDO_FB_REPEATABLE_READ);
+	REGISTER_PDO_CLASS_CONST_LONG("FB_SERIALIZABLE", (zend_long) PDO_FB_SERIALIZABLE);
+	REGISTER_PDO_CLASS_CONST_LONG("FB_WRITABLE_TRANSACTION", (zend_long) PDO_FB_WRITABLE_TRANSACTION);
 
 	if (FAILURE == php_pdo_register_driver(&pdo_firebird_driver)) {
 		return FAILURE;
 	}
+
+	PdoFirebird_ce = register_class_PdoFirebird(pdo_dbh_ce);
+	PdoFirebird_ce->create_object = pdo_dbh_new;
 
 #ifdef ZEND_SIGNALS
 	/* firebird replaces some signals at runtime, suppress warnings. */
 	SIGG(check) = 0;
 #endif
 
-	return SUCCESS;
+	return php_pdo_register_driver_specific_ce(&pdo_firebird_driver, PdoFirebird_ce);
 }
 /* }}} */
 
@@ -85,7 +96,7 @@ PHP_MINFO_FUNCTION(pdo_firebird) /* {{{ */
 	isc_get_client_version(version);
 
 	php_info_print_table_start();
-	php_info_print_table_header(2, "PDO Driver for Firebird", "enabled");
+	php_info_print_table_row(2, "PDO Driver for Firebird", "enabled");
 	php_info_print_table_row(2, "Client Library Version", version);
 	php_info_print_table_end();
 }

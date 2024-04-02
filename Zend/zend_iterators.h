@@ -31,7 +31,7 @@ typedef struct _zend_object_iterator_funcs {
 	void (*dtor)(zend_object_iterator *iter);
 
 	/* check for end of iteration (FAILURE or SUCCESS if data is valid) */
-	int (*valid)(zend_object_iterator *iter);
+	zend_result (*valid)(zend_object_iterator *iter);
 
 	/* fetch the item data for the current element */
 	zval *(*get_current_data)(zend_object_iterator *iter);
@@ -71,6 +71,13 @@ typedef struct _zend_class_iterator_funcs {
 	zend_function *zf_next;
 	zend_function *zf_rewind;
 } zend_class_iterator_funcs;
+
+typedef struct _zend_class_arrayaccess_funcs {
+	zend_function *zf_offsetget;
+	zend_function *zf_offsetexists;
+	zend_function *zf_offsetset;
+	zend_function *zf_offsetunset;
+} zend_class_arrayaccess_funcs;
 
 BEGIN_EXTERN_C()
 /* given a zval, returns stuff that can be used to iterate it. */
