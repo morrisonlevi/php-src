@@ -2,6 +2,8 @@
 
 /** @generate-class-entries */
 
+namespace {
+
 class ArrayObject implements IteratorAggregate, ArrayAccess, Serializable, Countable
 {
     /** @cvalue SPL_ARRAY_STD_PROP_LIST */
@@ -243,3 +245,45 @@ class RecursiveArrayIterator extends ArrayIterator implements RecursiveIterator
     /** @tentative-return-type */
     public function getChildren(): ?RecursiveArrayIterator {}
 }
+
+} // namespace
+
+namespace Spl {
+
+/**
+ * @strict-properties
+ * @not-serializable
+ */
+final class ForwardArrayIterator
+    implements \Countable, \Iterator
+{
+    public function __construct(array $array) {}
+
+    public function count(): int {}
+
+    public function rewind(): void {}
+    public function valid(): bool {}
+    public function key(): int|string {}
+    public function current(): mixed {}
+    public function next(): void {}
+}
+
+/**
+ * @strict-properties
+ * @not-serializable
+ */
+final class ReverseArrayIterator
+    implements \Countable, \Iterator
+{
+    public function __construct(array $array) {}
+
+    public function count(): int {}
+
+    public function rewind(): void {}
+    public function valid(): bool {}
+    public function key(): int|string {}
+    public function current(): mixed {}
+    public function next(): void {}
+}
+
+} // namespace Spl
