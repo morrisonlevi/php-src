@@ -1536,7 +1536,6 @@ static zend_always_inline ArrayIterator *ArrayIterator_from_obj(zend_object *obj
 	return (ArrayIterator *) ((char*)(obj) - XtOffsetOf(ArrayIterator, std));
 }
 
-
 static void ArrayIterator_dtor_obj(zend_object *object)
 {
 	ArrayIterator *iterator = ArrayIterator_from_obj(object);
@@ -1596,6 +1595,13 @@ static HashTable *ArrayIterator_get_properties_for(zend_object *object, zend_pro
 	zend_hash_str_add(properties, ZEND_STRL("offset"), &offset);
 
 	return properties;
+}
+
+static HashTable *spl_array_it_get_gc(zend_object_iterator *iter, zval **table, int *n)
+{
+	*n = 1;
+	*table = &iter->data;
+	return NULL;
 }
 
 /* Spl\ForwardArrayIterator {{{ */
@@ -1687,7 +1693,7 @@ static const zend_object_iterator_funcs spl_ForwardArrayIterator_it_funcs = {
 	ForwardArrayIterator_it_move_forward,
 	ForwardArrayIterator_it_rewind,
 	NULL,
-	NULL,
+	spl_array_it_get_gc, // todo: how do I test this?
 };
 
 static zend_object_iterator *ForwardArrayIterator_get_iterator(zend_class_entry *ce, zval *object, int by_ref)
@@ -1897,7 +1903,7 @@ static const zend_object_iterator_funcs spl_ReverseArrayIterator_it_funcs = {
 	ReverseArrayIterator_it_move_forward,
 	ReverseArrayIterator_it_rewind,
 	NULL,
-	NULL,
+	spl_array_it_get_gc, // todo: how do I test this?
 };
 
 static zend_object_iterator *ReverseArrayIterator_get_iterator(zend_class_entry *ce, zval *object, int by_ref)
@@ -2126,13 +2132,6 @@ static void spl_array_it_rewind(zend_object_iterator *iter) /* {{{ */
 	spl_array_rewind(object);
 }
 /* }}} */
-
-static HashTable *spl_array_it_get_gc(zend_object_iterator *iter, zval **table, int *n)
-{
-	*n = 1;
-	*table = &iter->data;
-	return NULL;
-}
 
 /* iterator handler table */
 static const zend_object_iterator_funcs spl_array_it_funcs = {
