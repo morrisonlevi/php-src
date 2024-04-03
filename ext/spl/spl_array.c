@@ -1597,6 +1597,18 @@ static HashTable *ArrayIterator_get_properties_for(zend_object *object, zend_pro
 	return properties;
 }
 
+static bool ArrayIterator_valid(ArrayIterator *iterator)
+{
+	HashTable *ht = iterator->ht;
+	return zend_hash_get_current_key_type_ex(ht, &iterator->current) != HASH_KEY_NON_EXISTENT;
+}
+
+static zend_result ArrayIterator_it_valid(zend_object_iterator *zoi)
+{
+	ArrayIterator *iterator = ArrayIterator_from_obj(Z_OBJ(zoi->data));
+	return ArrayIterator_valid(iterator) ? SUCCESS : FAILURE;
+}
+
 static HashTable *spl_array_it_get_gc(zend_object_iterator *iter, zval **table, int *n)
 {
 	*n = 1;
@@ -1623,21 +1635,9 @@ static void ForwardArrayIterator_it_rewind(zend_object_iterator *zoi)
 	ForwardArrayIterator_rewind(iterator);
 }
 
-static bool ForwardArrayIterator_valid(ForwardArrayIterator *iterator)
-{
-	HashTable *ht = iterator->ht;
-	return zend_hash_get_current_key_type_ex(ht, &iterator->current) != HASH_KEY_NON_EXISTENT;
-}
-
-static int ForwardArrayIterator_it_valid(zend_object_iterator *zoi)
-{
-	ForwardArrayIterator *iterator = ArrayIterator_from_obj(Z_OBJ(zoi->data));
-	return ForwardArrayIterator_valid(iterator) ? SUCCESS : FAILURE;
-}
-
 static zval *ForwardArrayIterator_current(ForwardArrayIterator *iterator)
 {
-	if (UNEXPECTED(!ForwardArrayIterator_valid(iterator))) {
+	if (UNEXPECTED(!ArrayIterator_valid(iterator))) {
 		zend_throw_error(NULL, "Spl\\ForwardArrayIterator::current() must not be called on an invalid iterator");
 		return NULL;
 	}
@@ -1653,7 +1653,7 @@ static zval *ForwardArrayIterator_it_get_current_data(zend_object_iterator *zoi)
 
 static void ForwardArrayIterator_key(ForwardArrayIterator *iterator, zval *key)
 {
-	if (UNEXPECTED(!ForwardArrayIterator_valid(iterator))) {
+	if (UNEXPECTED(!ArrayIterator_valid(iterator))) {
 		zend_throw_error(NULL, "Spl\\ForwardArrayIterator::key() must not be called on an invalid iterator");
 		return;
 	}
@@ -1670,7 +1670,7 @@ static void ForwardArrayIterator_it_get_current_key(zend_object_iterator *zoi, z
 static void ForwardArrayIterator_next(ForwardArrayIterator *iterator)
 {
 	// Why is `next` being called on an invalid iterator? Fix your code!
-	if (!ForwardArrayIterator_valid(iterator)) {
+	if (!ArrayIterator_valid(iterator)) {
 		zend_throw_error(NULL, "Spl\\ForwardArrayIterator::next() must not be called on an invalid iterator");
 		return;
 	}
@@ -1687,7 +1687,7 @@ static void ForwardArrayIterator_it_move_forward(zend_object_iterator *zoi)
 
 static const zend_object_iterator_funcs spl_ForwardArrayIterator_it_funcs = {
 	ForwardArrayIterator_it_dtor,
-	ForwardArrayIterator_it_valid,
+	ArrayIterator_it_valid,
 	ForwardArrayIterator_it_get_current_data,
 	ForwardArrayIterator_it_get_current_key,
 	ForwardArrayIterator_it_move_forward,
@@ -1766,7 +1766,7 @@ ZEND_METHOD(Spl_ForwardArrayIterator, valid)
 	ZEND_PARSE_PARAMETERS_NONE();
 
 	ForwardArrayIterator *iterator = ArrayIterator_from_obj(Z_OBJ_P(ZEND_THIS));
-	RETURN_BOOL(ForwardArrayIterator_valid(iterator));
+	RETURN_BOOL(ArrayIterator_valid(iterator));
 }
 
 ZEND_METHOD(Spl_ForwardArrayIterator, key)
@@ -1832,21 +1832,9 @@ static void ReverseArrayIterator_it_rewind(zend_object_iterator *zoi)
 	ReverseArrayIterator_rewind(iterator);
 }
 
-static bool ReverseArrayIterator_valid(ReverseArrayIterator *iterator)
-{
-	HashTable *ht = iterator->ht;
-	return zend_hash_get_current_key_type_ex(ht, &iterator->current) != HASH_KEY_NON_EXISTENT;
-}
-
-static int ReverseArrayIterator_it_valid(zend_object_iterator *zoi)
-{
-	ReverseArrayIterator *iterator = ArrayIterator_from_obj(Z_OBJ(zoi->data));
-	return ReverseArrayIterator_valid(iterator) ? SUCCESS : FAILURE;
-}
-
 static zval *ReverseArrayIterator_current(ReverseArrayIterator *iterator)
 {
-	if (UNEXPECTED(!ReverseArrayIterator_valid(iterator))) {
+	if (UNEXPECTED(!ArrayIterator_valid(iterator))) {
 		zend_throw_error(NULL, "Spl\\ReverseArrayIterator::current() must not be called on an invalid iterator");
 		return NULL;
 	}
@@ -1862,7 +1850,7 @@ static zval *ReverseArrayIterator_it_get_current_data(zend_object_iterator *zoi)
 
 static void ReverseArrayIterator_key(ReverseArrayIterator *iterator, zval *key)
 {
-	if (UNEXPECTED(!ReverseArrayIterator_valid(iterator))) {
+	if (UNEXPECTED(!ArrayIterator_valid(iterator))) {
 		zend_throw_error(NULL, "Spl\\ReverseArrayIterator::key() must not be called on an invalid iterator");
 		return;
 	}
@@ -1880,7 +1868,7 @@ static void ReverseArrayIterator_it_get_current_key(zend_object_iterator *zoi, z
 static void ReverseArrayIterator_next(ReverseArrayIterator *iterator)
 {
 	// Why is `next` being called on an invalid iterator? Fix your code!
-	if (!ReverseArrayIterator_valid(iterator)) {
+	if (!ArrayIterator_valid(iterator)) {
 		zend_throw_error(NULL, "Spl\\ReverseArrayIterator::next() must not be called on an invalid iterator");
 		return;
 	}
@@ -1897,7 +1885,7 @@ static void ReverseArrayIterator_it_move_forward(zend_object_iterator *zoi)
 
 static const zend_object_iterator_funcs spl_ReverseArrayIterator_it_funcs = {
 	ReverseArrayIterator_it_dtor,
-	ReverseArrayIterator_it_valid,
+	ArrayIterator_it_valid,
 	ReverseArrayIterator_it_get_current_data,
 	ReverseArrayIterator_it_get_current_key,
 	ReverseArrayIterator_it_move_forward,
@@ -1976,7 +1964,7 @@ ZEND_METHOD(Spl_ReverseArrayIterator, valid)
 	ZEND_PARSE_PARAMETERS_NONE();
 
 	ReverseArrayIterator *iterator = ArrayIterator_from_obj(Z_OBJ_P(ZEND_THIS));
-	RETURN_BOOL(ReverseArrayIterator_valid(iterator));
+	RETURN_BOOL(ArrayIterator_valid(iterator));
 }
 
 ZEND_METHOD(Spl_ReverseArrayIterator, key)
