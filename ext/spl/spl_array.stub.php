@@ -255,11 +255,9 @@ namespace Spl {
  * @not-serializable
  */
 final class ForwardArrayIterator
-    implements \Countable, \Iterator
+    implements \Iterator
 {
     public function __construct(array $array) {}
-
-    public function count(): int {}
 
     public function rewind(): void {}
     public function valid(): bool {}
@@ -273,11 +271,9 @@ final class ForwardArrayIterator
  * @not-serializable
  */
 final class ReverseArrayIterator
-    implements \Countable, \Iterator
+    implements \Iterator
 {
     public function __construct(array $array) {}
-
-    public function count(): int {}
 
     public function rewind(): void {}
     public function valid(): bool {}

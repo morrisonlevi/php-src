@@ -11,8 +11,6 @@ $it = new Spl\ForwardArrayIterator($ht);
 var_export($ht);
 echo "\n";
 
-echo 'Count of iterator: ', count($it), "\n";
-
 foreach ($it as $key => $value) {
     var_export([$key => $value]);
     echo "\n";
@@ -22,7 +20,6 @@ foreach ($it as $key => $value) {
 --EXPECTF--
 array (
 )
-Count of iterator: 1
 array (
   0 => 1,
 )

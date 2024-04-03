@@ -1551,13 +1551,6 @@ static void ArrayIterator_free_obj(zend_object *object)
 	zend_object_std_dtor(object);
 }
 
-static int ArrayIterator_count_elements(zend_object *obj, zend_long *count)
-{
-	ArrayIterator *iterator = ArrayIterator_from_obj(obj);
-	*count = zend_hash_num_elements(iterator->ht);
-	return SUCCESS;
-}
-
 static HashTable *ArrayIterator_get_properties_for(zend_object *object, zend_prop_purpose purpose)
 {
 	// todo: determine if it is worthwhile to implement any other purposes
@@ -1755,14 +1748,6 @@ ZEND_METHOD(Spl_ForwardArrayIterator, __construct)
 	ForwardArrayIterator_rewind(iterator);
 }
 
-ZEND_METHOD(Spl_ForwardArrayIterator, count)
-{
-	ZEND_PARSE_PARAMETERS_NONE();
-
-	Z_TYPE_INFO_P(return_value) = IS_LONG;
-	ArrayIterator_count_elements(Z_OBJ_P(ZEND_THIS), &Z_LVAL_P(return_value));
-}
-
 ZEND_METHOD(Spl_ForwardArrayIterator, rewind)
 {
 	ZEND_PARSE_PARAMETERS_NONE();
@@ -1808,14 +1793,13 @@ ZEND_METHOD(Spl_ForwardArrayIterator, next)
 
 static void register_ForwardArrayIterator(void)
 {
-	spl_ce_ForwardArrayIterator = register_class_Spl_ForwardArrayIterator(zend_ce_countable, zend_ce_iterator);
+	spl_ce_ForwardArrayIterator = register_class_Spl_ForwardArrayIterator(zend_ce_iterator);
 
 	/* Spl\ForwardArrayIterator object handlers */
 	zend_object_handlers *obj_handlers = &spl_handler_ForwardArrayIterator;
 	memcpy(obj_handlers, &std_object_handlers, sizeof std_object_handlers);
 	obj_handlers->free_obj = ArrayIterator_free_obj;
 	obj_handlers->offset = XtOffsetOf(ArrayIterator, std);
-	obj_handlers->count_elements = ArrayIterator_count_elements;
 	obj_handlers->get_properties_for = ArrayIterator_get_properties_for;
 
 	/* Spl\ForwardArrayIterator class handlers */
@@ -1975,14 +1959,6 @@ ZEND_METHOD(Spl_ReverseArrayIterator, __construct)
 	ReverseArrayIterator_rewind(iterator);
 }
 
-ZEND_METHOD(Spl_ReverseArrayIterator, count)
-{
-	ZEND_PARSE_PARAMETERS_NONE();
-
-	Z_TYPE_INFO_P(return_value) = IS_LONG;
-	ArrayIterator_count_elements(Z_OBJ_P(ZEND_THIS), &Z_LVAL_P(return_value));
-}
-
 ZEND_METHOD(Spl_ReverseArrayIterator, rewind)
 {
 	ZEND_PARSE_PARAMETERS_NONE();
@@ -2028,14 +2004,13 @@ ZEND_METHOD(Spl_ReverseArrayIterator, next)
 
 static void register_ReverseArrayIterator(void)
 {
-	spl_ce_ReverseArrayIterator = register_class_Spl_ReverseArrayIterator(zend_ce_countable, zend_ce_iterator);
+	spl_ce_ReverseArrayIterator = register_class_Spl_ReverseArrayIterator(zend_ce_iterator);
 
 	/* Spl\ReverseArrayIterator object handlers */
 	zend_object_handlers *obj_handlers = &spl_handler_ReverseArrayIterator;
 	memcpy(obj_handlers, &std_object_handlers, sizeof std_object_handlers);
 	obj_handlers->free_obj = ArrayIterator_free_obj;
 	obj_handlers->offset = XtOffsetOf(ArrayIterator, std);
-	obj_handlers->count_elements = ArrayIterator_count_elements;
 	obj_handlers->get_properties_for = ArrayIterator_get_properties_for;
 
 	/* Spl\ReverseArrayIterator class handlers */
