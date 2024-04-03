@@ -1698,9 +1698,9 @@ static const zend_object_iterator_funcs spl_ForwardArrayIterator_it_funcs = {
 
 static zend_object_iterator *ForwardArrayIterator_get_iterator(zend_class_entry *ce, zval *object, int by_ref)
 {
-	ZEND_ASSERT(ce == spl_ce_ForwardArrayIterator);
 	ZEND_ASSERT(Z_TYPE_P(object) == IS_OBJECT);
-	ZEND_ASSERT(Z_OBJCE_P(object) == spl_ce_ForwardArrayIterator);
+	ZEND_ASSERT(ce == spl_ce_ForwardArrayIterator);
+	ZEND_ASSERT(ce == Z_OBJCE_P(object));
 
 	if (UNEXPECTED(by_ref)) {
 		zend_throw_error(NULL, "An iterator cannot be used with foreach by reference");
@@ -1908,9 +1908,9 @@ static const zend_object_iterator_funcs spl_ReverseArrayIterator_it_funcs = {
 
 static zend_object_iterator *ReverseArrayIterator_get_iterator(zend_class_entry *ce, zval *object, int by_ref)
 {
-	ZEND_ASSERT(ce == spl_ce_ReverseArrayIterator);
 	ZEND_ASSERT(Z_TYPE_P(object) == IS_OBJECT);
-	ZEND_ASSERT(Z_OBJCE_P(object) == spl_ce_ReverseArrayIterator);
+	ZEND_ASSERT(ce == spl_ce_ReverseArrayIterator);
+	ZEND_ASSERT(ce == Z_OBJCE_P(object));
 
 	if (UNEXPECTED(by_ref)) {
 		zend_throw_error(NULL, "An iterator cannot be used with foreach by reference");
