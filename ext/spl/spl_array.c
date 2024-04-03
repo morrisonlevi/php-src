@@ -1527,7 +1527,7 @@ PHP_METHOD(ArrayObject, __debugInfo)
  */
 typedef struct {
 	HashPosition current;
-	HashTable *ht;
+	zval arr; // todo: move to property?
 	zend_object std;
 } ArrayIterator;
 
@@ -1539,9 +1539,9 @@ static zend_always_inline ArrayIterator *ArrayIterator_from_obj(zend_object *obj
 static void ArrayIterator_dtor_obj(zend_object *object)
 {
 	ArrayIterator *iterator = ArrayIterator_from_obj(object);
-	zend_hash_release(iterator->ht);
+	zval_ptr_dtor(&iterator->arr);
 	iterator->current = 0;
-	iterator->ht = (HashTable *)&zend_empty_array;
+	ZVAL_EMPTY_ARRAY(&iterator->arr);
 }
 
 static void ArrayIterator_free_obj(zend_object *object)
@@ -1560,24 +1560,9 @@ static HashTable *ArrayIterator_get_properties_for(zend_object *object, zend_pro
 	ArrayIterator *iterator = ArrayIterator_from_obj(object);
 	HashTable *properties = zend_new_array(2);
 
-	HashTable *ht = iterator->ht;
-	/* At the time of this writing, there isn't a macro that sets the
-	 * correct type info on the zval if the array is immutable, so do it
-	 * manually, as returning `zend_empty_array` (either from our own
-	 * .create_obj handler or from an array literal in a script) will
-	 * cause a sigsegv if the flags are not set correctly.
-	 */
-	zval inner;
-	{
-		Z_ARR(inner) = ht;
-		if (!(GC_FLAGS(ht) & IS_ARRAY_IMMUTABLE)) {
-			GC_ADDREF(ht);
-			Z_TYPE_INFO(inner) = IS_ARRAY_EX;
-		} else {
-			Z_TYPE_INFO(inner) = IS_ARRAY;
-		}
-	}
-	zend_hash_str_add(properties, ZEND_STRL("inner"), &inner);
+	HashTable *ht = Z_ARR(iterator->arr);
+	GC_TRY_ADDREF(ht);
+	zend_hash_str_add(properties, ZEND_STRL("inner"), &iterator->arr);
 
 	// For the offset property we ignore holes, which are hidden from PHP.
 	zval offset;
@@ -1597,9 +1582,18 @@ static HashTable *ArrayIterator_get_properties_for(zend_object *object, zend_pro
 	return properties;
 }
 
+// todo: how do I test this?
+static HashTable *ArrayIterator_get_gc(zend_object *object, zval **table, int *n)
+{
+	ArrayIterator *iterator = ArrayIterator_from_obj(object);
+	*table = &iterator->arr;
+	*n = 1;
+	return NULL;
+}
+
 static bool ArrayIterator_valid(ArrayIterator *iterator)
 {
-	HashTable *ht = iterator->ht;
+	HashTable *ht = Z_ARR(iterator->arr);
 	return zend_hash_get_current_key_type_ex(ht, &iterator->current) != HASH_KEY_NON_EXISTENT;
 }
 
@@ -1642,7 +1636,7 @@ static zval *ForwardArrayIterator_current(ForwardArrayIterator *iterator)
 		return NULL;
 	}
 
-	return zend_hash_get_current_data_ex(iterator->ht, &iterator->current);
+	return zend_hash_get_current_data_ex(Z_ARR(iterator->arr), &iterator->current);
 }
 
 static zval *ForwardArrayIterator_it_get_current_data(zend_object_iterator *zoi)
@@ -1658,7 +1652,7 @@ static void ForwardArrayIterator_key(ForwardArrayIterator *iterator, zval *key)
 		return;
 	}
 
-	zend_hash_get_current_key_zval_ex(iterator->ht, key, &iterator->current);
+	zend_hash_get_current_key_zval_ex(Z_ARR(iterator->arr), key, &iterator->current);
 }
 
 static void ForwardArrayIterator_it_get_current_key(zend_object_iterator *zoi, zval *key)
@@ -1675,7 +1669,7 @@ static void ForwardArrayIterator_next(ForwardArrayIterator *iterator)
 		return;
 	}
 
-	zend_hash_move_forward_ex(iterator->ht, &iterator->current);
+	zend_hash_move_forward_ex(Z_ARR(iterator->arr), &iterator->current);
 }
 
 static void ForwardArrayIterator_it_move_forward(zend_object_iterator *zoi)
@@ -1730,8 +1724,7 @@ static zend_object *spl_ForwardArrayIterator_new(zend_class_entry *class_type)
 	/* Initialize the inner array to the empty array, then call rewind.
 	 * This ensures a consistent object.
 	 */
-	iterator->ht = (HashTable *)&zend_empty_array;
-
+	ZVAL_EMPTY_ARRAY(&iterator->arr);
 	ForwardArrayIterator_rewind(iterator);
 
 	return &iterator->std;
@@ -1746,10 +1739,7 @@ ZEND_METHOD(Spl_ForwardArrayIterator, __construct)
 	ZEND_PARSE_PARAMETERS_END();
 
 	ForwardArrayIterator *iterator = ArrayIterator_from_obj(Z_OBJ_P(ZEND_THIS));
-
-	iterator->ht = Z_ARR_P(array);
-	GC_TRY_ADDREF(iterator->ht);
-
+	ZVAL_COPY(&iterator->arr, array);
 	ForwardArrayIterator_rewind(iterator);
 }
 
@@ -1806,6 +1796,7 @@ static void register_ForwardArrayIterator(void)
 	obj_handlers->free_obj = ArrayIterator_free_obj;
 	obj_handlers->offset = XtOffsetOf(ArrayIterator, std);
 	obj_handlers->get_properties_for = ArrayIterator_get_properties_for;
+	obj_handlers->get_gc = ArrayIterator_get_gc;
 
 	/* Spl\ForwardArrayIterator class handlers */
 	spl_ce_ForwardArrayIterator->create_object = spl_ForwardArrayIterator_new;
@@ -1823,7 +1814,7 @@ static void ReverseArrayIterator_it_dtor(zend_object_iterator *iterator)
 
 static void ReverseArrayIterator_rewind(ReverseArrayIterator *iterator)
 {
-	zend_hash_internal_pointer_end_ex(iterator->ht, &iterator->current);
+	zend_hash_internal_pointer_end_ex(Z_ARR(iterator->arr), &iterator->current);
 }
 
 static void ReverseArrayIterator_it_rewind(zend_object_iterator *zoi)
@@ -1839,7 +1830,7 @@ static zval *ReverseArrayIterator_current(ReverseArrayIterator *iterator)
 		return NULL;
 	}
 
-	return zend_hash_get_current_data_ex(iterator->ht, &iterator->current);
+	return zend_hash_get_current_data_ex(Z_ARR(iterator->arr), &iterator->current);
 }
 
 static zval *ReverseArrayIterator_it_get_current_data(zend_object_iterator *zoi)
@@ -1855,7 +1846,7 @@ static void ReverseArrayIterator_key(ReverseArrayIterator *iterator, zval *key)
 		return;
 	}
 
-	HashTable *ht = iterator->ht;
+	HashTable *ht = Z_ARR(iterator->arr);
 	zend_hash_get_current_key_zval_ex(ht, key, &iterator->current);
 }
 
@@ -1873,7 +1864,7 @@ static void ReverseArrayIterator_next(ReverseArrayIterator *iterator)
 		return;
 	}
 
-	zend_hash_move_backwards_ex(iterator->ht, &iterator->current);
+	zend_hash_move_backwards_ex(Z_ARR(iterator->arr), &iterator->current);
 }
 
 static void ReverseArrayIterator_it_move_forward(zend_object_iterator *zoi)
@@ -1928,8 +1919,7 @@ static zend_object *spl_ReverseArrayIterator_new(zend_class_entry *class_type)
 	/* Initialize the inner array to the empty array, then call rewind.
 	 * This ensures a consistent object.
 	 */
-	iterator->ht = (HashTable *)&zend_empty_array;
-
+	ZVAL_EMPTY_ARRAY(&iterator->arr);
 	ReverseArrayIterator_rewind(iterator);
 
 	return &iterator->std;
@@ -1945,9 +1935,7 @@ ZEND_METHOD(Spl_ReverseArrayIterator, __construct)
 
 	ReverseArrayIterator *iterator = ArrayIterator_from_obj(Z_OBJ_P(ZEND_THIS));
 
-	iterator->ht = Z_ARR_P(array);
-	GC_TRY_ADDREF(iterator->ht);
-
+	ZVAL_COPY(&iterator->arr, array);
 	ReverseArrayIterator_rewind(iterator);
 }
 
@@ -2004,6 +1992,7 @@ static void register_ReverseArrayIterator(void)
 	obj_handlers->free_obj = ArrayIterator_free_obj;
 	obj_handlers->offset = XtOffsetOf(ArrayIterator, std);
 	obj_handlers->get_properties_for = ArrayIterator_get_properties_for;
+	obj_handlers->get_gc = ArrayIterator_get_gc;
 
 	/* Spl\ReverseArrayIterator class handlers */
 	spl_ce_ReverseArrayIterator->create_object = spl_ReverseArrayIterator_new;
