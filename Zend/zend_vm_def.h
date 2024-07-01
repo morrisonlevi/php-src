@@ -4146,6 +4146,14 @@ ZEND_VM_HOT_HANDLER(131, ZEND_DO_FCALL_BY_NAME, ANY, ANY, SPEC(RETVAL,OBSERVER))
 #endif
 		ZEND_OBSERVER_FCALL_END(call, EG(exception) ? NULL : ret);
 
+		if (UNEXPECTED(zend_atomic_bool_load_ex(&EG(vm_interrupt)))) {
+			if (zend_atomic_bool_load_ex(&EG(timed_out))) {
+				zend_timeout();
+			} else if (zend_interrupt_function) {
+				zend_interrupt_function(execute_data);
+			}
+		}
+
 		EG(current_execute_data) = execute_data;
 
 ZEND_VM_C_LABEL(fcall_by_name_end):
@@ -4170,7 +4178,9 @@ ZEND_VM_C_LABEL(fcall_by_name_end):
 		zend_rethrow_exception(execute_data);
 		HANDLE_EXCEPTION();
 	}
-	ZEND_VM_SET_OPCODE(opline + 1);
+	// todo: under what circumstances do ZEND_USER_FUNCTIONs take this code path?
+	CHECK_SYMBOL_TABLES()
+	OPLINE = opline + 1;
 	ZEND_VM_CONTINUE();
 }
 
@@ -4258,6 +4268,14 @@ ZEND_VM_HOT_HANDLER(60, ZEND_DO_FCALL, ANY, ANY, SPEC(RETVAL,OBSERVER))
 #endif
 		ZEND_OBSERVER_FCALL_END(call, EG(exception) ? NULL : ret);
 
+		if (UNEXPECTED(zend_atomic_bool_load_ex(&EG(vm_interrupt)))) {
+			if (zend_atomic_bool_load_ex(&EG(timed_out))) {
+				zend_timeout();
+			} else if (zend_interrupt_function) {
+				zend_interrupt_function(execute_data);
+			}
+		}
+
 		EG(current_execute_data) = execute_data;
 
 ZEND_VM_C_LABEL(fcall_end):
@@ -4281,7 +4299,9 @@ ZEND_VM_C_LABEL(fcall_end):
 		HANDLE_EXCEPTION();
 	}
 
-	ZEND_VM_SET_OPCODE(opline + 1);
+	// todo: under what circumstances do ZEND_USER_FUNCTIONs take this code path?
+	CHECK_SYMBOL_TABLES()
+	OPLINE = opline + 1;
 	ZEND_VM_CONTINUE();
 }
 
