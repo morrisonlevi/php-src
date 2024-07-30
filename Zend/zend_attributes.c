@@ -254,12 +254,12 @@ ZEND_API zend_result zend_get_attribute_value(zval *ret, zend_attribute *attr, u
 
 ZEND_API zend_result zend_get_attribute_object(zval *obj, zend_class_entry *attribute_ce, zend_attribute *attribute_data, zend_class_entry *scope, zend_string *filename)
 {
+	zend_function dummy_func;
 	zend_execute_data *call = NULL;
 
 	if (filename) {
 		/* Set up dummy call frame that makes it look like the attribute was invoked
 		 * from where it occurs in the code. */
-		zend_function dummy_func;
 		zend_op *opline;
 
 		memset(&dummy_func, 0, sizeof(zend_function));
