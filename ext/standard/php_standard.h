@@ -45,6 +45,7 @@
 #include "php_array.h"
 #include "php_assert.h"
 #include "php_versioning.h"
+#include "php_option.h"
 #include "php_password.h"
 
 #include "php_version.h"

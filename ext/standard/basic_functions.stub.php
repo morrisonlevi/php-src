@@ -3295,6 +3295,8 @@ function gettimeofday(bool $as_float = false): array|float {}
 function getrusage(int $mode = 0): array|false {}
 #endif
 
+/* option.c */
+
 /* pack.c */
 
 /**
